@@ -15,7 +15,7 @@
 
 ## 安装
 
-1. 将 `ai-plus.php` 及 `src/` 文件夹上传到 `/wp-content/plugins/ai-plus/`
+1. WordPress 后台
 2. WordPress 后台 → 插件 → 启用 AI Plus
 3. 进入 **AI Plus → API设置**，填入各模型 API Key
 4. 开始使用
