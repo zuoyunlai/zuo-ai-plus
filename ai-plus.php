@@ -101,6 +101,7 @@ register_activation_hook(__FILE__, function () {
     require_once $base . 'Models/TongyiModel.php';
     require_once $base . 'Models/MiniMaxModel.php';
     require_once $base . 'Models/KimiModel.php';
+    require_once $base . 'Models/SeoOptimizer.php';
     require_once $base . 'Utils/Activator.php';
     \AI_Plus\Utils\Activator::activate();
     flush_rewrite_rules();
