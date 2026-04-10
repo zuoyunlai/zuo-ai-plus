@@ -47,7 +47,59 @@ class Model_Init
             'permission_callback' => '__return_true',
         ]);
 
-        \register_rest_route('ai-plus/v1', '/models', [
+        // ── SEO 诊断优化 ──
+        $seo = new \ZuoAIPlus\Models\SeoOptimizer();
+
+        // 全站 SEO 扫描
+        register_rest_route('ai-plus/v1', '/seo-audit', [
+            'methods' => 'GET',
+            'callback' => function($req) use ($seo) {
+                return new \WP_REST_Response($seo->auditAll([
+                    'posts_per_page' => (int) $req->get_param('per_page') ?: 100,
+                    'paged'         => (int) $req->get_param('page') ?: 1,
+                    'skip_done'     => $req->get_param('skip_done') !== 'false',
+                ]), 200);
+            },
+            'permission_callback' => function() { return current_user_can('edit_posts'); },
+        ]);
+
+        // SEO 优化统计
+        register_rest_route('ai-plus/v1', '/seo-stats', [
+            'methods' => 'GET',
+            'callback' => function() use ($seo) {
+                return new \WP_REST_Response($seo->getStats(), 200);
+            },
+            'permission_callback' => function() { return current_user_can('edit_posts'); },
+        ]);
+
+        // 批量 AI 优化
+        register_rest_route('ai-plus/v1', '/seo-optimize-batch', [
+            'methods' => 'POST',
+            'callback' => function($req) use ($seo) {
+                $ids = $req->get_param('post_ids');
+                if (empty($ids)) {
+                    return new \WP_REST_Response(['error' => '缺少 post_ids 参数'], 400);
+                }
+                $ids = array_map('intval', (array) $ids);
+                $model = $req->get_param('model') ?: '';
+                $result = $seo->batchOptimize($ids, $model);
+                return new \WP_REST_Response($result, 200);
+            },
+            'permission_callback' => function() { return current_user_can('edit_posts'); },
+        ]);
+
+        // 重置单篇文章优化状态
+        register_rest_route('ai-plus/v1', '/seo-reset/(?P<post_id>\d+)', [
+            'methods' => 'POST',
+            'callback' => function($req) use ($seo) {
+                $id = (int) $req->get_param('post_id');
+                $seo->resetPost($id);
+                return new \WP_REST_Response(['ok' => true, 'post_id' => $id], 200);
+            },
+            'permission_callback' => function() { return current_user_can('edit_posts'); },
+        ]);
+
+        register_rest_route('ai-plus/v1', '/models', [
             'methods' => 'GET',
             'callback' => [$this, 'getModels'],
             'permission_callback' => '__return_true',
@@ -256,9 +308,22 @@ class Model_Init
             'generate' => "你是一位专业编辑。请根据用户给出的文章标题撰写一篇结构完整、内容丰富的文章，要求有引言、正文、结论，不少于800字。{$kbBlock}{$extraBlock}\n文章标题：{$content}",
             'expand'   => "请仔细阅读用户提供的文章段落，在其后直接续写内容，增加更多细节、案例和论述。不要重复已有内容，不要写标题，直接在原文基础上续写2-3段。{$kbBlock}{$extraBlock}\n{$content}",
             'summarize'=> "请为以下内容生成100字以内的摘要，语言精炼：\n{$content}",
-            'keyword'  => "请为以下内容提取5-8个关键词，用逗号分隔，直接输出关键词不要其他说明：\n{$content}",
+            'keyword'  => "请为以下文章提取3-5个SEO友好的关键词标签，用逗号分隔。\n规则：\n- 每个标签必须是2-6个中文字的短词（如：「AI绘图」「工业设计」「衣柜设计」）\n- 标签要简洁，是文章核心主题的单词或词组，不要完整句子\n- 不要用品牌名、公司名或超长词组\n- 只输出标签，用逗号分隔，不要编号、不要任何解释\n文章内容：\n{$content}",
             'category' => "判断以下内容最适合的WordPress分类名称，只返回分类名称：\n{$content}",
             'slug'     => "请根据标题生成一个简短的WordPress别名（slug），只输出英文或拼音slug，不要任何说明、不要引号、不要多余字符。标题：{$content}",
+            'title_optimize' => "你是一位SEO标题专家。请根据用户给出的原始文章标题，生成一个完全不同的、SEO友好的最佳标题。
+
+要求：
+- 新标题必须与原文主题高度相关，不能偏离原意
+- 字数控制在30-60字（汉字），在搜索引擎中展示完整且有吸引力
+- 在标题前面加入搜索意图词（如：指南/教程/方案/推荐/评测/对比/怎么/如何/哪个/2024等）以提升点击率
+- 核心关键词尽量靠前放置
+- 语言自然流畅，不要生硬堆砌关键词
+- 不要使用特殊符号（如【】、『』等），用 - 或 | 分隔即可
+- 直接输出新标题，不要任何解释、不要引号
+
+原始标题：
+{$content}",
             'featured_image' => "根据以下文章内容（纯文本），提取核心主题、产品或场景，用英文生成一段精准的AI绘图提示词。
 
 规则：
@@ -626,13 +691,16 @@ public function getModels(): array
         }
         $kb = trim(\get_option('ai_plus_knowledge_base', ''));
         $kbBlock = $kb ? ("\n\n【背景知识】\n" . $kb . "\n") : '';
-        $prompt = "请为以下文章提取5-8个关键词标签，用逗号分隔，直接输出关键词不要其他说明。{$kbBlock}\n" . $content;
+        $prompt = "请为以下文章提取3-5个SEO友好的关键词标签，用逗号分隔。\n规则：\n- 每个标签必须是2-6个中文字的短词（如：「AI绘图」「工业设计」「衣柜设计」）\n- 标签要简洁，是文章核心主题的单词或词组，不要完整句子\n- 不要用品牌名、公司名或超长词组\n- 只输出标签，用逗号分隔，不要编号、不要任何解释{$kbBlock}\n文章内容：\n" . $content;
         try {
-            $result = $model->completion($prompt, ['max_tokens' => 1500, 'temperature' => 0.5]);
+            $result = $model->completion($prompt, ['max_tokens' => 800, 'temperature' => 0.3]);
             $text = self::extractContent($result);
-            // 解析逗号分隔的标签
-            $tags = array_filter(array_map('trim', preg_split('/[,，]/', trim($text, "，。、\n"))));
-            return new \WP_REST_Response(['tags' => array_slice($tags, 0, 8)], 200);
+            // 解析逗号分隔的标签，并过滤超长标签
+            $tags = array_filter(
+                array_map('trim', preg_split('/[,，]/', trim($text, "，。、\n"))),
+                fn($tag) => mb_strlen($tag, 'utf-8') >= 2 && mb_strlen($tag, 'utf-8') <= 6
+            );
+            return new \WP_REST_Response(['tags' => array_slice(array_values($tags), 0, 5)], 200);
         } catch (\Exception $e) {
             return new \WP_REST_Response(['error' => $e->getMessage()], 500);
         }

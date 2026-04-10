@@ -70,6 +70,7 @@ class Admin_Init
         \add_submenu_page('ai_plus', 'AI Plus 关于', '关于', 'manage_options', 'ai_plus_about', [$this, 'renderPage']);
         \add_submenu_page('ai_plus', 'AI Plus 统计', '统计', 'manage_options', 'ai_plus_stats', [$this, 'renderPage']);
         \add_submenu_page('ai_plus', 'AI Plus 授权管理', '授权管理', 'manage_options', 'ai_plus_license', [$this, 'renderPage']);
+        \add_submenu_page('ai_plus', 'AI Plus SEO 诊断', 'SEO 诊断', 'manage_options', 'ai_plus_seo', [$this, 'renderPage']);
         // 移除重复的顶层菜单项
         global $submenu;
         if (isset($submenu['ai_plus'][0])) {
@@ -132,6 +133,7 @@ class Admin_Init
                 <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_playground', 'ai_plus_admin')); ?>" class="nav-tab <?php echo  $tab==='ai_plus_playground' ? 'nav-tab-active' : '' ?>">Playground</a>
                 <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_stats', 'ai_plus_admin')); ?>"   class="nav-tab <?php echo  $tab==='ai_plus_stats'   ? 'nav-tab-active' : '' ?>">📊 统计</a>
                 <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_license', 'ai_plus_admin')); ?>" class="nav-tab <?php echo  $tab==='ai_plus_license' ? 'nav-tab-active' : '' ?>">授权管理</a>
+                <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_seo', 'ai_plus_admin')); ?>" class="nav-tab <?php echo  $tab==='ai_plus_seo' ? 'nav-tab-active' : '' ?>">🔍 SEO 诊断</a>
                 <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_about', 'ai_plus_admin')); ?>"  class="nav-tab <?php echo  $tab==='ai_plus_about'  ? 'nav-tab-active' : '' ?>">关于</a>
             </h2>
 
@@ -577,6 +579,9 @@ var aiPlusLicense = (function() {
     return { activate: activate, deactivate: deactivate };
 })();
 </script>
+
+        <?php elseif ($tab === 'ai_plus_seo'): ?>
+            <?php include AI_PLUS_PLUGIN_DIR . 'src/Admin/views/seo.php'; ?>
 
             <?php elseif ($tab === 'ai_plus_about'): ?>
 <div class="wrap ai-plus-settings" style="max-width:960px;">
