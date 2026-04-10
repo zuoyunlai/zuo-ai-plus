@@ -232,12 +232,22 @@ class Model_Init
             return new \WP_REST_Response(['error' => '未配置该模型或API Key'], 400);
         }
 
-        // 注入文章上下文作为系统消息
+        // 注入知识库背景（公司/品牌信息）
         $chatMessages = $messages;
+        $kb = trim(\get_option('ai_plus_knowledge_base', ''));
+        if ($kb) {
+            $kbMsg = [
+                'role'    => 'system',
+                'content' => '【品牌/公司背景知识】以下是你所属公司/品牌的官方信息，访客询问地址、电话、营业时间、联系方式等问题时，优先以这里的信息为准回答：\n' . $kb
+            ];
+            array_unshift($chatMessages, $kbMsg);
+        }
+
+        // 注入文章上下文作为系统消息
         if ($context) {
             $sysMsg = [
                 'role'    => 'system',
-                'content' => '【参考内容】以下是当前文章的全部内容，答题时请以它为依据：\n' . $context
+                'content' => '【当前文章内容】以下是当前文章的全部内容，答题时请以它为依据：\n' . $context
             ];
             array_unshift($chatMessages, $sysMsg);
         }
