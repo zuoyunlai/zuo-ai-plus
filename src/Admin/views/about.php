@@ -1,145 +1,236 @@
 <?php
 if (!defined('ABSPATH')) exit;
+$version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.1.19';
 ?>
-<div class="wrap ai-plus-settings" style="max-width:900px;">
-    <h1>⚡ Zuo AI Plus</h1>
-    <p style="font-size:16px;color:#555;">为 WordPress 提供 AI 生成、聊天、图片等功能的内容助手插件。</p>
+<style>
+    .ai-about-wrap {font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 960px; color: #1e1e1e;}
+    .ai-about-hero {
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        border-radius: 12px;
+        padding: 32px 36px;
+        margin-bottom: 28px;
+        display: flex;
+        align-items: center;
+        gap: 24px;
+    }
+    .ai-about-hero-icon {font-size: 48px;}
+    .ai-about-hero h1 {color: #fff; margin: 0 0 6px; font-size: 26px; font-weight: 700;}
+    .ai-about-hero p {color: rgba(255,255,255,0.8); margin: 0; font-size: 14px;}
+    .ai-about-hero .version-badge {
+        display: inline-block;
+        background: rgba(255,255,255,0.2);
+        color: #fff;
+        padding: 3px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        margin-top: 8px;
+    }
+    .ai-about-grid {display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px;}
+    .ai-card {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 20px 22px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .ai-card h2 {font-size: 14px; margin: 0 0 14px; padding-bottom: 10px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; gap: 8px;}
+    .ai-card table {width: 100%; border-collapse: collapse; font-size: 13px;}
+    .ai-card td {padding: 7px 0; border-bottom: 1px solid #f5f5f5; vertical-align: top;}
+    .ai-card td:first-child {font-weight: 600; color: #6366f1; width: 110px; white-space: nowrap;}
+    .ai-card td:last-child {color: #555;}
+    .ai-new-tag {background: #6366f1; color: #fff; font-size: 10px; padding: 1px 7px; border-radius: 10px; font-weight: 600; margin-left: 6px; vertical-align: middle;}
+    .ai-tip {background: #f0f6fc; border-left: 4px solid #6366f1; border-radius: 0 6px 6px 0; padding: 14px 18px; font-size: 13px; line-height: 1.9; margin-bottom: 28px;}
+    .ai-tip strong {color: #1e1e1e;}
+    .ai-full {grid-column: 1 / -1;}
+    .ai-full-card {display: grid; grid-template-columns: 1fr 1fr; gap: 16px;}
+    .ai-subcard {background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px;}
+    .ai-subcard h3 {margin: 0 0 8px; font-size: 13px; font-weight: 600;}
+    .ai-subcard p {margin: 0; font-size: 12px; color: #666; line-height: 1.7;}
+    .ai-footer {text-align: center; color: #aaa; font-size: 12px; padding-top: 8px;}
+</style>
 
-    <hr style="margin:24px 0;">
+<div class="ai-about-wrap">
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+    <!-- Hero -->
+    <div class="ai-about-hero">
+        <div class="ai-about-hero-icon">🤖</div>
+        <div>
+            <h1>Zuo AI Plus</h1>
+            <p>为 WordPress 打造的一站式 AI 内容助手 · 写作 · 优化 · 配图 · 客服</p>
+            <span class="version-badge">v<?php echo esc_html($version); ?></span>
+        </div>
+    </div>
+
+    <!-- 快速入门 -->
+    <div class="ai-tip">
+        <strong>🚀 快速入门</strong><br>
+        <strong>第一步：</strong>进入「Zuo AI Plus 文本模型」Tab，展开各平台卡片，填入 API Key → <strong>第二步：</strong>在文章编辑器右侧的 AI Plus 面板直接使用所有功能 → <strong>SEO 诊断：</strong>进入「🔍 SEO 诊断」Tab 可批量查看并优化全站文章
+    </div>
+
+    <!-- 功能列表 + 支持模型 -->
+    <div class="ai-about-grid">
 
         <!-- 功能概览 -->
-        <div>
-            <h2 style="font-size:16px;margin-bottom:12px;">🎯 功能概览</h2>
-            <table style="width:100%;border-collapse:collapse;font-size:14px;">
-                <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:6px 0;color:#2271b1;font-weight:600;">🖊️ 文章生成</td>
-                    <td style="padding:6px 0;color:#555;">输入标题 AI 自动生成完整文章</td>
-                </tr>
-                <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:6px 0;color:#2271b1;font-weight:600;">📝 内容扩写</td>
-                    <td style="padding:6px 0;color:#555;">在现有内容上续写更多细节</td>
-                </tr>
-                <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:6px 0;color:#2271b1;font-weight:600;">🏷️ SEO 优化</td>
-                    <td style="padding:6px 0;color:#555;">生成标题、描述、关键词建议</td>
-                </tr>
-                <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:6px 0;color:#2271b1;font-weight:600;">🏷️ 自动标签</td>
-                    <td style="padding:6px 0;color:#555;">分析内容生成相关标签</td>
-                </tr>
-                <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:6px 0;color:#2271b1;font-weight:600;">🖼️ 特色图生成</td>
-                    <td style="padding:6px 0;color:#555;">根据文章内容生成封面图片</td>
-                </tr>
-                <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:6px 0;color:#2271b1;font-weight:600;">🎨 图片生成</td>
-                    <td style="padding:6px 0;color:#555;">Playground 测试文生图模型</td>
-                </tr>
-                <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:6px 0;color:#2271b1;font-weight:600;">💬 网站客服</td>
-                    <td style="padding:6px 0;color:#555;">右下角悬浮 AI 助手浮窗</td>
-                </tr>
-                <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:6px 0;color:#2271b1;font-weight:600;">🧱 Gutenberg 区块</td>
-                    <td style="padding:6px 0;color:#555;">聊天区块 / 图片生成区块</td>
+        <div class="ai-card">
+            <h2>🎯 功能列表</h2>
+            <table>
+                <tr>
+                    <td>🖊️ 文章生成</td>
+                    <td>输入标题，AI 自动生成结构完整、内容丰富的文章</td>
                 </tr>
                 <tr>
-                    <td style="padding:6px 0;color:#2271b1;font-weight:600;">🔗 Playground</td>
-                    <td style="padding:6px 0;color:#555;">对话测试 / 保存草稿 / 复制</td>
+                    <td>📝 内容续写</td>
+                    <td>在现有内容基础上续写更多细节、案例和论述</td>
+                </tr>
+                <tr>
+                    <td>🎯 标题优化 <span class="ai-new-tag">NEW</span></td>
+                    <td>AI 自动生成 SEO 友好的最佳标题（30-60字，搜索意图词增强）</td>
+                </tr>
+                <tr>
+                    <td>📋 内容摘要</td>
+                    <td>一键生成 100 字以内的精准摘要</td>
+                </tr>
+                <tr>
+                    <td>🏷️ 提取标签</td>
+                    <td>分析文章内容，自动提取 3-5 个 SEO 友好关键词标签</td>
+                </tr>
+                <tr>
+                    <td>🔗 别名生成</td>
+                    <td>根据标题自动生成 WordPress 友好 URL 别名（slug）</td>
+                </tr>
+                <tr>
+                    <td>🌐 翻译</td>
+                    <td>支持 12 种语言互译，直接替换编辑器内容</td>
+                </tr>
+                <tr>
+                    <td>🖼️ 特色图生成</td>
+                    <td>根据文章内容生成封面图，自动下载并设为特色图</td>
+                </tr>
+                <tr>
+                    <td>🎨 图片生成</td>
+                    <td>Playground 自由测试各大平台文生图模型</td>
+                </tr>
+                <tr>
+                    <td>🔍 SEO 诊断 <span class="ai-new-tag">NEW</span></td>
+                    <td>全站文章批量诊断 · 得分分析 · 问题定位 · AI 批量优化</td>
+                </tr>
+                <tr>
+                    <td>💬 网站客服</td>
+                    <td>前台右下角悬浮 AI 助手，感知当前文章上下文</td>
+                </tr>
+                <tr>
+                    <td>🧱 Gutenberg 区块</td>
+                    <td>聊天区块（实时对话）+ 图片生成区块（编辑器内生图）</td>
+                </tr>
+                <tr>
+                    <td>📋 Shortcode</td>
+                    <td>任意页面嵌入 AI 对话窗口，支持指定模型</td>
+                </tr>
+                <tr>
+                    <td>🔄 Playground</td>
+                    <td>自由对话测试，保存草稿，复制内容</td>
                 </tr>
             </table>
         </div>
 
-        <!-- 快速使用 -->
-        <div>
-            <h2 style="font-size:16px;margin-bottom:12px;">🚀 快速使用</h2>
-            <div style="background:#f0f6fc;border-left:4px solid #2271b1;padding:14px 16px;border-radius:4px;margin-bottom:16px;font-size:13px;line-height:1.8;">
-                <strong>第一步：配置 API Key</strong><br>
-                进入「文本模型」Tab，展开各平台卡片，填入对应的 API Key（其他字段通常留空）。<br><br>
-                <strong>第二步：开启客服浮窗</strong><br>
-                进入「💬 网站客服」区块，勾选开启，右下角即出现 AI 客服按钮。<br><br>
-                <strong>第三步：写文章</strong><br>
-                在 Gutenberg 编辑器中使用小助手面板，或插入「Zuo AI Plus 聊天」/「Zuo AI Plus 图片生成」区块。
-            </div>
-
-            <h2 style="font-size:16px;margin-bottom:12px;">📋 支持的模型</h2>
-            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <!-- 支持模型 -->
+        <div class="ai-card">
+            <h2>⚙️ 支持的模型</h2>
+            <table>
                 <thead>
-                    <tr style="background:#f9f9f9;">
-                        <th style="text-align:left;padding:6px 8px;font-weight:600;">平台</th>
-                        <th style="text-align:left;padding:6px 8px;font-weight:600;">文本模型</th>
-                        <th style="text-align:left;padding:6px 8px;font-weight:600;">文生图</th>
+                    <tr style="border-bottom: 2px solid #f0f0f0;">
+                        <th style="text-align:left;padding:4px 0;font-size:12px;color:#888;">平台</th>
+                        <th style="text-align:left;padding:4px 0;font-size:12px;color:#888;">文本模型</th>
+                        <th style="text-align:left;padding:4px 0;font-size:12px;color:#888;">文生图</th>
                     </tr>
                 </thead>
-                <tr style="border-bottom:1px solid #eee;"><td style="padding:5px 8px;">通义千问</td><td style="padding:5px 8px;">qwen-turbo</td><td style="padding:5px 8px;">qwen-image-2.0-pro ✅</td></tr>
-                <tr style="border-bottom:1px solid #eee;"><td style="padding:5px 8px;">智谱 GLM</td><td style="padding:5px 8px;">glm-5</td><td style="padding:5px 8px;">cogview-3 ✅</td></tr>
-                <tr style="border-bottom:1px solid #eee;"><td style="padding:5px 8px;">MiniMax</td><td style="padding:5px 8px;">MiniMax-M2.7</td><td style="padding:5px 8px;">image-01 ✅</td></tr>
-                <tr style="border-bottom:1px solid #eee;"><td style="padding:5px 8px;">Kimi</td><td style="padding:5px 8px;">kimi-k2.5</td><td style="padding:5px 8px;">—</td></tr>
-                <tr style="border-bottom:1px solid #eee;"><td style="padding:5px 8px;">DeepSeek</td><td style="padding:5px 8px;">deepseek-chat</td><td style="padding:5px 8px;">—</td></tr>
-                <tr><td style="padding:5px 8px;">自定义 (代理)</td><td style="padding:5px 8px;">自填</td><td style="padding:5px 8px;">OpenAI 兼容 ✅</td></tr>
+                <tr><td>通义千问</td><td>qwen-turbo / qwen-plus</td><td>wanx2.1-image ✅</td></tr>
+                <tr><td>智谱 GLM</td><td>glm-4-flashx / glm-5</td><td>cogview-3 ✅</td></tr>
+                <tr><td>MiniMax</td><td>MiniMax-M2.7 / MiniMax-M2</td><td>image-01 ✅</td></tr>
+                <tr><td>Kimi</td><td>moonshot-v1-8k / kimi-k2.5</td><td>—</td></tr>
+                <tr><td>DeepSeek</td><td>deepseek-chat / deepseek-coder</td><td>—</td></tr>
+                <tr><td>自定义（代理）</td><td>自填 · OpenAI 兼容</td><td>OpenAI 兼容 ✅</td></tr>
+            </table>
+
+            <h2 style="margin-top:20px;">📋 Shortcode 短代码</h2>
+            <table>
+                <tr>
+                    <td><code style="background:#f0f6fc;padding:2px 8px;border-radius:3px;font-size:12px;">[ai_plus_chat]</code></td>
+                    <td>前台嵌入聊天窗口（自动用默认模型）</td>
+                </tr>
+                <tr>
+                    <td><code style="background:#f0f6fc;padding:2px 8px;border-radius:3px;font-size:12px;">[ai_plus_chat model="kimi"]</code></td>
+                    <td>指定默认模型（zhipu / tongyi / minimax / kimi / deepseek / custom）</td>
+                </tr>
             </table>
         </div>
 
     </div>
 
-    <hr style="margin:28px 0;">
+    <!-- SEO诊断说明 + Gutenberg区块 -->
+    <div class="ai-about-grid">
 
-    <!-- Gutenberg 区块说明 -->
-    <h2 style="font-size:16px;margin-bottom:12px;">🧱 Gutenberg 区块使用</h2>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
-        <div style="background:#fff;border:1px solid #dcdcde;border-radius:6px;padding:16px;">
-            <h3 style="margin:0 0 8px;font-size:14px;">🤖 Zuo AI Plus 聊天</h3>
-            <p style="margin:0;font-size:13px;color:#555;line-height:1.7;">
-                在文章中插入聊天窗口。文章发布后，读者可以在页面内实时对话，AI 会结合当前文章内容作答。
-            </p>
+        <div class="ai-card ai-full">
+            <h2>🔍 SEO 诊断功能详解 <span class="ai-new-tag">NEW</span></h2>
+            <div class="ai-full-card">
+                <div class="ai-subcard">
+                    <h3>📊 诊断维度</h3>
+                    <p>
+                        · 标题长度（建议 30-60 字）<br>
+                        · 标签数量与长度（建议 3-5 个，单标签≤6字）<br>
+                        · 摘要完整性（建议 80-120 字）<br>
+                        · 内容字数（建议 500 字以上）<br>
+                        · 综合 SEO 得分（0-100）
+                    </p>
+                </div>
+                <div class="ai-subcard">
+                    <h3>🤖 AI 批量优化</h3>
+                    <p>
+                        一键对选中文章进行 AI 优化：<br>
+                        · 自动重写标题（SEO友好+搜索意图词）<br>
+                        · 智能生成/补全摘要描述<br>
+                        · 提取相关标签<br>
+                        · 支持切换不同 AI 模型
+                    </p>
+                </div>
+                <div class="ai-subcard">
+                    <h3>🎯 Gutenberg 编辑器集成</h3>
+                    <p>
+                        在文章编辑器右侧 AI Plus 面板中：<br>
+                      选中标题 → 点击「🎯 优化标题」<br>
+                        AI 自动生成符合 SEO 的最佳标题，<br>
+                        关键词靠前，搜索意图词增强，<br>
+                        直接替换原标题。
+                    </p>
+                </div>
+                <div class="ai-subcard">
+                    <h3>📈 统计面板</h3>
+                    <p>
+                        · 全站文章总数<br>
+                        · 已优化 / 待优化 文章数<br>
+                        · 全站平均 SEO 得分<br>
+                        · 支持分页查看和单篇操作
+                    </p>
+                </div>
+            </div>
         </div>
-        <div style="background:#fff;border:1px solid #dcdcde;border-radius:6px;padding:16px;">
-            <h3 style="margin:0 0 8px;font-size:14px;">🖼️ Zuo AI Plus 图片生成</h3>
-            <p style="margin:0;font-size:13px;color:#555;line-height:1.7;">
-                插入后输入图片描述，生成后直接替换为图片。支持通义千问、智谱 GLM、MiniMax 三大平台。
-            </p>
+
+    </div>
+
+    <!-- Gutenberg 区块 -->
+    <div class="ai-card ai-full">
+        <h2>🧱 Gutenberg 区块</h2>
+        <div class="ai-full-card">
+            <div class="ai-subcard">
+                <h3>🤖 Zuo AI Plus 聊天</h3>
+                <p>在文章中插入实时 AI 对话窗口。文章发布后，读者可以在页面内与 AI 实时对话，AI 会结合当前文章内容作为上下文作答。</p>
+            </div>
+            <div class="ai-subcard">
+                <h3>🖼️ Zuo AI Plus 图片生成</h3>
+                <p>在编辑器内直接输入图片描述，生成后替换为真实图片。支持通义千问、智谱 GLM、MiniMax 三大平台。</p>
+            </div>
         </div>
     </div>
 
-    <!-- 客服浮窗说明 -->
-    <h2 style="font-size:16px;margin-bottom:12px;">💬 网站客服（前台浮窗）</h2>
-    <div style="background:#f0f6fc;border-radius:6px;padding:16px;font-size:13px;line-height:1.9;color:#333;">
-        开启后显示在博客前台页面右下角，点击展开对话窗口。<br>
-        <strong>内容感知：</strong>AI 自动读取当前文章内容作为上下文，读者提问「这篇文章讲了什么」等问题时，AI 会基于文章内容作答。<br>
-        <strong>模型选择：</strong>默认使用「特色图片模型」配置的平台，也可切换其他已配置的文本模型。
-    </div>
-
-    <!-- 短代码说明 -->
-    <h2 style="font-size:16px;margin-bottom:12px;">📋 短代码（Shortcode）</h2>
-    <div style="background:#fff;border:1px solid #dcdcde;border-radius:6px;padding:20px;font-size:13px;margin-bottom:20px;">
-        <p style="margin-top:0;color:#333;line-height:1.8;">
-            在任意文章或页面编辑器中插入以下短代码，即可在该位置显示 AI 对话窗口：
-        </p>
-        <table style="width:100%;border-collapse:collapse;font-size:13px;">
-            <thead>
-                <tr style="background:#f9f9f9;border-bottom:1px solid #eee;">
-                    <th style="text-align:left;padding:8px 12px;font-weight:600;">短代码</th>
-                    <th style="text-align:left;padding:8px 12px;font-weight:600;">说明</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr style="border-bottom:1px solid #f0f0f0;">
-                    <td style="padding:8px 12px;"><code style="background:#f0f6fc;padding:2px 8px;border-radius:3px;">[ai_plus_chat]</code></td>
-                    <td style="padding:8px 12px;color:#444;">前台嵌入聊天窗口（自动使用默认模型，可切换已配置的所有平台）</td>
-                </tr>
-                <tr>
-                    <td style="padding:8px 12px;"><code style="background:#f0f6fc;padding:2px 8px;border-radius:3px;">[ai_plus_chat model="kimi"]</code></td>
-                    <td style="padding:8px 12px;color:#444;">指定默认使用的模型平台（可选值：<code>zhipu</code>、<code>tongyi</code>、<code>minimax</code>、<code>kimi</code>、<code>deepseek</code>、<code>custom</code>）</td>
-                </tr>
-            </tbody>
-        </table>
-        <p style="color:#888;font-size:12px;margin-bottom:0;">
-            💡 提示：短代码下拉框只显示已配置 API Key 的平台，切换模型实时生效，无需刷新页面。
-        </p>
-    </div>
-
-    <hr style="margin:28px 0;">
-    <p style="color:#999;font-size:12px;">Zuo AI Plus v1.0 · Made with ❤️ · by Zuo AI Plus Team</p>
+    <p class="ai-footer">Zuo AI Plus v<?php echo esc_html($version); ?> · Made with ❤️ by 左运来 · <a href="https://www.yily.top" target="_blank" style="color:#6366f1;">yily.top</a></p>
 </div>
