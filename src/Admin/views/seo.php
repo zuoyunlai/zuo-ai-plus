@@ -133,7 +133,7 @@ table.seo-table {width:100%;border-collapse:collapse;font-size:13px;}
 </style>
 
 <div class="wrap" style="max-width:1200px;">
-    <h1>🔍 SEO 诊断</h1>
+    <h1>🔍 Zuo AI Plus SEO 诊断</h1>
 
     <!-- 统计卡片 -->
     <div class="seo-stat-grid">
@@ -396,51 +396,66 @@ table.seo-table {width:100%;border-collapse:collapse;font-size:13px;}
     });
 
     // 诊断单篇
-    document.querySelectorAll('.btn-audit-one').forEach(btn => {
-        btn.addEventListener('click', async function() {
-            const id = this.dataset.id;
-            loading('正在诊断文章 #' + id + '...');
-            try {
-                const result = await api('POST', 'seo', { post_ids: [parseInt(id)] });
-                unloaded();
-                if (result && result[id]) {
-                    const p = result[id];
-                    updateRow(id, { score: p.score, issues: p.issues ? p.issues.length : 0, optimized: p.optimized });
-                    log('文章 #' + id + ' 诊断完成，得分 ' + p.score, 'ok');
-                } else if (result && result.error) {
-                    log('文章 #' + id + ' 失败：' + result.error, 'error');
-                }
-            } catch(e) {
-                unloaded();
-                log('文章 #' + id + ' 网络错误', 'error');
-            }
-        });
-    });
 
     // 优化单篇
     document.querySelectorAll('.btn-optimize-one').forEach(btn => {
         btn.addEventListener('click', async function() {
+            if (this.disabled) return;
             const id = this.dataset.id;
             const model = document.getElementById('sel-model').value;
+            this.disabled = true;
+            this.style.opacity = '0.6';
             loading('正在优化文章 #' + id + '...');
             log('开始优化文章 #' + id + '，使用模型：' + model, 'info');
             try {
-                const result = await api('POST', 'seo-optimize-batch', { post_ids: [parseInt(id)], model_name: model });
+                const result = await api('POST', 'seo-optimize-post/' + parseInt(id), { model: model });
                 unloaded();
-                if (result && result[id]) {
-                    const r = result[id];
-                    if (r.error) {
-                        log('文章 #' + id + ' 优化失败：' + r.error, 'error');
-                    } else {
-                        updateRow(id, { score: r.score, issues: r.issues ? r.issues.length : 0, optimized: true });
-                        log('文章 #' + id + ' 优化成功！新得分 ' + r.score, 'ok');
-                    }
+                this.disabled = false;
+                this.style.opacity = '';
+                if (result && result.skipped) {
+                    log('文章 #' + id + ' 已为满分，无需优化', 'info');
+                    location.reload();
+                } else if (result && !result.error) {
+                    log('文章 #' + id + ' 优化成功！新得分 ' + (result.score ?? 'N/A'), 'ok');
+                    location.reload();
                 } else if (result && result.error) {
-                    log('文章 #' + id + ' 失败：' + result.error, 'error');
+                    log('文章 #' + id + ' 优化失败：' + result.error, 'error');
+                } else {
+                    log('文章 #' + id + ' 响应异常', 'error');
                 }
             } catch(e) {
                 unloaded();
+                this.disabled = false;
+                this.style.opacity = '';
                 log('文章 #' + id + ' 网络错误：' + e.message, 'error');
+            }
+        });
+    });
+
+    // 诊断单篇 - 同样加防重复点击
+    document.querySelectorAll('.btn-audit-one').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            if (this.disabled) return;
+            const id = this.dataset.id;
+            this.disabled = true;
+            this.style.opacity = '0.6';
+            loading('正在诊断文章 #' + id + '...');
+            try {
+                const result = await api('GET', 'seo-audit-post/' + parseInt(id));
+                unloaded();
+                this.disabled = false;
+                this.style.opacity = '';
+                if (result && result.id) {
+                    updateRow(id, { score: result.score, issues: result.issues ? result.issues.length : 0, optimized: result.optimized });
+                    log('文章 #' + id + ' 诊断完成，得分 ' + result.score, 'ok');
+                } else if (result && result.error) {
+                    log('文章 #' + id + ' 诊断失败：' + result.error, 'error');
+                }
+            } catch(e) {
+                unloaded();
+                this.disabled = false;
+                this.style.opacity = '';
+                log('文章 #' + id + ' 网络错误', 'error');
             }
         });
     });

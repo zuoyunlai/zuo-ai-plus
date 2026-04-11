@@ -3,7 +3,7 @@
  * Markdown → HTML 转换器（专为 WordPress / Gutenberg 设计）
  * 转换顺序：先分块 → 块级元素转换 → 列表单独处理
  */
-namespace AI_Plus\Utils;
+namespace ZuoAIPlus\Utils;
 
 class MarkdownConverter
 {

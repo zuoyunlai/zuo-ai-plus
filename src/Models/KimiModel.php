@@ -3,7 +3,7 @@
  * Kimi（月之暗面）模型
  * 文档: https://platform.moonshot.cn/docs
  */
-namespace AI_Plus\Models;
+namespace ZuoAIPlus\Models;
 
 class KimiModel extends BaseModel
 {

@@ -2,7 +2,7 @@
 /**
  * AJAX 处理器
  */
-namespace AI_Plus\Utils;
+namespace ZuoAIPlus\Utils;
 
 if (!defined("ABSPATH")) exit;
 

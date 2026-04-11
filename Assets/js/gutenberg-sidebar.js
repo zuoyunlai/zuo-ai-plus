@@ -413,13 +413,13 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': window.aiPlusConfig.nonce },
                         body: JSON.stringify({ post_id: postId, tags: tagStr })
-                    }).then(function(resp) { return resp.json(); })
-                    .then(function(data) {
-                        if (data.ok) setGlobalResult({ type: 'ok', text: '✅ 标签已提取并保存：' + tagStr });
-                        else setGlobalResult({ type: 'warn', text: '⚠️ 标签已生成：' + tagStr + '\n（保存失败）' });
+                    }).then(function(resp) { return resp.json().then(function(d) { return { ok: resp.ok, data: d }; }); })
+                    .then(function(r) {
+                        if (r.ok && r.data.success) setGlobalResult({ type: 'ok', text: '✅ 标签已提取并保存：' + tagStr });
+                        else setGlobalResult({ type: 'warn', text: '⚠️ 标签已生成：' + tagStr + '\n（保存失败：' + (r.data.error || '未知原因') + '）' });
                     })
                     .catch(function() {
-                        setGlobalResult({ type: 'warn', text: '⚠️ 标签已生成：' + tagStr + '\n（保存失败）' });
+                        setGlobalResult({ type: 'warn', text: '⚠️ 标签已生成：' + tagStr + '\n（网络错误）' });
                     });
                 } else {
                     setGlobalResult({ type: 'warn', text: '⚠️ 未提取到标签' });
@@ -709,5 +709,4 @@
     };
 
     registerPlugin('ai-plus-sidebar', { render: AISidebarPanel });
-    console.log('AI Plus Gutenberg sidebar registered (beautiful redesign)');
 })(window.wp);

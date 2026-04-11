@@ -2,7 +2,7 @@
 /**
  * 插件激活时创建数据库表
  */
-namespace AI_Plus\Utils;
+namespace ZuoAIPlus\Utils;
 
 class Activator
 {

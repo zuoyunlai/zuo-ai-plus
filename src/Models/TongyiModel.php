@@ -3,7 +3,7 @@
  * 阿里通义千问模型
  * 文档: https://help.aliyun.com/zh/dashscope
  */
-namespace AI_Plus\Models;
+namespace ZuoAIPlus\Models;
 
 class TongyiModel extends BaseModel
 {

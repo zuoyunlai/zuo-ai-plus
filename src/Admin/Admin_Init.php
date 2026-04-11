@@ -2,7 +2,7 @@
 /**
  * AI Plus 管理后台
  */
-namespace AI_Plus\Admin;
+namespace ZuoAIPlus\Admin;
 
 if (!defined('ABSPATH')) exit;
 
@@ -37,6 +37,11 @@ class Admin_Init
         if (strpos($page, 'ai_plus') === false) return;
         \wp_enqueue_style('ai-plus-admin', AI_PLUS_PLUGIN_URL . 'Assets/css/admin.css', [], AI_PLUS_VERSION);
         \wp_enqueue_script('ai-plus-admin', AI_PLUS_PLUGIN_URL . 'Assets/js/admin.js', ['jquery'], AI_PLUS_VERSION, true);
+
+        // 统计页面专用样式
+        if ($page === 'ai_plus_stats') {
+            \wp_enqueue_style('ai-plus-stats', AI_PLUS_PLUGIN_URL . 'Assets/css/admin-stats.css', [], AI_PLUS_VERSION);
+        }
         \wp_localize_script('ai-plus-admin', 'aiPlusAdmin', [
             'apiUrl' => \rest_url('ai-plus/v1/'),
             'nonce'  => \wp_create_nonce('wp_rest'),
@@ -64,13 +69,13 @@ class Admin_Init
     public function addMenu(): void
     {
         \add_menu_page('Zuo AI Plus', 'Zuo AI Plus', 'manage_options', 'ai_plus', [$this, 'renderPage'], '', 80);
-        \add_submenu_page('ai_plus', 'Zuo AI Plus 设置', '设置', 'manage_options', 'ai_plus', [$this, 'renderPage']);
-        \add_submenu_page('ai_plus', 'Playground', 'Playground', 'manage_options', 'ai_plus_playground', [$this, 'renderPage']);
-        \add_submenu_page('ai_plus', '图片生成', '图片生成', 'manage_options', 'ai_plus_image', [$this, 'renderPage']);
-        \add_submenu_page('ai_plus', 'AI Plus 关于', '关于', 'manage_options', 'ai_plus_about', [$this, 'renderPage']);
-        \add_submenu_page('ai_plus', 'AI Plus 统计', '统计', 'manage_options', 'ai_plus_stats', [$this, 'renderPage']);
-        \add_submenu_page('ai_plus', 'AI Plus 授权管理', '授权管理', 'manage_options', 'ai_plus_license', [$this, 'renderPage']);
-        \add_submenu_page('ai_plus', 'AI Plus SEO 诊断', 'SEO 诊断', 'manage_options', 'ai_plus_seo', [$this, 'renderPage']);
+        \add_submenu_page('ai_plus', 'Zuo AI Plus 模型设置', '模型设置', 'manage_options', 'ai_plus', [$this, 'renderPage']);
+        \add_submenu_page('ai_plus', '文生图', '文生图', 'manage_options', 'ai_plus_image', [$this, 'renderPage']);
+        \add_submenu_page('ai_plus', '文生文', '文生文', 'manage_options', 'ai_plus_playground', [$this, 'renderPage']);
+        \add_submenu_page('ai_plus', '📊 统计', '统计', 'manage_options', 'ai_plus_stats', [$this, 'renderPage']);
+        \add_submenu_page('ai_plus', '🔍 SEO 诊断', 'SEO 诊断', 'manage_options', 'ai_plus_seo', [$this, 'renderPage']);
+        \add_submenu_page('ai_plus', '授权管理', '授权管理', 'manage_options', 'ai_plus_license', [$this, 'renderPage']);
+        \add_submenu_page('ai_plus', '关于', '关于', 'manage_options', 'ai_plus_about', [$this, 'renderPage']);
         // 移除重复的顶层菜单项
         global $submenu;
         if (isset($submenu['ai_plus'][0])) {
@@ -125,15 +130,15 @@ class Admin_Init
         $imgModel  = \get_option('ai_plus_image_model', 'tongyi');
         ?>
         <div class="wrap ai-plus-wrap">
-            <h1>AI Plus</h1>
+            <h1>Zuo AI Plus</h1>
 
             <h2 class="nav-tab-wrapper">
-                <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus', 'ai_plus_admin')); ?>"        class="nav-tab <?php echo  $tab==='ai_plus'        ? 'nav-tab-active' : '' ?>">Zuo AI Plus 文本模型</a>
-                <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_image', 'ai_plus_admin')); ?>"  class="nav-tab <?php echo  $tab==='ai_plus_image'  ? 'nav-tab-active' : '' ?>">图片生成</a>
-                <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_playground', 'ai_plus_admin')); ?>" class="nav-tab <?php echo  $tab==='ai_plus_playground' ? 'nav-tab-active' : '' ?>">Playground</a>
+                <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus', 'ai_plus_admin')); ?>"        class="nav-tab <?php echo  $tab==='ai_plus'        ? 'nav-tab-active' : '' ?>">模型设置</a>
+                <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_image', 'ai_plus_admin')); ?>"  class="nav-tab <?php echo  $tab==='ai_plus_image'  ? 'nav-tab-active' : '' ?>">文生图</a>
+                <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_playground', 'ai_plus_admin')); ?>" class="nav-tab <?php echo  $tab==='ai_plus_playground' ? 'nav-tab-active' : '' ?>">文生文</a>
                 <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_stats', 'ai_plus_admin')); ?>"   class="nav-tab <?php echo  $tab==='ai_plus_stats'   ? 'nav-tab-active' : '' ?>">📊 统计</a>
-                <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_license', 'ai_plus_admin')); ?>" class="nav-tab <?php echo  $tab==='ai_plus_license' ? 'nav-tab-active' : '' ?>">授权管理</a>
                 <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_seo', 'ai_plus_admin')); ?>" class="nav-tab <?php echo  $tab==='ai_plus_seo' ? 'nav-tab-active' : '' ?>">🔍 SEO 诊断</a>
+                <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_license', 'ai_plus_admin')); ?>" class="nav-tab <?php echo  $tab==='ai_plus_license' ? 'nav-tab-active' : '' ?>">授权管理</a>
                 <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_about', 'ai_plus_admin')); ?>"  class="nav-tab <?php echo  $tab==='ai_plus_about'  ? 'nav-tab-active' : '' ?>">关于</a>
             </h2>
 
@@ -484,14 +489,12 @@ var aiPlusLicense = (function() {
             .then(function(r){ return r.json(); })
             .then(function(r){
                 if (r.success) {
-                    console.log('License key saved:', r.data);
+                    info('✅ License Key 保存成功', '#0d6efd');
                 } else {
-                    console.warn('License key save failed:', r);
                     info('⚠️ Key 保存失败，请手动在「文本模型」页面保存设置', '#856404');
                 }
             })
-            .catch(function(e){
-                console.warn('Save key failed:', e);
+            .catch(function(){
                 info('⚠️ Key 保存失败（网络问题），请刷新重试', '#856404');
             });
     }
@@ -584,112 +587,8 @@ var aiPlusLicense = (function() {
             <?php include AI_PLUS_PLUGIN_DIR . 'src/Admin/views/seo.php'; ?>
 
             <?php elseif ($tab === 'ai_plus_about'): ?>
-<div class="wrap ai-plus-settings" style="max-width:960px;">
-    <h1>⚡ AI Plus</h1>
-    <p style="font-size:16px;color:#555;margin-top:4px;">为 WordPress 提供 AI 生成、聊天、图片等内容助手功能。</p>
-    <hr style="margin:24px 0;">
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-bottom:32px;">
-
-        <div>
-            <h2 style="font-size:15px;margin-bottom:14px;border-bottom:2px solid #2271b1;padding-bottom:6px;display:inline-block;">🎯 功能概览</h2>
-            <table style="width:100%;border-collapse:collapse;font-size:13px;">
-                <tr style="border-bottom:1px solid #eee;"><td style="padding:7px 0;font-weight:600;color:#2271b1;">🖊️ 文章生成</td><td style="padding:7px 0 7px 12px;color:#444;">输入标题，AI 自动生成完整文章</td></tr>
-                <tr style="border-bottom:1px solid #eee;"><td style="padding:7px 0;font-weight:600;color:#2271b1;">📝 内容扩写</td><td style="padding:7px 0 7px 12px;color:#444;">在现有内容上续写更多细节</td></tr>
-                <tr style="border-bottom:1px solid #eee;"><td style="padding:7px 0;font-weight:600;color:#2271b1;">🏷️ SEO 优化</td><td style="padding:7px 0 7px 12px;color:#444;">生成标题、描述、关键词建议</td></tr>
-                <tr style="border-bottom:1px solid #eee;"><td style="padding:7px 0;font-weight:600;color:#2271b1;">🏷️ 自动标签</td><td style="padding:7px 0 7px 12px;color:#444;">分析内容生成相关标签</td></tr>
-                <tr style="border-bottom:1px solid #eee;"><td style="padding:7px 0;font-weight:600;color:#2271b1;">🖼️ 特色图生成</td><td style="padding:7px 0 7px 12px;color:#444;">根据文章内容生成封面图片</td></tr>
-                <tr style="border-bottom:1px solid #eee;"><td style="padding:7px 0;font-weight:600;color:#2271b1;">🎨 图片生成 Playground</td><td style="padding:7px 0 7px 12px;color:#444;">对话测试文生图模型，支持保存到媒体库</td></tr>
-                <tr style="border-bottom:1px solid #eee;"><td style="padding:7px 0;font-weight:600;color:#2271b1;">💬 网站客服浮窗</td><td style="padding:7px 0 7px 12px;color:#444;">前台右下角 AI 助手，内容感知</td></tr>
-                <tr style="border-bottom:1px solid #eee;"><td style="padding:7px 0;font-weight:600;color:#2271b1;">🧱 Gutenberg 区块</td><td style="padding:7px 0 7px 12px;color:#444;">聊天区块 / 图片生成区块，发布后可交互</td></tr>
-                <tr><td style="padding:7px 0;font-weight:600;color:#2271b1;">🔗 Playground</td><td style="padding:7px 0 7px 12px;color:#444;">对话测试 / 保存草稿（Markdown→HTML）/ 复制</td></tr>
-            </table>
-        </div>
-
-        <div>
-            <h2 style="font-size:15px;margin-bottom:14px;border-bottom:2px solid #2271b1;padding-bottom:6px;display:inline-block;">🚀 快速开始</h2>
-            <div style="background:#f0f6fc;border-left:4px solid #2271b1;padding:14px 16px;border-radius:4px;margin-bottom:16px;font-size:13px;line-height:2;">
-                <strong>第一步：配置 API Key</strong><br>
-                进入「文本模型」Tab，为所需平台填入 API Key（其他字段留空即可）。<br><br>
-                <strong>第二步：开启网站客服</strong><br>
-                进入「💬 网站客服」Tab，勾选开启，前台右下角出现 AI 助手浮窗。<br><br>
-                <strong>第三步：开始写文章</strong><br>
-                在 Gutenberg 编辑器中使用「AI Plus 小助手」侧边栏，或在文章中插入聊天/图片区块。
-            </div>
-
-            <h2 style="font-size:15px;margin-bottom:10px;border-bottom:2px solid #2271b1;padding-bottom:6px;display:inline-block;">📋 支持的模型</h2>
-            <table style="width:100%;border-collapse:collapse;font-size:12px;">
-                <thead><tr style="background:#f9f9f9;"><th style="text-align:left;padding:5px 8px;font-weight:600;">平台</th><th style="text-align:left;padding:5px 8px;">文本模型</th><th style="text-align:left;padding:5px 8px;">文生图</th></tr></thead>
-                <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">通义千问</td><td style="padding:4px 8px;">qwen-turbo</td><td style="padding:4px 8px;">✅ qwen-image-2.0-pro</td></tr>
-                <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">智谱 GLM</td><td style="padding:4px 8px;">glm-5</td><td style="padding:4px 8px;">✅ cogview-3</td></tr>
-                <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">MiniMax</td><td style="padding:4px 8px;">MiniMax-M2.7</td><td style="padding:4px 8px;">✅ image-01</td></tr>
-                <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">Kimi</td><td style="padding:4px 8px;">kimi-k2.5</td><td style="padding:4px 8px;">—</td></tr>
-                <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">DeepSeek</td><td style="padding:4px 8px;">deepseek-chat</td><td style="padding:4px 8px;">—</td></tr>
-                <tr><td style="padding:4px 8px;">自定义代理</td><td style="padding:4px 8px;">自填</td><td style="padding:4px 8px;">✅ OpenAI 兼容</td></tr>
-            </table>
-        </div>
-    </div>
-
-    <hr style="margin:0 0 28px;">
-
-    <h2 style="font-size:15px;margin-bottom:14px;">🧱 Gutenberg 区块说明</h2>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:28px;">
-        <div style="background:#fff;border:1px solid #dcdcde;border-radius:6px;padding:16px;">
-            <h3 style="margin:0 0 8px;font-size:14px;">🤖 AI Plus 聊天</h3>
-            <p style="margin:0;font-size:13px;color:#555;line-height:1.8;">在文章中插入聊天窗口。文章发布后，读者可以在页面内实时对话，AI 会结合当前文章内容（自动获取）作答，支持上下文记忆。</p>
-        </div>
-        <div style="background:#fff;border:1px solid #dcdcde;border-radius:6px;padding:16px;">
-            <h3 style="margin:0 0 8px;font-size:14px;">🖼️ AI Plus 图片生成</h3>
-            <p style="margin:0;font-size:13px;color:#555;line-height:1.8;">插入后输入图片描述，点「生成」直接替换为图片。支持通义千问、智谱 GLM、MiniMax，可切换模型。</p>
-        </div>
-    </div>
-
-    <h2 style="font-size:15px;margin-bottom:14px;">💬 网站客服说明</h2>
-    <div style="background:#f0f6fc;border-radius:6px;padding:16px;font-size:13px;line-height:2.1;color:#333;">
-        <strong>开启方式：</strong>「💬 网站客服」Tab → 勾选开启<br>
-        <strong>内容感知：</strong>自动读取当前文章内容作为上下文，读者提问与文章相关的问题时，AI 基于文章内容作答<br>
-        <strong>模型切换：</strong>浮窗内可切换已配置的其他文本模型<br>
-        <strong>会话记忆：</strong>同一会话内保留聊天历史
-    </div>
-
-    <!-- 翻译功能 -->
-    <h2 style="font-size:15px;margin-bottom:14px;">🌐 翻译功能</h2>
-    <div style="background:#fff;border:1px solid #dcdcde;border-radius:6px;padding:16px;font-size:13px;line-height:2;margin-bottom:28px;">
-        在 Gutenberg 编辑器右侧边栏「🌐 翻译」面板中使用：<br>
-        <strong>第一步：</strong>在编辑器中写入或粘贴要翻译的内容<br>
-        <strong>第二步：</strong>选择源语言（留空 = 自动检测）和目标语言<br>
-        <strong>第三步：</strong>点击「翻译并替换编辑器内容」，AI 翻译后直接覆盖编辑器<br>
-        <strong>支持语言：</strong>自动检测、英语、中文简体、中文繁体、日语、韩语、法语、德语、西班牙语、葡萄牙语、俄语、阿拉伯语、意大利语、泰语、越南语（共 14 种）
-    </div>
-
-    <!-- 短代码 -->
-    <h2 style="font-size:15px;margin-bottom:14px;">📋 短代码（Shortcode）</h2>
-    <div style="background:#fff;border:1px solid #dcdcde;border-radius:6px;padding:16px;font-size:13px;margin-bottom:28px;">
-        在任意文章或页面中插入 AI 聊天窗口：<br>
-        <code style="background:#f0f6fc;padding:2px 8px;border-radius:3px;margin:8px 0;display:inline-block;">[ai_plus_chat]</code><br>
-        可选参数：<code>model</code> — 指定默认模型，如 <code>model="kimi"</code> / <code>model="deepseek"</code><br>
-        可选平台值：<code>zhipu</code>（智谱）· <code>tongyi</code>（通义千问）· <code>minimax</code>（MiniMax）· <code>kimi</code>（Kimi）· <code>deepseek</code>（DeepSeek）· <code>custom</code>（自定义代理）<br>
-        <strong>效果：</strong>下拉框只显示已配置 API Key 的平台，切换后实时生效，无需刷新页面。
-    </div>
-
-    <!-- API 申请地址 -->
-    <h2 style="font-size:15px;margin-bottom:14px;">🔗 支持的模型 & API 申请地址</h2>
-    <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:28px;">
-        <thead><tr style="background:#f0f0f0;"><th style="padding:7px 10px;border:1px solid #ddd;text-align:left;font-weight:600;">平台</th><th style="padding:7px 10px;border:1px solid #ddd;text-align:left;font-weight:600;">文本模型</th><th style="padding:7px 10px;border:1px solid #ddd;text-align:left;font-weight:600;">文生图模型</th><th style="padding:7px 10px;border:1px solid #ddd;text-align:left;font-weight:600;">API 申请地址</th></tr></thead>
-        <tbody>
-            <tr style="border:1px solid #ddd;"><td style="padding:6px 10px;">通义千问</td><td style="padding:6px 10px;">qwen-turbo / qwen-plus / qwen-max</td><td style="padding:6px 10px;">qwen-image-2.0-pro</td><td style="padding:6px 10px;"><a href="https://dashscope.console.aliyun.com/" target="_blank">dashscope.console.aliyun.com</a></td></tr>
-            <tr style="border:1px solid #ddd;"><td style="padding:6px 10px;">智谱 GLM</td><td style="padding:6px 10px;">glm-5 / glm-4-plus / glm-4-flashx</td><td style="padding:6px 10px;">cogview-3</td><td style="padding:6px 10px;"><a href="https://open.bigmodel.cn/" target="_blank">open.bigmodel.cn</a></td></tr>
-            <tr style="border:1px solid #ddd;"><td style="padding:6px 10px;">MiniMax</td><td style="padding:6px 10px;">MiniMax-M2.7 / abab-7.5</td><td style="padding:6px 10px;">image-01</td><td style="padding:6px 10px;"><a href="https://www.minimax.io/" target="_blank">minimax.io（API Hub）</a></td></tr>
-            <tr style="border:1px solid #ddd;"><td style="padding:6px 10px;">Kimi</td><td style="padding:6px 10px;">kimi-k2.5 / moonshot-v1-128k</td><td style="padding:6px 10px;">—</td><td style="padding:6px 10px;"><a href="https://platform.moonshot.cn/" target="_blank">platform.moonshot.cn</a></td></tr>
-            <tr style="border:1px solid #ddd;"><td style="padding:6px 10px;">DeepSeek</td><td style="padding:6px 10px;">deepseek-chat / deepseek-coder</td><td style="padding:6px 10px;">—</td><td style="padding:6px 10px;"><a href="https://platform.deepseek.com/" target="_blank">platform.deepseek.com</a></td></tr>
-            <tr style="border:1px solid #ddd;"><td style="padding:6px 10px;">自定义</td><td style="padding:6px 10px;">任意 OpenAI 兼容模型</td><td style="padding:6px 10px;">✅ OpenAI 兼容</td><td style="padding:6px 10px;">按需配置 Base URL + API Key</td></tr>
-        </tbody>
-    </table>
-
-    <hr style="margin:28px 0 20px;">
-    <p style="color:#999;font-size:12px;">Zuo AI Plus</p>
-</div>
-<?php endif; ?>
+                <?php include AI_PLUS_PLUGIN_DIR . 'src/Admin/views/about.php'; ?>
+            <?php endif; ?>
         </div>
         <?php
     }

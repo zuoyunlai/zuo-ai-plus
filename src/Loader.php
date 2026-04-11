@@ -14,7 +14,6 @@ require_once __DIR__ . '/Models/CustomModel.php';
 require_once __DIR__ . '/Models/SeoOptimizer.php';
 require_once __DIR__ . '/Models/Model_Init.php';
 require_once __DIR__ . '/Admin/Admin_Init.php';
-require_once __DIR__ . '/Api/Rest_Init.php';
 require_once __DIR__ . '/Utils/Activator.php';
 require_once __DIR__ . '/Utils/MarkdownConverter.php';
 require_once __DIR__ . '/Utils/AjaxHandler.php';
