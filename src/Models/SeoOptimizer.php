@@ -184,6 +184,10 @@ class SeoOptimizer
 
             $prompt = implode("\n", $prompt_parts) . "\n\n【优化要求】\n" . implode("\n", $rules) . "\n\n直接输出结果，不要任何解释说明。";
         } else {
+            // 无需强制优化，但也标记为已处理，避免重复触发
+            update_post_meta($post_id, self::META_OPTIMIZED, true);
+            update_post_meta($post_id, self::META_OPTIMIZED_AT, current_time('mysql'));
+            update_post_meta($post_id, self::META_SCORE, $audit['score']);
             return [
                 'post_id'   => $post_id,
                 'title'     => $title,
@@ -197,6 +201,9 @@ class SeoOptimizer
             $model = \ZuoAIPlus\Models\Model_Init::getModel(
                 get_option('ai_plus_default_model') ?: 'minimax'
             );
+        } elseif (is_string($model)) {
+            // REST API 传入的是模型名字符串，需转换为对象
+            $model = \ZuoAIPlus\Models\Model_Init::getModel($model);
         }
 
         try {
@@ -214,6 +221,9 @@ class SeoOptimizer
             }
 
             $new_score = $this->applyOptimizations($post_id, $updates);
+            if (is_wp_error($new_score)) {
+                return $new_score;
+            }
 
             // 记录优化状态
             update_post_meta($post_id, self::META_OPTIMIZED, true);
@@ -281,6 +291,20 @@ class SeoOptimizer
     // ── 应用优化到文章 ──
     private function applyOptimizations($post_id, $updates)
     {
+        // 调试：检查当前用户上下文
+        $uid = get_current_user_id();
+        $user = $uid ? get_user_by('id', $uid) : null;
+        error_log('[SEO applyOptimizations] uid=' . $uid . ' user=' . ($user ? $user->user_login : 'null') . ' can_edit_post=' . ($uid ? (current_user_can('edit_post', $post_id) ? 'yes' : 'NO') : 'N/A'));
+        if (!$uid) {
+            return new \WP_Error('rest_forbidden', '无法确定当前登录用户（UID=0），请确认 WordPress 认证正常', ['status' => 401]);
+        }
+
+        // 权限检查：当前用户必须有编辑这篇文章的权限
+        $post = get_post($post_id);
+        if (!current_user_can('edit_post', $post_id) || !current_user_can('edit_others_posts', $post)) {
+            return new \WP_Error('rest_cannot_edit', '当前账户没有文章编辑权限（UID=' . $uid . '，角色=' . ($user ? implode(',', $user->roles) : 'unknown') . '），请确认账户有编辑者或更高权限', ['status' => 401]);
+        }
+
         $wp_updates = ['ID' => $post_id];
 
         if (!empty($updates['title'])) {
@@ -302,11 +326,17 @@ class SeoOptimizer
                     }
                 }
             }
-            wp_set_object_terms($post_id, $tag_ids, 'post_tag');
+            $set = wp_set_object_terms($post_id, $tag_ids, 'post_tag');
+            if (is_wp_error($set)) {
+                return $set;
+            }
         }
 
         if (count($wp_updates) > 1) {
-            wp_update_post($wp_updates);
+            $updated = wp_update_post($wp_updates);
+            if (is_wp_error($updated)) {
+                return $updated;
+            }
         }
 
         return $this->auditPost(get_post($post_id))['score'];
@@ -353,7 +383,10 @@ class SeoOptimizer
             self::META_OPTIMIZED
         ));
         $avg_score = (int) $wpdb->get_var(
-            "SELECT AVG(CAST(meta_value AS SIGNED)) FROM {$wpdb->postmeta} WHERE meta_key='" . self::META_SCORE . "'"
+            $wpdb->prepare(
+                "SELECT AVG(CAST(meta_value AS SIGNED)) FROM {$wpdb->postmeta} WHERE meta_key=%s",
+                self::META_SCORE
+            )
         );
 
         return [

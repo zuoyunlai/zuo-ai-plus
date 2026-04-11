@@ -3,7 +3,7 @@
  * 智谱 GLM 模型
  * 文档: https://open.bigmodel.cn/dev/api
  */
-namespace AI_Plus\Models;
+namespace ZuoAIPlus\Models;
 
 class ZhipuModel extends BaseModel
 {

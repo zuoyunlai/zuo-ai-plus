@@ -2,7 +2,7 @@
 /**
  * DeepSeek 模型
  */
-namespace AI_Plus\Models;
+namespace ZuoAIPlus\Models;
 
 class DeepSeekModel extends BaseModel
 {

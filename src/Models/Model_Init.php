@@ -2,7 +2,7 @@
 /**
  * 模型工厂初始化
  */
-namespace AI_Plus\Models;
+namespace ZuoAIPlus\Models;
 
 if (!defined('ABSPATH')) exit;
 
@@ -95,6 +95,37 @@ class Model_Init
                 $id = (int) $req->get_param('post_id');
                 $seo->resetPost($id);
                 return new \WP_REST_Response(['ok' => true, 'post_id' => $id], 200);
+            },
+            'permission_callback' => function() { return current_user_can('edit_posts'); },
+        ]);
+
+        // ── 单篇文章 SEO 诊断 ──
+        register_rest_route('ai-plus/v1', '/seo-audit-post/(?P<post_id>\d+)', [
+            'methods' => 'GET',
+            'callback' => function($req) use ($seo) {
+                $id = (int) $req->get_param('post_id');
+                $post = get_post($id);
+                if (!$post || $post->post_type !== 'post') {
+                    return new \WP_REST_Response(['error' => '文章不存在'], 404);
+                }
+                $result = $seo->auditPost($post);
+                return new \WP_REST_Response($result, 200);
+            },
+            'permission_callback' => function() { return current_user_can('edit_posts'); },
+        ]);
+
+        // ── 单篇文章 AI 优化 ──
+        register_rest_route('ai-plus/v1', '/seo-optimize-post/(?P<post_id>\d+)', [
+            'methods' => 'POST',
+            'callback' => function($req) use ($seo) {
+                $id = (int) $req->get_param('post_id');
+                $model = $req->get_param('model') ?: '';
+                $result = $seo->optimizePost($id, $model);
+                
+                if (is_wp_error($result)) {
+                    return new \WP_REST_Response(['error' => $result->get_error_message()], 400);
+                }
+                return new \WP_REST_Response($result, 200);
             },
             'permission_callback' => function() { return current_user_can('edit_posts'); },
         ]);
@@ -359,7 +390,7 @@ class Model_Init
 
             // 文章生成/扩写时：Markdown → Gutenberg HTML
             if (in_array($action, ['generate', 'expand']) && $text) {
-                $text = \AI_Plus\Utils\MarkdownConverter::convert($text);
+                $text = \ZuoAIPlus\Utils\MarkdownConverter::convert($text);
             }
 
             // 特色图生成：使用专用图片模型生成真实图片
@@ -562,7 +593,7 @@ class Model_Init
         }
 
         // Markdown → HTML
-        $html = \AI_Plus\Utils\MarkdownConverter::convert($content);
+        $html = \ZuoAIPlus\Utils\MarkdownConverter::convert($content);
 
         $post_id = \wp_insert_post([
             'post_title'   => $title,
@@ -585,7 +616,7 @@ class Model_Init
     /**
      * 统一提取 AI 响应内容
      */
-    protected static function extractContent(array $result): string
+    public static function extractContent(array $result): string
     {
         // OpenAI compatible: choices[0].message.content
         if (isset($result['choices'][0]['message']['content'])) {
@@ -760,9 +791,19 @@ public function getModels(): array
         $post_id = intval($request->get_param('post_id') ?: 0);
         if (!$post_id) { return new \WP_REST_Response(['error' => '无法获取文章ID'], 400); }
 
-        // 支持 tag_ids (ID数组) 或 tag_names (名称数组)
+        // 支持 tag_ids (ID数组)、tag_names (名称数组)，或逗号分隔的字符串
         $tag_ids = $request->get_param('tag_ids');
         $tag_names = $request->get_param('tag_names');
+        $tags_raw = $request->get_param('tags');  // 兼容前端传的单字符串（逗号分隔）
+
+        // 如果收到逗号分隔的字符串，先拆分
+        if (empty($tag_names) && !empty($tags_raw)) {
+            if (is_string($tags_raw)) {
+                $tag_names = array_filter(array_map('trim', explode(',', $tags_raw)));
+            } elseif (is_array($tags_raw)) {
+                $tag_names = $tags_raw;
+            }
+        }
 
         $term_ids = [];
 

@@ -1,4 +1,4 @@
-# AI Plus - WordPress AI 内容助手插件
+# Zuo AI Plus - WordPress AI 内容助手插件
 
 > 集成国内主流大模型（智谱GLM、阿里通义、MiniMax、Kimi）的 WordPress 站点 AI 助手
 

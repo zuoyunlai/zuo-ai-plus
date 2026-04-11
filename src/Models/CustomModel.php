@@ -2,7 +2,7 @@
 /**
  * 自定义模型（兼容 OpenAI 格式的代理）
  */
-namespace AI_Plus\Models;
+namespace ZuoAIPlus\Models;
 
 class CustomModel extends BaseModel
 {

@@ -2,7 +2,7 @@
 /**
  * 前端初始化 - 聊天窗口和短代码
  */
-namespace AI_Plus\Frontend;
+namespace ZuoAIPlus\Frontend;
 
 if (!defined('ABSPATH')) exit;
 

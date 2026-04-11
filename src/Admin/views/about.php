@@ -1,52 +1,29 @@
 <?php
 if (!defined('ABSPATH')) exit;
-$version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.1.19';
+$version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.2.0';
 ?>
 <style>
-    .ai-about-wrap {font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 960px; color: #1e1e1e;}
-    .ai-about-hero {
-        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-        border-radius: 12px;
-        padding: 32px 36px;
-        margin-bottom: 28px;
-        display: flex;
-        align-items: center;
-        gap: 24px;
-    }
-    .ai-about-hero-icon {font-size: 48px;}
-    .ai-about-hero h1 {color: #fff; margin: 0 0 6px; font-size: 26px; font-weight: 700;}
-    .ai-about-hero p {color: rgba(255,255,255,0.8); margin: 0; font-size: 14px;}
-    .ai-about-hero .version-badge {
-        display: inline-block;
-        background: rgba(255,255,255,0.2);
-        color: #fff;
-        padding: 3px 12px;
-        border-radius: 20px;
-        font-size: 12px;
-        margin-top: 8px;
-    }
-    .ai-about-grid {display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px;}
-    .ai-card {
-        background: #fff;
-        border: 1px solid #e5e7eb;
-        border-radius: 10px;
-        padding: 20px 22px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-    }
-    .ai-card h2 {font-size: 14px; margin: 0 0 14px; padding-bottom: 10px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; gap: 8px;}
-    .ai-card table {width: 100%; border-collapse: collapse; font-size: 13px;}
-    .ai-card td {padding: 7px 0; border-bottom: 1px solid #f5f5f5; vertical-align: top;}
-    .ai-card td:first-child {font-weight: 600; color: #6366f1; width: 110px; white-space: nowrap;}
-    .ai-card td:last-child {color: #555;}
-    .ai-new-tag {background: #6366f1; color: #fff; font-size: 10px; padding: 1px 7px; border-radius: 10px; font-weight: 600; margin-left: 6px; vertical-align: middle;}
-    .ai-tip {background: #f0f6fc; border-left: 4px solid #6366f1; border-radius: 0 6px 6px 0; padding: 14px 18px; font-size: 13px; line-height: 1.9; margin-bottom: 28px;}
-    .ai-tip strong {color: #1e1e1e;}
-    .ai-full {grid-column: 1 / -1;}
-    .ai-full-card {display: grid; grid-template-columns: 1fr 1fr; gap: 16px;}
-    .ai-subcard {background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px;}
-    .ai-subcard h3 {margin: 0 0 8px; font-size: 13px; font-weight: 600;}
-    .ai-subcard p {margin: 0; font-size: 12px; color: #666; line-height: 1.7;}
-    .ai-footer {text-align: center; color: #aaa; font-size: 12px; padding-top: 8px;}
+.ai-about-wrap {font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 960px; color: #1e1e1e;}
+.ai-about-hero {background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); border-radius: 12px; padding: 32px 36px; margin-bottom: 28px; display: flex; align-items: center; gap: 24px;}
+.ai-about-hero-icon {font-size: 48px;}
+.ai-about-hero h1 {color: #fff; margin: 0 0 6px; font-size: 26px; font-weight: 700;}
+.ai-about-hero p {color: rgba(255,255,255,0.8); margin: 0; font-size: 14px;}
+.version-badge {display: inline-block; background: rgba(255,255,255,0.2); color: #fff; padding: 3px 12px; border-radius: 20px; font-size: 12px; margin-top: 8px;}
+.ai-about-grid {display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px;}
+.ai-card {background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px 22px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);}
+.ai-card h2 {font-size: 14px; margin: 0 0 14px; padding-bottom: 10px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; gap: 8px;}
+.ai-card table {width: 100%; border-collapse: collapse; font-size: 13px;}
+.ai-card td {padding: 7px 0; border-bottom: 1px solid #f5f5f5; vertical-align: top;}
+.ai-card td:first-child {font-weight: 600; color: #6366f1; width: 110px; white-space: nowrap;}
+.ai-new-tag {background: #6366f1; color: #fff; font-size: 10px; padding: 1px 7px; border-radius: 10px; font-weight: 600; margin-left: 6px; vertical-align: middle;}
+.ai-tip {background: #f0f6fc; border-left: 4px solid #6366f1; border-radius: 0 6px 6px 0; padding: 14px 18px; font-size: 13px; line-height: 1.9; margin-bottom: 28px;}
+.ai-tip strong {color: #1e1e1e;}
+.ai-full {grid-column: 1 / -1;}
+.ai-full-card {display: grid; grid-template-columns: 1fr 1fr; gap: 16px;}
+.ai-subcard {background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px;}
+.ai-subcard h3 {margin: 0 0 8px; font-size: 13px; font-weight: 600;}
+.ai-subcard p {margin: 0; font-size: 12px; color: #666; line-height: 1.7;}
+.ai-footer {text-align: center; color: #aaa; font-size: 12px; padding-top: 8px;}
 </style>
 
 <div class="ai-about-wrap">
@@ -55,7 +32,7 @@ $version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.1.19';
     <div class="ai-about-hero">
         <div class="ai-about-hero-icon">🤖</div>
         <div>
-            <h1>Zuo AI Plus</h1>
+            <h1>Zuo AI Plus 关于</h1>
             <p>为 WordPress 打造的一站式 AI 内容助手 · 写作 · 优化 · 配图 · 客服</p>
             <span class="version-badge">v<?php echo esc_html($version); ?></span>
         </div>
@@ -64,7 +41,9 @@ $version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.1.19';
     <!-- 快速入门 -->
     <div class="ai-tip">
         <strong>🚀 快速入门</strong><br>
-        <strong>第一步：</strong>进入「Zuo AI Plus 文本模型」Tab，展开各平台卡片，填入 API Key → <strong>第二步：</strong>在文章编辑器右侧的 AI Plus 面板直接使用所有功能 → <strong>SEO 诊断：</strong>进入「🔍 SEO 诊断」Tab 可批量查看并优化全站文章
+        <strong>第一步：</strong>进入「Zuo AI Plus 文本模型」Tab，展开各平台卡片，填入 API Key<br>
+        <strong>第二步：</strong>在文章编辑器右侧的 AI Plus 面板直接使用所有功能<br>
+        <strong>SEO 诊断：</strong>进入「🔍 SEO 诊断」Tab 批量查看并优化全站文章
     </div>
 
     <!-- 功能列表 + 支持模型 -->
@@ -91,7 +70,7 @@ $version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.1.19';
                     <td>一键生成 100 字以内的精准摘要</td>
                 </tr>
                 <tr>
-                    <td>🏷️ 提取标签</td>
+                    <td>🏷️ 自动标签 <span class="ai-new-tag">NEW</span></td>
                     <td>分析文章内容，自动提取 3-5 个 SEO 友好关键词标签</td>
                 </tr>
                 <tr>
@@ -111,8 +90,8 @@ $version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.1.19';
                     <td>Playground 自由测试各大平台文生图模型</td>
                 </tr>
                 <tr>
-                    <td>🔍 SEO 诊断 <span class="ai-new-tag">NEW</span></td>
-                    <td>全站文章批量诊断 · 得分分析 · 问题定位 · AI 批量优化</td>
+                    <td>🔍 SEO 诊断 <span class="ai-new-tag">核心</span></td>
+                    <td>全站文章批量诊断 · 得分分析 · 问题定位 · AI 一键优化</td>
                 </tr>
                 <tr>
                     <td>💬 网站客服</td>
@@ -167,59 +146,56 @@ $version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.1.19';
 
     </div>
 
-    <!-- SEO诊断说明 + Gutenberg区块 -->
-    <div class="ai-about-grid">
-
-        <div class="ai-card ai-full">
-            <h2>🔍 SEO 诊断功能详解 <span class="ai-new-tag">NEW</span></h2>
-            <div class="ai-full-card">
-                <div class="ai-subcard">
-                    <h3>📊 诊断维度</h3>
-                    <p>
-                        · 标题长度（建议 30-60 字）<br>
-                        · 标签数量与长度（建议 3-5 个，单标签≤6字）<br>
-                        · 摘要完整性（建议 80-120 字）<br>
-                        · 内容字数（建议 500 字以上）<br>
-                        · 综合 SEO 得分（0-100）
-                    </p>
-                </div>
-                <div class="ai-subcard">
-                    <h3>🤖 AI 批量优化</h3>
-                    <p>
-                        一键对选中文章进行 AI 优化：<br>
-                        · 自动重写标题（SEO友好+搜索意图词）<br>
-                        · 智能生成/补全摘要描述<br>
-                        · 提取相关标签<br>
-                        · 支持切换不同 AI 模型
-                    </p>
-                </div>
-                <div class="ai-subcard">
-                    <h3>🎯 Gutenberg 编辑器集成</h3>
-                    <p>
-                        在文章编辑器右侧 AI Plus 面板中：<br>
-                      选中标题 → 点击「🎯 优化标题」<br>
-                        AI 自动生成符合 SEO 的最佳标题，<br>
-                        关键词靠前，搜索意图词增强，<br>
-                        直接替换原标题。
-                    </p>
-                </div>
-                <div class="ai-subcard">
-                    <h3>📈 统计面板</h3>
-                    <p>
-                        · 全站文章总数<br>
-                        · 已优化 / 待优化 文章数<br>
-                        · 全站平均 SEO 得分<br>
-                        · 支持分页查看和单篇操作
-                    </p>
-                </div>
+    <!-- 🔍 SEO 诊断功能详解 -->
+    <div class="ai-card ai-full" style="margin-bottom:28px;">
+        <h2>🔍 SEO 诊断功能详解 <span class="ai-new-tag">核心功能</span></h2>
+        <div class="ai-full-card">
+            <div class="ai-subcard">
+                <h3>📊 诊断维度</h3>
+                <p>
+                    · <strong>标题长度</strong>（建议 30-60 字，含核心关键词）<br>
+                    · <strong>标签质量</strong>（建议 3-5 个，单标签≤6字，SEO友好）<br>
+                    · <strong>摘要完整性</strong>（建议 80-120 字，含关键词+价值点+行动引导）<br>
+                    · <strong>内容字数</strong>（建议 500 字以上）<br>
+                    · <strong>综合 SEO 得分</strong>（0-100 分，≥95 分为优秀）
+                </p>
+            </div>
+            <div class="ai-subcard">
+                <h3>🤖 AI 批量优化</h3>
+                <p>
+                    一键对选中文章进行 AI 优化：<br>
+                    · 自动重写标题（SEO友好 + 搜索意图词增强 + 关键词靠前）<br>
+                    · 智能生成 / 补全摘要描述<br>
+                    · 提取相关标签（3-5个，SEO友好）<br>
+                    · 支持切换不同 AI 模型（通义千问 / 智谱 / MiniMax / Kimi）
+                </p>
+            </div>
+            <div class="ai-subcard">
+                <h3>🎯 标题优化（Gutenberg 集成）</h3>
+                <p>
+                    在文章编辑器右侧 AI Plus 面板中：<br>
+                    · 选中标题内容 → 点击「🎯 优化标题」<br>
+                    · AI 结合正文内容，生成符合 SEO 的最佳标题<br>
+                    · 关键词靠前，搜索意图词增强<br>
+                    · 直接替换原标题，一键完成
+                </p>
+            </div>
+            <div class="ai-subcard">
+                <h3>📈 统计面板</h3>
+                <p>
+                    · 全站文章总数<br>
+                    · 已优化 / 待优化 文章数<br>
+                    · 全站平均 SEO 得分<br>
+                    · 支持分页查看和单篇操作<br>
+                    · 一键诊断全部文章
+                </p>
             </div>
         </div>
-
     </div>
 
-    <!-- Gutenberg 区块 -->
+    <!-- 🧱 Gutenberg 区块 -->
     <div class="ai-card ai-full">
-        <h2>🧱 Gutenberg 区块</h2>
+        <h2>🧱 Gutenberg 编辑器集成</h2>
         <div class="ai-full-card">
             <div class="ai-subcard">
                 <h3>🤖 Zuo AI Plus 聊天</h3>

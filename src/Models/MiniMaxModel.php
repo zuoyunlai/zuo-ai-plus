@@ -3,7 +3,7 @@
  * MiniMax 模型
  * 文档: https://www.minimaxi.com/document
  */
-namespace AI_Plus\Models;
+namespace ZuoAIPlus\Models;
 
 class MiniMaxModel extends BaseModel
 {

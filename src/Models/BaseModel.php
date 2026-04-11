@@ -2,7 +2,7 @@
 /**
  * AI 模型基类
  */
-namespace AI_Plus\Models;
+namespace ZuoAIPlus\Models;
 
 abstract class BaseModel
 {
