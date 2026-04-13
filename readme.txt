@@ -4,7 +4,7 @@ Tags: ai, content generator, translation, seo, image generator
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 8.1
-Stable tag: 1.2.0
+Stable tag: 1.2.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: zuo-ai-plus
@@ -82,6 +82,8 @@ Enable it in Zuo AI Plus → Customer Service settings. It automatically reads y
 = 1.2.0 =
 * 全新导航系统：模型设置 / 文生图 / 文生文 / 统计 / SEO诊断 / 授权管理 / 关于
 * SEO诊断功能：批量诊断得分、AI一键优化、满分文章智能跳过
+* 新增各模型 API Key 测试连接按钮（实时验证 Key 有效性）
+* 新增 AI 响应缓存：相同请求在 TTL 内取缓存，省 Token 费用，支持手动清除
 * 修复SEO优化按钮点击无反应Bug（REST参数类型错误+按钮双监听器）
 * 修复满分文章优化后未标记已优化Bug
 * 修复Gutenberg侧边栏标签保存失败Bug

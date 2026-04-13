@@ -13,7 +13,7 @@ class TongyiModel extends BaseModel
     public function __construct(string $apiKey, string $modelId = 'qwen-turbo', string $baseUrl = '')
     {
         $this->apiKey = $apiKey;
-        $this->modelId = $modelId;
+        $this->modelId = $modelId ?: 'qwen-turbo';
         $this->baseUrl = $baseUrl;
     }
 

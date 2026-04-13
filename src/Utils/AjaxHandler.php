@@ -183,3 +183,84 @@ add_action('wp_ajax_ai_plus_save_content', function () {
     $names = array_map(function ($id) { return \get_term($id)->name; }, $tag_ids);
     \wp_send_json_success(['tags' => $names]);
 });
+
+// 测试模型连接
+\add_action('wp_ajax_ai_plus_test_model', function () {
+    $nonce = isset($_POST['nonce']) ? sanitize_key($_POST['nonce']) : '';
+    if (!wp_verify_nonce($nonce, 'wp_rest')) {
+        \wp_send_json_error(['message' => 'Unauthorized'], 401);
+    }
+
+    $modelId   = isset($_POST['model_id'])   ? sanitize_text_field($_POST['model_id'])   : '';
+    $apiKey    = isset($_POST['api_key'])     ? sanitize_text_field($_POST['api_key'])   : '';
+    $baseUrl   = isset($_POST['base_url'])    ? sanitize_text_field($_POST['base_url'])   : '';
+    $modelName = isset($_POST['model_name'])  ? sanitize_text_field($_POST['model_name']) : '';
+
+    if (!$modelId || !$apiKey) {
+        \wp_send_json_error(['message' => '缺少必要参数']);
+    }
+
+    $classMap = [
+        'zhipu'   => 'ZuoAIPlus\\Models\\ZhipuModel',
+        'tongyi'  => 'ZuoAIPlus\\Models\\TongyiModel',
+        'minimax' => 'ZuoAIPlus\\Models\\MiniMaxModel',
+        'kimi'    => 'ZuoAIPlus\\Models\\KimiModel',
+        'deepseek'=> 'ZuoAIPlus\\Models\\DeepSeekModel',
+        'custom'  => 'ZuoAIPlus\\Models\\CustomModel',
+    ];
+
+    if (!isset($classMap[$modelId])) {
+        \wp_send_json_error(['message' => '不支持的模型: ' . $modelId]);
+    }
+
+    $class = $classMap[$modelId];
+    $model = new $class($apiKey, $modelName, $baseUrl);
+
+    $start = microtime(true);
+    try {
+        // 用简单的数字问题测试，避免触发 MiniMax 等模型的思考过程
+        $result = $model->completion('1+1=?, 直接回答数字', ['max_tokens' => 500]);
+        $elapsed = round((microtime(true) - $start) * 1000);
+        $content = $result['content'] ?? '';
+        // 去掉 思考模型 的思考标签（<think>...</think> 和 <begin_thought>...</end_thought>）
+        $content = trim($content);
+        if (strlen($content) > 0) {
+            \wp_send_json_success([
+                'message' => '✅ 连接成功',
+                'model'   => $model->getModelId(),
+                'elapsed' => $elapsed . 'ms',
+                'reply'   => mb_substr($content, 0, 80),
+            ]);
+        } else {
+            \wp_send_json_error(['message' => '⚠️ 连接正常但返回内容为空，可能是模型参数有误']);
+        }
+    } catch (\Throwable $e) {
+        $msg = $e->getMessage();
+        // 中文友好提示
+        if (stripos($msg, '401') !== false || stripos($msg, 'unauthorized') !== false) {
+            $msg = 'API Key 无效或已过期';
+        } elseif (stripos($msg, '403') !== false) {
+            $msg = '无访问权限，请检查 Key 权限设置';
+        } elseif (stripos($msg, '429') !== false) {
+            $msg = '请求超限，请稍后重试';
+        } elseif (stripos($msg, 'timeout') !== false) {
+            $msg = '连接超时，请检查网络或 Base URL';
+        } elseif (stripos($msg, 'cURL error') !== false) {
+            $msg = '网络错误: ' . substr($msg, 0, 80);
+        }
+        \wp_send_json_error(['message' => '❌ ' . $msg]);
+    }
+});
+
+// 清除 AI 缓存
+\add_action('wp_ajax_ai_plus_flush_cache', function () {
+    $nonce = isset($_POST['nonce']) ? sanitize_key($_POST['nonce']) : '';
+    if (!wp_verify_nonce($nonce, 'wp_rest')) {
+        \wp_send_json_error(['message' => 'Unauthorized'], 401);
+    }
+    global $wpdb;
+    $prefix = '_transient_ai_cache_';
+    $deleted = $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '" . esc_sql($wpdb->esc_like($prefix)) . "%'");
+    wp_cache_delete('alloptions', 'options');
+    \wp_send_json_success(['message' => '已清除 ' . intval($deleted) . ' 条缓存记录']);
+});

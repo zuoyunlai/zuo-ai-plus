@@ -56,13 +56,27 @@ if ($post_ids) {
     }
 }
 
-$model_options = [
-    'minimax' => 'MiniMax',
-    'zhipu'   => '智谱 GLM',
-    'kimi'    => 'Kimi',
-    'tongyi'  => '通义千问',
-    'doubao'  => '豆包',
+// 动态获取已配置的平台，格式：平台 => 显示名
+$platform_names = [
+    'minimax'  => 'MiniMax',
+    'zhipu'    => '智谱 GLM',
+    'kimi'     => 'Kimi',
+    'tongyi'   => '通义千问',
+    'deepseek' => 'DeepSeek',
+    'custom'   => '自定义',
 ];
+$apiKeys = get_option('ai_plus_api_keys', []);
+$model_options = [];
+foreach ($platform_names as $key => $label) {
+    $cfg = $apiKeys[$key] ?? [];
+    $has_key = is_array($cfg) ? !empty($cfg['api_key']) : !empty($cfg);
+    if ($has_key) {
+        // 显示平台名 + 具体模型ID
+        $model_id = is_array($cfg) ? ($cfg['model'] ?: '') : '';
+        $display = $model_id ? "{$label}（{$model_id}）" : $label;
+        $model_options[$key] = $display;
+    }
+}
 $default_model = get_option('ai_plus_default_model', 'minimax');
 ?>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-wordpress-admin@3/wordpress-admin.css">

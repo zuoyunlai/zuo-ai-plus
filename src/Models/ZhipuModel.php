@@ -28,8 +28,14 @@ class ZhipuModel extends BaseModel
 
         $response = $this->request('POST', "{$this->endpoint}/chat/completions", $body);
 
+        // 推理模型（glm-5 等）：内容在 reasoning_content
+        $content = $response['choices'][0]['message']['content'] ?? '';
+        if ($content === '') {
+            $content = $response['choices'][0]['message']['reasoning_content'] ?? '';
+        }
+
         return [
-            'content' => $response['choices'][0]['message']['content'] ?? '',
+            'content' => $content,
             'usage' => $response['usage'] ?? [],
             'raw' => $response,
         ];

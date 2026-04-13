@@ -97,6 +97,8 @@ class Admin_Init
     \register_setting('ai_plus_settings', 'ai_plus_license_key', ['sanitize_callback' => [$this, 'sanitizeLicenseKey']]);
         \register_setting('ai_plus_settings', 'ai_plus_license_server_url', ['sanitize_callback' => [$this, 'sanitizeLicenseUrl']]);
         \register_setting('ai_plus_settings', 'ai_plus_chat_enabled', ['sanitize_callback' => function($v) { return (bool)$v; }]);
+        \register_setting('ai_plus_settings', 'ai_plus_cache_enabled', ['sanitize_callback' => function($v) { return (bool)$v; }]);
+        \register_setting('ai_plus_settings', 'ai_plus_cache_ttl', ['sanitize_callback' => function($v) { return intval($v); }]);
     }
 
     // 设置项 sanitization callbacks
@@ -211,6 +213,10 @@ placeholder="例如：本公司专业生产铝合金衣柜，产品特点包括�
                                     <span style="color:#ccc;font-size:12px;">该平台不支持</span>
                                 </div>
                                 <?php endif; ?>
+                                <div class="ai-model-card__field" style="margin-top:8px;">
+                                    <button type="button" class="button button-secondary button-small" style="font-size:12px;" onclick="testModel('<?php echo esc_html($id) ?>')" id="btn_test_<?php echo esc_html($id) ?>">🔗 测试连接</button>
+                                    <span id="test_result_<?php echo esc_html($id) ?>" style="font-size:12px;margin-left:8px;vertical-align:middle;"></span>
+                                </div>
                             </div>
                         </div>
                         <?php endforeach; ?>
@@ -254,6 +260,38 @@ placeholder="例如：本公司专业生产铝合金衣柜，产品特点包括�
                         </tr>
                     </table>
 
+                    <!-- AI 缓存设置 -->
+                    <h2 class="ai-section-title">⚡ 性能设置 — AI 响应缓存</h2>
+                    <table class="form-table">
+                        <tr>
+                            <th>启用响应缓存</th>
+                            <td>
+                                <label><input type="checkbox" name="ai_plus_cache_enabled" value="1" <?php echo \checked(\get_option('ai_plus_cache_enabled', '1'), '1', false) ?>>
+                                开启后，相同请求（模型+内容相同）在 TTL 时间内直接取缓存，不重复调用 API，省 Token 费用。</label>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>缓存有效期</th>
+                            <td>
+                                <select name="ai_plus_cache_ttl">
+                                    <option value="600" <?php echo  \get_option('ai_plus_cache_ttl', 3600) == 600 ? 'selected' : '' ?>>10 分钟</option>
+                                    <option value="1800" <?php echo  \get_option('ai_plus_cache_ttl', 3600) == 1800 ? 'selected' : '' ?>>30 分钟</option>
+                                    <option value="3600" <?php echo  \get_option('ai_plus_cache_ttl', 3600) == 3600 ? 'selected' : '' ?>>1 小时（默认）</option>
+                                    <option value="7200" <?php echo  \get_option('ai_plus_cache_ttl', 3600) == 7200 ? 'selected' : '' ?>>2 小时</option>
+                                    <option value="14400" <?php echo  \get_option('ai_plus_cache_ttl', 3600) == 14400 ? 'selected' : '' ?>>4 小时</option>
+                                </select>
+                                <p class="description">仅对文章生成、摘要、翻译等文本请求生效。图片生成不受缓存影响。</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>手动清除缓存</th>
+                            <td>
+                                <button type="button" class="button button-secondary" onclick="flushAiCache()" id="btn_flush_cache">🗑️ 清除所有缓存</button>
+                                <span id="flush_cache_result" style="margin-left:10px;font-size:13px;"></span>
+                            </td>
+                        </tr>
+                    </table>
+
                     <h2 class="ai-section-title">💬 网站客服</h2>
                     <table class="form-table">
                         <tr>
@@ -267,6 +305,77 @@ placeholder="例如：本公司专业生产铝合金衣柜，产品特点包括�
 
                     <?php \submit_button(); ?>
                 </form>
+
+                <script>
+                function testModel(modelId) {
+                    var card = document.querySelector('[id^="btn_test_' + modelId + '"]').closest('.ai-model-card');
+                    var apiKey = card.querySelector('input[name^="ai_plus_api_keys"]').value.trim();
+                    var baseUrl = card.querySelector('input[name*="[base_url]"]').value.trim();
+                    var modelName = card.querySelector('input[name*="[model]"]').value.trim();
+                    var btn = document.getElementById('btn_test_' + modelId);
+                    var result = document.getElementById('test_result_' + modelId);
+
+                    if (!apiKey) {
+                        result.innerHTML = '<span style="color:#e53e3e;">请先填写 API Key</span>';
+                        return;
+                    }
+
+                    btn.disabled = true;
+                    btn.textContent = '测试中...';
+                    result.innerHTML = '';
+
+                    var formData = new FormData();
+                    formData.append('action', 'ai_plus_test_model');
+                    formData.append('nonce', aiPlusAdmin.nonce);
+                    formData.append('model_id', modelId);
+                    formData.append('api_key', apiKey);
+                    formData.append('base_url', baseUrl);
+                    formData.append('model_name', modelName);
+
+                    fetch(ajaxurl, {method: 'POST', body: formData})
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            btn.disabled = false;
+                            btn.textContent = '🔗 测试连接';
+                            if (data.success) {
+                                result.innerHTML = '<span style="color:#10b981;">' + data.data.message + ' · ' + data.data.elapsed + '</span>';
+                            } else {
+                                result.innerHTML = '<span style="color:#e53e3e;">' + data.data.message + '</span>';
+                            }
+                        })
+                        .catch(function(err) {
+                            btn.disabled = false;
+                            btn.textContent = '🔗 测试连接';
+                            result.innerHTML = '<span style="color:#e53e3e;">请求失败: ' + err.message + '</span>';
+                        });
+                }
+
+                function flushAiCache() {
+                    var btn = document.getElementById('btn_flush_cache');
+                    var result = document.getElementById('flush_cache_result');
+                    btn.disabled = true;
+                    btn.textContent = '清除中...';
+                    var formData = new FormData();
+                    formData.append('action', 'ai_plus_flush_cache');
+                    formData.append('nonce', aiPlusAdmin.nonce);
+                    fetch(ajaxurl, {method: 'POST', body: formData})
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            btn.disabled = false;
+                            btn.textContent = '🗑️ 清除所有缓存';
+                            if (data.success) {
+                                result.innerHTML = '<span style="color:#10b981;">' + data.data.message + '</span>';
+                            } else {
+                                result.innerHTML = '<span style="color:#e53e3e;">' + data.data.message + '</span>';
+                            }
+                        })
+                        .catch(function(err) {
+                            btn.disabled = false;
+                            btn.textContent = '🗑️ 清除所有缓存';
+                            result.innerHTML = '<span style="color:#e53e3e;">请求失败</span>';
+                        });
+                }
+                </script>
 
             <?php elseif ($tab === 'ai_plus_playground'): ?>
                 <h2 class="ai-section-title">🧪 Playground — 文本模型测试</h2>

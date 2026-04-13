@@ -10,10 +10,10 @@ class MiniMaxModel extends BaseModel
     protected string $name = 'MiniMax';
     protected string $endpoint = 'https://api.minimax.chat/v1';
 
-    public function __construct(string $apiKey, string $modelId = 'MiniMax-Text-01', string $baseUrl = '')
+    public function __construct(string $apiKey, string $modelId = 'MiniMax-M2.7', string $baseUrl = '')
     {
         $this->apiKey = $apiKey;
-        $this->modelId = $modelId;
+        $this->modelId = $modelId ?: 'MiniMax-M2.7';
         $this->baseUrl = $baseUrl;
     }
 
@@ -28,11 +28,17 @@ class MiniMaxModel extends BaseModel
 
         $response = $this->request('POST', "{$this->endpoint}/text/chatcompletion_v2", $body);
 
-        // MiniMax 响应: choices=null，内容在顶层 content 字段
+        // 优先取 content
         $text = $response['content'] ?? '';
         if (!$text) {
+            // 标准 chat/completions 格式
             $text = $response['choices'][0]['message']['content'] ?? '';
         }
+        if (!$text) {
+            // 推理模型（MiniMax-M2.7 等）：内容在 reasoning_content
+            $text = $response['choices'][0]['message']['reasoning_content'] ?? '';
+        }
+
         return [
             'content' => $text,
             'usage' => $response['usage'] ?? [],

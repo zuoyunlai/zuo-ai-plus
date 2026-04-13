@@ -13,7 +13,7 @@ class KimiModel extends BaseModel
     public function __construct(string $apiKey, string $modelId = 'moonshot-v1-8k', string $baseUrl = '')
     {
         $this->apiKey = $apiKey;
-        $this->modelId = $modelId;
+        $this->modelId = $modelId ?: 'moonshot-v1-8k';
         $this->baseUrl = $baseUrl;
     }
 
@@ -22,14 +22,26 @@ class KimiModel extends BaseModel
         $body = [
             'model' => $this->modelId,
             'messages' => $messages,
-            'temperature' => $opts['temperature'] ?? 1.0,  // Kimi API 仅支持 temperature=1
+            'temperature' => $opts['temperature'] ?? 1.0,
             'max_tokens' => $opts['max_tokens'] ?? 8192,
         ];
 
+        // 尝试关闭思考过程（Kimi k2.5 支持）
+        if (($opts['thinking'] ?? true) === false) {
+            $body['thinking'] = ['type' => 'off'];
+        }
+
         $response = $this->request('POST', "{$this->endpoint}/chat/completions", $body);
 
+        // 标准 content
+        $content = $response['choices'][0]['message']['content'] ?? '';
+        // 备用：推理模型内容在 reasoning_content
+        if ($content === '') {
+            $content = $response['choices'][0]['message']['reasoning_content'] ?? '';
+        }
+
         return [
-            'content' => $response['choices'][0]['message']['content'] ?? '',
+            'content' => $content,
             'usage' => $response['usage'] ?? [],
             'raw' => $response,
         ];

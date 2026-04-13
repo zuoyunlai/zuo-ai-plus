@@ -12,7 +12,7 @@ class DeepSeekModel extends BaseModel
     public function __construct(string $apiKey, string $modelId = 'deepseek-chat', string $baseUrl = '')
     {
         $this->apiKey = $apiKey;
-        $this->modelId = $modelId;
+        $this->modelId = $modelId ?: 'deepseek-chat';
         $this->baseUrl = $baseUrl;
     }
 

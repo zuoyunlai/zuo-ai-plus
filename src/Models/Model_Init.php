@@ -121,11 +121,63 @@ class Model_Init
                 $id = (int) $req->get_param('post_id');
                 $model = $req->get_param('model') ?: '';
                 $result = $seo->optimizePost($id, $model);
-                
+
                 if (is_wp_error($result)) {
                     return new \WP_REST_Response(['error' => $result->get_error_message()], 400);
                 }
                 return new \WP_REST_Response($result, 200);
+            },
+            'permission_callback' => function() { return current_user_can('edit_posts'); },
+        ]);
+
+        // ── SEO 优化调试（返回 AI 原始内容） ──
+        register_rest_route('ai-plus/v1', '/seo-debug/(?P<post_id>\d+)', [
+            'methods' => 'GET',
+            'callback' => function($req) use ($seo) {
+                $id = (int) $req->get_param('post_id');
+                $post = get_post($id);
+                if (!$post) return new \WP_REST_Response(['error' => '文章不存在'], 404);
+
+                $model_name = get_option('ai_plus_default_model') ?: 'minimax';
+                $model = \ZuoAIPlus\Models\Model_Init::getModel($model_name);
+                if (!$model) return new \WP_REST_Response(['error' => 'AI 模型未配置'], 400);
+
+                $content = wp_strip_all_tags($post->post_content);
+                $tags = wp_get_post_tags($id, ['fields' => 'names']);
+                $cats = wp_get_post_terms($id, 'category', ['fields' => 'names']);
+                $excerpt = $post->post_excerpt;
+
+                $prompt_parts = [
+                    "你是一位资深中文博客 SEO 专家。请根据以下文章信息生成优化方案。",
+                    "文章标题：{$post->post_title}",
+                    "现有分类：" . implode('、', $cats),
+                    "现有标签：" . implode('、', $tags),
+                    "文章摘要：{$excerpt}",
+                    "正文前200字：" . mb_substr($content, 0, 200, 'utf-8'),
+                ];
+                $prompt = implode("\n", $prompt_parts)
+                    . "\n\n【优化要求】\n"
+                    . "新标题：30-60字，包含核心关键词，SEO 友好，直接返回新标题不要解释\n"
+                    . "新标签：3-5个，每个2-6个中文字，简洁词组，不要完整句子，用逗号分隔，不要编号和解释\n"
+                    . "SEO描述：80-120字，涵盖文章主题+价值+关键词，吸引用户点击，直接输出一段话\n\n"
+                    . "直接输出结果，不要任何解释说明。";
+
+                $ai_result = $model->completion($prompt, ['max_tokens' => 1500, 'temperature' => 0.3]);
+                $raw_text = \ZuoAIPlus\Models\Model_Init::extractContent($ai_result);
+                $parsed = $seo->parseAiResponse($raw_text, true, true, true);
+
+                return new \WP_REST_Response([
+                    'post_id'   => $id,
+                    'model'     => $model_name,
+                    'prompt'    => $prompt,
+                    'raw'       => $raw_text,
+                    'parsed'    => $parsed,
+                    'updates'   => [
+                        'title'       => $parsed['title'] ?? '',
+                        'tags'        => $parsed['tags'] ?? [],
+                        'description' => $parsed['description'] ?? '',
+                    ],
+                ], 200);
             },
             'permission_callback' => function() { return current_user_can('edit_posts'); },
         ]);
@@ -618,9 +670,23 @@ class Model_Init
      */
     public static function extractContent(array $result): string
     {
-        // OpenAI compatible: choices[0].message.content
+        // 检测 API 错误（优先检测）
+        if (!empty($result['raw']['base_resp']['status_code']) && $result['raw']['base_resp']['status_code'] !== 0) {
+            return ''; // API 错误，由调用方决定如何处理
+        }
+        if (!empty($result['error']['code']) || !empty($result['error']['message'])) {
+            return '';
+        }
+
+        // 标准 content 字段
         if (isset($result['choices'][0]['message']['content'])) {
-            return $result['choices'][0]['message']['content'];
+            $c = trim($result['choices'][0]['message']['content']);
+            if ($c !== '') return $c;
+        }
+        // 推理模型：内容在 reasoning_content
+        if (isset($result['choices'][0]['message']['reasoning_content'])) {
+            $c = trim($result['choices'][0]['message']['reasoning_content']);
+            if ($c !== '') return $c;
         }
         // 直接 content 字段
         if (!empty($result['content'])) {
@@ -629,6 +695,10 @@ class Model_Init
         // OpenAI text 字段
         if (!empty($result['text'])) {
             return $result['text'];
+        }
+        // choices 为 null 或空（API 错误另一种表现）
+        if (isset($result['choices']) && empty($result['choices'])) {
+            return '';
         }
         return json_encode($result, JSON_UNESCAPED_UNICODE);
     }
@@ -687,6 +757,8 @@ public function getModels(): array
             ['id' => 'tongyi', 'name' => '阿里通义千问'],
             ['id' => 'minimax', 'name' => 'MiniMax'],
             ['id' => 'kimi', 'name' => 'Kimi'],
+            ['id' => 'deepseek', 'name' => 'DeepSeek'],
+            ['id' => 'custom', 'name' => '自定义模型'],
         ];
     }
 

@@ -11,7 +11,7 @@ class CustomModel extends BaseModel
     public function __construct(string $apiKey, string $modelId = '', string $baseUrl = '')
     {
         $this->apiKey  = $apiKey;
-        $this->modelId = $modelId;
+        $this->modelId = $modelId ?: get_option('ai_plus_custom_model', '');
         // baseUrl 传入时直接使用（无需拼接待用）
         $this->baseUrl  = rtrim($baseUrl, '/');
         $this->endpoint = $baseUrl;
