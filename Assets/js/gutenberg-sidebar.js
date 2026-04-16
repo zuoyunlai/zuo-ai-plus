@@ -146,204 +146,70 @@
             console.log('Wrapped content with HTML tags');
         }
 
-        // 方案1：使用 wp.blocks.createBlock 创建段落块（更兼容）
+        // 方案1：使用 Gutenberg 原生 parse 解析 HTML 为块（最可靠）
         try {
-            console.log('Checking wp.blocks...');
-            if (!wp.blocks) {
-                console.warn('wp.blocks not available');
-                throw new Error('wp.blocks not available');
-            }
-            if (!wp.blocks.createBlock) {
-                console.warn('wp.blocks.createBlock not available');
-                throw new Error('wp.blocks.createBlock not available');
-            }
-            
-            var blockEditorSelect = wp.data.select('core/block-editor');
-            var blockEditorDispatch = wp.data.dispatch('core/block-editor');
-            
-            if (!blockEditorSelect) {
-                console.warn('core/block-editor select not available');
-                throw new Error('core/block-editor select not available');
-            }
-            if (!blockEditorDispatch) {
-                console.warn('core/block-editor dispatch not available');
-                throw new Error('core/block-editor dispatch not available');
-            }
-            
-            console.log('Trying wp.blocks.createBlock...');
-            
-            // 解析 HTML DOM，按标签类型创建 Gutenberg 块（保留真实标题结构）
-            var tempDiv = document.createElement('div');
-            tempDiv.innerHTML = merged;
+            var blockEditorSelect = wp.data && wp.data.select && wp.data.select('core/block-editor');
+            var blockEditorDispatch = wp.data && wp.data.dispatch && wp.data.dispatch('core/block-editor');
+            var blockParser = wp.blockEditor && wp.blockEditor.parse;
 
-            var newBlocks = [];
-            var children = tempDiv.children;
-
-            // 如果没有子元素（纯文本情况），回退到纯文本分段
-            if (!children || children.length === 0) {
-                var textContent = (tempDiv.textContent || tempDiv.innerText || merged).trim();
-                var paragraphs = textContent.split(/\n\n+/).filter(function(p) { return p.trim(); });
-                paragraphs.forEach(function(p) {
-                    if (p.match(/^#{1,3}\s/)) {
-                        var level = p.match(/^#+/)[0].length;
-                        newBlocks.push(wp.blocks.createBlock('core/heading', {
-                            content: p.replace(/^#+\s*/, ''),
-                            level: Math.min(level, 3)
-                        }));
-                    } else {
-                        newBlocks.push(wp.blocks.createBlock('core/paragraph', { content: p }));
-                    }
-                });
-            } else {
-                // HTML 结构解析：按真实标签创建对应块
-                for (var i = 0; i < children.length; i++) {
-                    var el = children[i];
-                    var tagName = el.tagName ? el.tagName.toLowerCase() : '';
-                    var innerText = (el.textContent || '').trim();
-
-                    if (!innerText) continue;
-
-                    // 标题块（H1-H6）
-                    if (/^h[1-6]$/.test(tagName)) {
-                        var level = parseInt(tagName.replace('h', ''), 10);
-                        newBlocks.push(wp.blocks.createBlock('core/heading', {
-                            content: innerText,
-                            level: Math.min(level, 3)  // Gutenberg H1-H3
-                        }));
-                    }
-                    // 列表项
-                    else if (tagName === 'ul' || tagName === 'ol') {
-                        var items = [];
-                        Array.prototype.forEach.call(el.children, function(li) {
-                            items.push((li.textContent || '').trim());
-                        });
-                        if (items.length > 0) {
-                            newBlocks.push(wp.blocks.createBlock(
-                                tagName === 'ol' ? 'core/list' : 'core/list',
-                                { ordered: tagName === 'ol', values: items }
-                            ));
-                        }
-                    }
-                    // 引用块
-                    else if (tagName === 'blockquote') {
-                        newBlocks.push(wp.blocks.createBlock('core/quote', {
-                            content: innerText
-                        }));
-                    }
-                    // 图片
-                    else if (tagName === 'img') {
-                        newBlocks.push(wp.blocks.createBlock('core/image', {
-                            url: el.src || '',
-                            alt: el.alt || ''
-                        }));
-                    }
-                    // 其他（段落等）：去掉残余 HTML 标签后作为段落
-                    else {
-                        var cleanText = innerText;
-                        newBlocks.push(wp.blocks.createBlock('core/paragraph', { content: cleanText }));
-                    }
-                }
+            if (!blockEditorSelect || !blockEditorDispatch || !blockParser) {
+                throw new Error('Gutenberg block API not available');
             }
 
-            tempDiv = null;
-            console.log('Created', newBlocks.length, 'blocks from HTML structure');
+            // 用 Gutenberg 原生解析器将 HTML 转成块数组
+            var newBlocks = blockParser(merged);
 
-            if (newBlocks.length === 0) {
-                console.warn('No blocks created');
-                throw new Error('No blocks created from content');
+            if (!newBlocks || newBlocks.length === 0) {
+                throw new Error('parse returned no blocks');
             }
-            
-            // 执行插入
+
+            console.log('[ZuoAI] Parsed', newBlocks.length, 'blocks via wp.blockEditor.parse');
+
             if (replaceMode) {
-                // 替换模式：重置所有块
-                console.log('Calling resetBlocks with', newBlocks.length, 'blocks');
                 blockEditorDispatch.resetBlocks(newBlocks);
-                console.log('resetBlocks called');
             } else {
-                // 追加模式
                 var currentBlocks = blockEditorSelect.getBlocks();
-                console.log('current blocks:', currentBlocks ? currentBlocks.length : 0);
-                
                 if (currentBlocks && currentBlocks.length > 0) {
                     var lastBlock = currentBlocks[currentBlocks.length - 1];
-                    if (lastBlock && lastBlock.clientId) {
-                        console.log('inserting after block:', lastBlock.clientId);
-                        blockEditorDispatch.insertBlocks(newBlocks, undefined, lastBlock.clientId);
-                    } else {
-                        console.warn('lastBlock has no clientId, falling back to resetBlocks');
-                        blockEditorDispatch.resetBlocks(currentBlocks.concat(newBlocks));
-                    }
+                    blockEditorDispatch.insertBlocks(
+                        newBlocks,
+                        undefined,
+                        lastBlock && lastBlock.clientId ? lastBlock.clientId : undefined
+                    );
                 } else {
-                    console.log('Editor empty, calling resetBlocks');
                     blockEditorDispatch.resetBlocks(newBlocks);
                 }
             }
-            
-            // 验证插入结果
-            setTimeout(function() {
-                try {
-                    var afterBlocks = wp.data.select('core/block-editor').getBlocks();
-                    console.log('After insert, blocks count:', afterBlocks ? afterBlocks.length : 0);
-                    if (afterBlocks && afterBlocks.length > 0) {
-                        var lastBlock = afterBlocks[afterBlocks.length - 1];
-                        console.log('Last block type:', lastBlock.name);
-                        console.log('Last block content:', lastBlock.attributes ? lastBlock.attributes.content : 'no content attr');
-                    }
-                } catch(verifyErr) {
-                    console.warn('Verification failed:', verifyErr);
-                }
-            }, 100);
-            
+
             setGlobalResult({ type: 'ok', text: '✅ 已写入编辑器！' });
-            console.log('=== insertContent SUCCESS ===');
             return;
-            
-        } catch(blockErr) {
-            console.error('Block insert failed:', blockErr);
-            console.log('Falling back to editPost...');
+
+        } catch(parseErr) {
+            console.error('[ZuoAI] Block parse failed:', parseErr.message);
         }
 
-        // 方案2：回退到 editPost（兼容性方式）
+        // 方案2：回退到 editPost（极旧版 Gutenberg 兼容）
         try {
-            var editorDispatch = wp.data.dispatch('core/editor');
-            if (!editorDispatch) {
-                throw new Error('core/editor dispatch not available');
+            var editorDispatch = wp.data && wp.data.dispatch && wp.data.dispatch('core/editor');
+            if (editorDispatch) {
+                editorDispatch.editPost({ content: merged });
+                setTimeout(function() {
+                    try { wp.data.dispatch('core/editor').savePost(); } catch(e) {}
+                }, 100);
+                setGlobalResult({ type: 'ok', text: '✅ 已写入编辑器（兼容模式）！' });
+            } else {
+                throw new Error('core/editor not available');
             }
-            
-            console.log('Calling editPost with content length:', merged.length);
-            editorDispatch.editPost({ content: merged });
-            console.log('editPost called');
-            
-            // 触发自动保存
-            setTimeout(function() {
-                try {
-                    wp.data.dispatch('core/editor').savePost();
-                    console.log('Auto save triggered');
-                } catch(saveErr) {
-                    console.warn('Auto save failed:', saveErr);
-                }
-            }, 100);
-            
-            setGlobalResult({ type: 'ok', text: '✅ 已写入编辑器！' });
-            console.log('=== insertContent SUCCESS (fallback) ===');
-            
+            return;
         } catch(editErr) {
-            console.error('editPost failed:', editErr);
-            
-            // 最终兜底：复制到剪贴板
-            var errorMsg = '⚠️ 编辑器更新失败\n\n';
-            errorMsg += '错误: ' + (editErr.message || '未知错误') + '\n\n';
-            errorMsg += '内容已复制到剪贴板，请手动粘贴到编辑器。';
-            
-            setGlobalResult({ type: 'warn', text: errorMsg });
-            
-            // 复制到剪贴板
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(merged).catch(function(clipErr) {
-                    console.warn('Clipboard copy failed:', clipErr);
-                });
-            }
-            console.log('=== insertContent FAILED ===');
+            console.error('[ZuoAI] editPost failed:', editErr.message);
+        }
+
+        // 方案3：最终兜底 — 复制到剪贴板
+        var errorMsg = '⚠️ 编辑器写入失败，请手动粘贴内容。';
+        setGlobalResult({ type: 'warn', text: errorMsg });
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(merged).catch(function() {});
         }
     }
 
