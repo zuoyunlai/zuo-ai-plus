@@ -417,8 +417,8 @@ class SeoOptimizer
                     if ($len < 2) continue;
                     // 跳过可能是句子拆分的片段（单字或两字以下）
                     if ($len <= 2 && preg_match('/^[\x{4e00}-\x{9fa5}]$/u', $t)) continue;
-                    // 只保留完整词汇，长度超过6的跳过（不截断，避免破坏语义）
-                    if ($len > 6) continue;
+                    // 只保留完整词汇，长度超过10的跳过（不截断，避免破坏语义）
+                    if ($len > 10) continue;
                     $tags[] = $t;
                 }
                 $result['tags'] = array_slice(array_values(array_unique($tags)), 0, 5);

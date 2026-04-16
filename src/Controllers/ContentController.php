@@ -493,7 +493,7 @@ class ContentController extends BaseController
             // SEO 友好的文章生成 prompt
             'generate' => "你是一位专业家居领域编辑兼SEO内容专家。请根据标题撰写一篇SEO友好的文章。\n\n要求：\n"
                 . "- 标题已在WordPress中单独填写，正文只需写正文内容，**绝对不要包含文章标题**\n"
-                . "- 结构：引言 + 2-4个正文小节（用 **加粗** 做小标题） + 总结\n"
+                . "- 结构：引言 + 2-4个正文小节（每个小节用 ## 二级标题 开头），再加一段总结\n"
                 . "- 字数800-1200字，语言专业但不生硬，贴近真实阅读体验\n"
                 . "- WordPress规范：多段落自然叙述，少用列表，不用乱加HTML\n"
                 . "- 不要写编号列表，多用自然段落叙述{$kbBlock}{$extra}\n文章标题：{$content}",
@@ -521,11 +521,12 @@ class ContentController extends BaseController
 
     private function buildKeywordPrompt(string $content): string
     {
-        return "请为以下文章提取3-5个SEO友好的关键词标签，用逗号分隔。\n规则：\n"
-            . "- 每个标签必须是2-6个中文字的短词（如：「AI绘图」「工业设计」「衣柜设计」）\n"
-            . "- 标签要简洁，是文章核心主题的单词或词组，不要完整句子\n"
-            . "- 不要用品牌名、公司名或超长词组\n"
-            . "- 只输出标签，用逗号分隔，不要编号、不要任何解释\n文章内容：\n{$content}";
+        return "你是一位SEO关键词专家。请为以下文章提取3-5个关键词标签。\n\n提取规则：\n"
+            . "- 每个标签必须是2-6个中文字的完整词组（如：智能家居、工业设计、衣柜布局）\n"
+            . "- 必须是文章核心主题词或细分领域词，能反映文章讨论的具体内容\n"
+            . "- 不要单个汉字，不要太宽泛的词（如「技术」「方法」「产品」），不要完整句子\n"
+            . "- 不要品牌名、公司名、日期或无意义词\n"
+            . "- 只输出标签，用中文逗号「，」分隔，不要编号、不要任何解释\n\n文章内容：\n{$content}";
     }
 
     private function buildTitleOptimizePrompt(string $content): string
