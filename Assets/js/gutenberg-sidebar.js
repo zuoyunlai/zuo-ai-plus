@@ -741,7 +741,21 @@ function handleKeyword() {
                         // 使用接口返回的 term_ids（Gutenberg 需要 ID，而非标签名）
                         if (resp.data.tag_ids && resp.data.tag_ids.length > 0) {
                             try {
+                                // 强制刷新 Gutenberg 标签面板
                                 wp.data.dispatch('core/editor').editPost({ tags: resp.data.tag_ids });
+                                // 强制触发标签 meta box 刷新
+                                setTimeout(function() {
+                                    var tagInput = document.getElementById('tags-input') || 
+                                                   document.querySelector('.tags-input') ||
+                                                   document.querySelector('[name="tax_input[post_tag]"]');
+                                    if (tagInput) {
+                                        tagInput.value = resp.data.tag_ids.join(',');
+                                        // 触发 change 事件让 WordPress 重新加载标签
+                                        tagInput.dispatchEvent(new Event('change', { bubbles: true }));
+                                    }
+                                    // 刷新 Gutenberg 数据
+                                    wp.data.dispatch('core/editor').savePost();
+                                }, 100);
                                 console.log('[ZuoAI] Tags set in Gutenberg:', resp.data.tag_ids);
                             } catch(e) {
                                 console.error('[ZuoAI] editPost tags failed:', e);
