@@ -418,19 +418,17 @@ class SeoOptimizer
                 }
             }
             if ($tag_text) {
-                $raw_tags = array_map('trim', preg_split('/[,，、]/', $tag_text));
+                $raw_tags = array_map('trim', mb_split('[,，、]', $tag_text));
                 $tags = [];
                 foreach ($raw_tags as $t) {
                     // 移除所有标点符号（保留中文、英文、数字）
                     $pattern = "#[[:punct:]]|\s|\"|'|\"\"|''|（|）|【|】|《|》#u";
                     $t = preg_replace($pattern, '', $t);
                     $len = mb_strlen($t, 'utf-8');
-                    // 跳过太短的词
-                    if ($len < 2) continue;
-                    // 跳过可能是句子拆分的片段（单字或两字以下）
-                    if ($len <= 2 && preg_match('/^[\x{4e00}-\x{9fa5}]$/u', $t)) continue;
-                    // 只保留完整词汇，长度超过10的跳过（不截断，避免破坏语义）
-                    if ($len > 10) continue;
+                    // 只保留2-6字的标签（符合标准）
+                    if ($len < 2 || $len > 6) continue;
+                    // 跳过无中文的标签
+                    if (!preg_match('/[\x{4e00}-\x{9fa5}]/u', $t)) continue;
                     $tags[] = $t;
                 }
                 $result['tags'] = array_slice(array_values(array_unique($tags)), 0, 4);
