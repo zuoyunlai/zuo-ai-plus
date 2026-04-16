@@ -165,9 +165,8 @@
 
             console.log('[ZuoAI] Parsed', newBlocks.length, 'blocks via wp.blockEditor.parse');
 
-            // 插入前的块数量（用于验证）
-            var prevBlockCount = blockEditorSelect.getBlocks().length;
-            var targetCount = replaceMode ? newBlocks.length : prevBlockCount + newBlocks.length;
+            // 记录新块的 clientId，用于验证是否真正插入
+            var newClientIds = newBlocks.map(function(b) { return b.clientId; });
 
             if (replaceMode) {
                 blockEditorDispatch.resetBlocks(newBlocks);
@@ -185,22 +184,21 @@
                 }
             }
 
-            // 等编辑器状态稳定后再触发保存，避免发布时内容尚未写入
-            var subscribed = false;
-            var checkCount = 0;
-            var unsubscribe = wp.data.subscribe(function() {
-                if (subscribed) return;
-                var blocks = blockEditorSelect.getBlocks();
-                checkCount++;
-                // 块数量达到预期，或连续3次检测都一致（防无限循环）
-                if ((blocks && blocks.length === targetCount) || checkCount > 5) {
-                    subscribed = true;
-                    unsubscribe();
-                    // 触发 WordPress 保存，将内容持久化
+            // 等这些新块的 clientId 在编辑器中出现（说明插入完成）再保存
+            var stopRetry = 0;
+            var intervalId = setInterval(function() {
+                stopRetry++;
+                var allBlocks = blockEditorSelect.getBlocks();
+                if (!allBlocks) { allBlocks = []; }
+                var foundIds = allBlocks.map(function(b) { return b.clientId; });
+                var allFound = newClientIds.every(function(id) { return foundIds.indexOf(id) >= 0; });
+
+                if (allFound || stopRetry > 15) {
+                    clearInterval(intervalId);
                     try { wp.data.dispatch('core/editor').savePost(); } catch(e) {}
                     setGlobalResult({ type: 'ok', text: '✅ 已写入编辑器！' });
                 }
-            });
+            }, 200);
 
             return;
 
