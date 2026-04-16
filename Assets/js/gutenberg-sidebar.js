@@ -165,6 +165,10 @@
 
             console.log('[ZuoAI] Parsed', newBlocks.length, 'blocks via wp.blockEditor.parse');
 
+            // 插入前的块数量（用于验证）
+            var prevBlockCount = blockEditorSelect.getBlocks().length;
+            var targetCount = replaceMode ? newBlocks.length : prevBlockCount + newBlocks.length;
+
             if (replaceMode) {
                 blockEditorDispatch.resetBlocks(newBlocks);
             } else {
@@ -181,7 +185,23 @@
                 }
             }
 
-            setGlobalResult({ type: 'ok', text: '✅ 已写入编辑器！' });
+            // 等编辑器状态稳定后再触发保存，避免发布时内容尚未写入
+            var subscribed = false;
+            var checkCount = 0;
+            var unsubscribe = wp.data.subscribe(function() {
+                if (subscribed) return;
+                var blocks = blockEditorSelect.getBlocks();
+                checkCount++;
+                // 块数量达到预期，或连续3次检测都一致（防无限循环）
+                if ((blocks && blocks.length === targetCount) || checkCount > 5) {
+                    subscribed = true;
+                    unsubscribe();
+                    // 触发 WordPress 保存，将内容持久化
+                    try { wp.data.dispatch('core/editor').savePost(); } catch(e) {}
+                    setGlobalResult({ type: 'ok', text: '✅ 已写入编辑器！' });
+                }
+            });
+
             return;
 
         } catch(parseErr) {
@@ -193,10 +213,11 @@
             var editorDispatch = wp.data && wp.data.dispatch && wp.data.dispatch('core/editor');
             if (editorDispatch) {
                 editorDispatch.editPost({ content: merged });
+                // 等一个 tick 再保存，确保 editPost 完成
                 setTimeout(function() {
                     try { wp.data.dispatch('core/editor').savePost(); } catch(e) {}
-                }, 100);
-                setGlobalResult({ type: 'ok', text: '✅ 已写入编辑器（兼容模式）！' });
+                    setGlobalResult({ type: 'ok', text: '✅ 已写入编辑器（兼容模式）！' });
+                }, 300);
             } else {
                 throw new Error('core/editor not available');
             }
