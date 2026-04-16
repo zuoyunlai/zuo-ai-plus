@@ -80,36 +80,44 @@
     }
 
     function stripTitleFromContent(content) {
-        // 过滤规则：去除 AI 生成内容开头的标题部分
-        // 规则1：去掉开头的 Markdown 标题（# 标题 / ## 标题）
-        // 规则2：去掉开头的纯文本标题（短行 + 换行，AI 常以「文章标题\n\n正文」格式输出）
+        // 过滤规则：去除 AI 生成内容开头的文章标题部分
+        // 支持格式：<h1>标题</h1>、<h2>标题</h2>、# 标题、## 标题、### 标题、纯文标题
         var lines = content.split('\n');
         var start = 0;
 
         // 跳过开头的空行
         while (start < lines.length && !lines[start].trim()) start++;
+        if (start >= lines.length) return content;
 
-        // 如果第一行是非空内容，检查是否是 Markdown 标题
-        if (start < lines.length) {
-            var first = lines[start].trim();
-            // # 标题 或 ## 标题
-            if (/^#{1,3}\s+/.test(first)) {
+        var first = lines[start].trim();
+
+        // 规则1：HTML 标题标签 <h1>、<h2>
+        if (/^<h[1-6][^>]*>/i.test(first)) {
+            var hMatch = first.match(/^<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/i);
+            if (hMatch) {
                 start++;
-                // 跳过标题后的空行
                 while (start < lines.length && !lines[start].trim()) start++;
-            }
-            // 纯文本标题检测：较短的中文行（< 50字）后面紧跟空行，可能是标题
-            else if (first.length < 50 && /[\u4e00-\u9fa5]/.test(first) && !first.match(/^[\-\*\d\.\>\#]/)) {
-                // 多行检查：如果第二行是空行/分隔线，认为是标题
-                if (start + 1 < lines.length && !lines[start + 1].trim()) {
-                    start += 2;
-                    // 继续跳过空行
-                    while (start < lines.length && !lines[start].trim()) start++;
-                }
+                return lines.slice(start).join('\n').trim();
             }
         }
 
-        return lines.slice(start).join('\n').trim();
+        // 规则2：Markdown 标题 # ## ### （1-6个 #）
+        if (/^#{1,6}\s+/.test(first)) {
+            start++;
+            while (start < lines.length && !lines[start].trim()) start++;
+            return lines.slice(start).join('\n').trim();
+        }
+
+        // 规则3：纯文本标题（较短的中文行，后面紧跟空行）
+        if (first.length < 60 && /[\u4e00-\u9fa5]/.test(first) && !first.match(/^[\-\*\d\.\>\#]/)) {
+            if (start + 1 < lines.length && !lines[start + 1].trim()) {
+                start += 2;
+                while (start < lines.length && !lines[start].trim()) start++;
+                return lines.slice(start).join('\n').trim();
+            }
+        }
+
+        return content;
     }
 
     function insertContent(postId, newContent, replaceMode) {
@@ -726,6 +734,10 @@ function handleKeyword() {
                 }).then(function(resp){ return resp.json().then(function(d){ return { ok: resp.ok, data: d }; }); })
                 .then(function(resp) {
                     if (resp.ok && resp.data.success) {
+                        // 优先使用后端过滤后的标签名（与实际写入的一致）
+                        var savedTagStr = (resp.data.tag_names && resp.data.tag_names.length > 0)
+                            ? resp.data.tag_names.join('，')
+                            : tagStr;
                         // 使用接口返回的 term_ids（Gutenberg 需要 ID，而非标签名）
                         if (resp.data.tag_ids && resp.data.tag_ids.length > 0) {
                             try {
@@ -735,7 +747,7 @@ function handleKeyword() {
                                 console.error('[ZuoAI] editPost tags failed:', e);
                             }
                         }
-                        setGlobalResult({ type: 'ok', text: '标签已写入侧边栏：' + tagStr });
+                        setGlobalResult({ type: 'ok', text: '✅ 标签已写入（' + resp.data.tag_ids.length + '个）：' + savedTagStr });
                     } else {
                         setGlobalResult({ type: 'warn', text: '标签已生成：' + tagStr + ' (保存失败：' + (resp.data.error || '未知原因') + ')' });
                     }

@@ -210,7 +210,15 @@ class UtilityController extends BaseController
         $term_ids = $this->resolveTagIds($request);
         wp_set_object_terms($post_id, $term_ids, 'post_tag');
 
-        return $this->success(['success' => true, 'tag_ids' => $term_ids]);
+        // 取回实际写入的标签名（用于前端一致性显示）
+        $saved_tags = wp_get_post_terms($post_id, 'post_tag', ['fields' => 'names']);
+        $saved_tags = is_array($saved_tags) ? array_slice($saved_tags, 0, 4) : [];
+
+        return $this->success([
+            'success'    => true,
+            'tag_ids'    => $term_ids,
+            'tag_names'  => $saved_tags,
+        ]);
     }
 
     public function handleFeaturedImageSet(\WP_REST_Request $request): \WP_REST_Response
@@ -490,10 +498,10 @@ class UtilityController extends BaseController
         // 支持中文顿号、逗号、英文逗号分隔
         $tags = array_filter(
             array_map('trim', preg_split('/[,，、]/', trim($text, "，。、\n"))),
-            fn($tag) => mb_strlen($tag, 'utf-8') >= 2 && mb_strlen($tag, 'utf-8') <= 4
+            fn($tag) => mb_strlen($tag, 'utf-8') >= 2 && mb_strlen($tag, 'utf-8') <= 6
         );
         // 最多5个标签，每个2-4字
-        return array_slice(array_values(array_unique($tags)), 0, 5);
+        return array_slice(array_values(array_unique($tags)), 0, 4);
     }
 
     private function resolveTagIds(\WP_REST_Request $request): array
