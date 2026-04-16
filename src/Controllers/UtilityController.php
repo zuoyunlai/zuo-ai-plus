@@ -495,12 +495,14 @@ class UtilityController extends BaseController
 
     private function parseTags(string $text): array
     {
-        // 支持中文顿号、逗号、英文逗号分隔
+        // 使用 mb_split 正确处理中英混合字符串
+        $text = trim($text, "，。、\n");
+        $parts = mb_split('[,，、]', $text);
         $tags = array_filter(
-            array_map('trim', preg_split('/[,，、]/', trim($text, "，。、\n"))),
-            fn($tag) => mb_strlen($tag, 'utf-8') >= 2 && mb_strlen($tag, 'utf-8') <= 6
+            array_map('trim', $parts),
+            fn($tag) => !empty($tag) && mb_strlen($tag, 'utf-8') >= 2 && mb_strlen($tag, 'utf-8') <= 6
         );
-        // 最多5个标签，每个2-4字
+        // 最多4个标签，每个2-6字
         return array_slice(array_values(array_unique($tags)), 0, 4);
     }
 
