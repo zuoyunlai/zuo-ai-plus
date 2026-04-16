@@ -357,6 +357,12 @@ class SeoOptimizer
     {
         $result = [];
         $text   = trim($text);
+
+        // 清理 Markdown 粗体/斜体标记
+        $text = preg_replace('/\*\*(.+?)\*\*/u', '$1', $text);
+        $text = preg_replace('/__(.+?)__/u', '$1', $text);
+        $text = preg_replace('/\*(.+?)\*/u', '$1', $text);
+        $text = preg_replace('/_(.+?)_/u', '$1', $text);
         $lines  = array_filter(array_map('trim', explode("\n", $text)), 'strlen');
 
         if ($need_title) {
