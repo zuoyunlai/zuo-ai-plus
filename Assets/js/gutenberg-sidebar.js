@@ -30,14 +30,37 @@
     });
 
     function apiRequest(endpoint, data) {
+        // 添加超时控制（200秒 = 略小于PHP 300秒限制）
+        var controller = new AbortController();
+        var timeoutId = setTimeout(function() {
+            controller.abort();
+        }, 200000); // 200秒超时
+        
         return fetch(window.aiPlusConfig.apiUrl + endpoint, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-WP-Nonce': window.aiPlusConfig.nonce
             },
-            body: JSON.stringify(data)
-        }).then(function (r) { return r.json(); });
+            body: JSON.stringify(data),
+            signal: controller.signal
+        }).then(function (r) { 
+            clearTimeout(timeoutId);
+            if (!r.ok) {
+                return r.json().then(function(data) {
+                    throw new Error(data.error || data.message || 'HTTP ' + r.status);
+                }).catch(function() {
+                    throw new Error('HTTP ' + r.status + ' ' + r.statusText);
+                });
+            }
+            return r.json(); 
+        }).catch(function(e) {
+            clearTimeout(timeoutId);
+            if (e.name === 'AbortError') {
+                throw new Error('请求超时，服务器响应时间过长');
+            }
+            throw e;
+        });
     }
 
     function savePostContent(postId, content) {
@@ -56,38 +79,275 @@
         } catch (e) { return ''; }
     }
 
-    function insertContent(postId, newContent) {
-        var current = getCurrentContent();
-        var merged = current.trim() ? (current + '\n\n' + newContent) : newContent;
-        savePostContent(postId, merged)
-            .then(function(resp) {
-                if (resp.html && wp.blocks && wp.blocks.parse) {
-                    var b = wp.blocks.parse(resp.html);
-                    if (b.length > 0) {
-                        var existingBlocks = wp.data.select('core/editor').getBlocks();
-                        if (existingBlocks.length > 0) {
-                            wp.data.dispatch('core/editor').replaceBlocks(
-                                existingBlocks.map(function(blk) { return blk.clientId; }), b
-                            );
-                        } else {
-                            wp.data.dispatch('core/editor').insertBlocks(b);
-                        }
-                        setGlobalResult({ type: 'ok', text: '✅ 已写入编辑器！' });
-                        return;
-                    }
+    function stripTitleFromContent(content) {
+        // 过滤规则：去除 AI 生成内容开头的标题部分
+        // 规则1：去掉开头的 Markdown 标题（# 标题 / ## 标题）
+        // 规则2：去掉开头的纯文本标题（短行 + 换行，AI 常以「文章标题\n\n正文」格式输出）
+        var lines = content.split('\n');
+        var start = 0;
+
+        // 跳过开头的空行
+        while (start < lines.length && !lines[start].trim()) start++;
+
+        // 如果第一行是非空内容，检查是否是 Markdown 标题
+        if (start < lines.length) {
+            var first = lines[start].trim();
+            // # 标题 或 ## 标题
+            if (/^#{1,3}\s+/.test(first)) {
+                start++;
+                // 跳过标题后的空行
+                while (start < lines.length && !lines[start].trim()) start++;
+            }
+            // 纯文本标题检测：较短的中文行（< 50字）后面紧跟空行，可能是标题
+            else if (first.length < 50 && /[\u4e00-\u9fa5]/.test(first) && !first.match(/^[\-\*\d\.\>\#]/)) {
+                // 多行检查：如果第二行是空行/分隔线，认为是标题
+                if (start + 1 < lines.length && !lines[start + 1].trim()) {
+                    start += 2;
+                    // 继续跳过空行
+                    while (start < lines.length && !lines[start].trim()) start++;
                 }
-                if (resp.html) {
-                    wp.data.dispatch('core/editor').editPost({ content: resp.html });
-                }
-                setGlobalResult({ type: 'ok', text: '✅ 已保存！' });
-            })
-            .catch(function(e) {
-                wp.data.dispatch('core/editor').editPost({ content: merged });
-                setGlobalResult({ type: 'warn', text: '⚠️ 已保存（编辑器更新失败）' });
-            });
+            }
+        }
+
+        return lines.slice(start).join('\n').trim();
     }
 
-    var setGlobalResult = function(){};
+    function insertContent(postId, newContent, replaceMode) {
+        // replaceMode=true：丢弃原文，直接替换；false（默认）：追加到末尾
+        console.log('=== insertContent START ===');
+
+        // 去掉 AI 内容中可能混入的标题
+        newContent = stripTitleFromContent(newContent);
+
+        var realPostId = 0;
+        try { realPostId = wp.data.select('core/editor').getEditedPostAttribute('id') || 0; } catch(e) {
+            console.error('get post id error:', e);
+            setGlobalResult({ type: 'err', text: '❌ 无法获取文章ID，请刷新页面重试' });
+            return;
+        }
+
+        console.log('insertContent called, postId:', postId, 'realPostId:', realPostId);
+
+        var current = replaceMode ? '' : getCurrentContent();
+        var merged = current.trim() ? (current + '\n\n' + newContent) : newContent;
+        
+        if (!merged || !merged.trim()) {
+            console.error('Empty content to insert');
+            setGlobalResult({ type: 'err', text: '❌ 没有可插入的内容' });
+            return;
+        }
+        
+        console.log('merged content length:', merged.length);
+        console.log('merged preview:', merged.substring(0, 200));
+
+        // 确保新内容被段落标签包裹（Gutenberg块需要）
+        if (!merged.trim().match(/^</)) {
+            merged = '<p>' + merged.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br/>') + '</p>';
+            console.log('Wrapped content with HTML tags');
+        }
+
+        // 方案1：使用 wp.blocks.createBlock 创建段落块（更兼容）
+        try {
+            console.log('Checking wp.blocks...');
+            if (!wp.blocks) {
+                console.warn('wp.blocks not available');
+                throw new Error('wp.blocks not available');
+            }
+            if (!wp.blocks.createBlock) {
+                console.warn('wp.blocks.createBlock not available');
+                throw new Error('wp.blocks.createBlock not available');
+            }
+            
+            var blockEditorSelect = wp.data.select('core/block-editor');
+            var blockEditorDispatch = wp.data.dispatch('core/block-editor');
+            
+            if (!blockEditorSelect) {
+                console.warn('core/block-editor select not available');
+                throw new Error('core/block-editor select not available');
+            }
+            if (!blockEditorDispatch) {
+                console.warn('core/block-editor dispatch not available');
+                throw new Error('core/block-editor dispatch not available');
+            }
+            
+            console.log('Trying wp.blocks.createBlock...');
+            
+            // 解析 HTML DOM，按标签类型创建 Gutenberg 块（保留真实标题结构）
+            var tempDiv = document.createElement('div');
+            tempDiv.innerHTML = merged;
+
+            var newBlocks = [];
+            var children = tempDiv.children;
+
+            // 如果没有子元素（纯文本情况），回退到纯文本分段
+            if (!children || children.length === 0) {
+                var textContent = (tempDiv.textContent || tempDiv.innerText || merged).trim();
+                var paragraphs = textContent.split(/\n\n+/).filter(function(p) { return p.trim(); });
+                paragraphs.forEach(function(p) {
+                    if (p.match(/^#{1,3}\s/)) {
+                        var level = p.match(/^#+/)[0].length;
+                        newBlocks.push(wp.blocks.createBlock('core/heading', {
+                            content: p.replace(/^#+\s*/, ''),
+                            level: Math.min(level, 3)
+                        }));
+                    } else {
+                        newBlocks.push(wp.blocks.createBlock('core/paragraph', { content: p }));
+                    }
+                });
+            } else {
+                // HTML 结构解析：按真实标签创建对应块
+                for (var i = 0; i < children.length; i++) {
+                    var el = children[i];
+                    var tagName = el.tagName ? el.tagName.toLowerCase() : '';
+                    var innerText = (el.textContent || '').trim();
+
+                    if (!innerText) continue;
+
+                    // 标题块（H1-H6）
+                    if (/^h[1-6]$/.test(tagName)) {
+                        var level = parseInt(tagName.replace('h', ''), 10);
+                        newBlocks.push(wp.blocks.createBlock('core/heading', {
+                            content: innerText,
+                            level: Math.min(level, 3)  // Gutenberg H1-H3
+                        }));
+                    }
+                    // 列表项
+                    else if (tagName === 'ul' || tagName === 'ol') {
+                        var items = [];
+                        Array.prototype.forEach.call(el.children, function(li) {
+                            items.push((li.textContent || '').trim());
+                        });
+                        if (items.length > 0) {
+                            newBlocks.push(wp.blocks.createBlock(
+                                tagName === 'ol' ? 'core/list' : 'core/list',
+                                { ordered: tagName === 'ol', values: items }
+                            ));
+                        }
+                    }
+                    // 引用块
+                    else if (tagName === 'blockquote') {
+                        newBlocks.push(wp.blocks.createBlock('core/quote', {
+                            content: innerText
+                        }));
+                    }
+                    // 图片
+                    else if (tagName === 'img') {
+                        newBlocks.push(wp.blocks.createBlock('core/image', {
+                            url: el.src || '',
+                            alt: el.alt || ''
+                        }));
+                    }
+                    // 其他（段落等）：去掉残余 HTML 标签后作为段落
+                    else {
+                        var cleanText = innerText;
+                        newBlocks.push(wp.blocks.createBlock('core/paragraph', { content: cleanText }));
+                    }
+                }
+            }
+
+            tempDiv = null;
+            console.log('Created', newBlocks.length, 'blocks from HTML structure');
+
+            if (newBlocks.length === 0) {
+                console.warn('No blocks created');
+                throw new Error('No blocks created from content');
+            }
+            
+            // 执行插入
+            if (replaceMode) {
+                // 替换模式：重置所有块
+                console.log('Calling resetBlocks with', newBlocks.length, 'blocks');
+                blockEditorDispatch.resetBlocks(newBlocks);
+                console.log('resetBlocks called');
+            } else {
+                // 追加模式
+                var currentBlocks = blockEditorSelect.getBlocks();
+                console.log('current blocks:', currentBlocks ? currentBlocks.length : 0);
+                
+                if (currentBlocks && currentBlocks.length > 0) {
+                    var lastBlock = currentBlocks[currentBlocks.length - 1];
+                    if (lastBlock && lastBlock.clientId) {
+                        console.log('inserting after block:', lastBlock.clientId);
+                        blockEditorDispatch.insertBlocks(newBlocks, undefined, lastBlock.clientId);
+                    } else {
+                        console.warn('lastBlock has no clientId, falling back to resetBlocks');
+                        blockEditorDispatch.resetBlocks(currentBlocks.concat(newBlocks));
+                    }
+                } else {
+                    console.log('Editor empty, calling resetBlocks');
+                    blockEditorDispatch.resetBlocks(newBlocks);
+                }
+            }
+            
+            // 验证插入结果
+            setTimeout(function() {
+                try {
+                    var afterBlocks = wp.data.select('core/block-editor').getBlocks();
+                    console.log('After insert, blocks count:', afterBlocks ? afterBlocks.length : 0);
+                    if (afterBlocks && afterBlocks.length > 0) {
+                        var lastBlock = afterBlocks[afterBlocks.length - 1];
+                        console.log('Last block type:', lastBlock.name);
+                        console.log('Last block content:', lastBlock.attributes ? lastBlock.attributes.content : 'no content attr');
+                    }
+                } catch(verifyErr) {
+                    console.warn('Verification failed:', verifyErr);
+                }
+            }, 100);
+            
+            setGlobalResult({ type: 'ok', text: '✅ 已写入编辑器！' });
+            console.log('=== insertContent SUCCESS ===');
+            return;
+            
+        } catch(blockErr) {
+            console.error('Block insert failed:', blockErr);
+            console.log('Falling back to editPost...');
+        }
+
+        // 方案2：回退到 editPost（兼容性方式）
+        try {
+            var editorDispatch = wp.data.dispatch('core/editor');
+            if (!editorDispatch) {
+                throw new Error('core/editor dispatch not available');
+            }
+            
+            console.log('Calling editPost with content length:', merged.length);
+            editorDispatch.editPost({ content: merged });
+            console.log('editPost called');
+            
+            // 触发自动保存
+            setTimeout(function() {
+                try {
+                    wp.data.dispatch('core/editor').savePost();
+                    console.log('Auto save triggered');
+                } catch(saveErr) {
+                    console.warn('Auto save failed:', saveErr);
+                }
+            }, 100);
+            
+            setGlobalResult({ type: 'ok', text: '✅ 已写入编辑器！' });
+            console.log('=== insertContent SUCCESS (fallback) ===');
+            
+        } catch(editErr) {
+            console.error('editPost failed:', editErr);
+            
+            // 最终兜底：复制到剪贴板
+            var errorMsg = '⚠️ 编辑器更新失败\n\n';
+            errorMsg += '错误: ' + (editErr.message || '未知错误') + '\n\n';
+            errorMsg += '内容已复制到剪贴板，请手动粘贴到编辑器。';
+            
+            setGlobalResult({ type: 'warn', text: errorMsg });
+            
+            // 复制到剪贴板
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(merged).catch(function(clipErr) {
+                    console.warn('Clipboard copy failed:', clipErr);
+                });
+            }
+            console.log('=== insertContent FAILED ===');
+        }
+    }
+
+var setGlobalResult = function(){};
 
     // ─── Design System ───────────────────────────────────────────────
     var C = {
@@ -316,6 +576,9 @@
     }
 
     // ─── Main Panel Component ─────────────────────────────────────────
+    // 保存原文用于翻译（避免重新翻译时带入编辑器中的旧译文）
+    var originalContentForTranslate = '';
+
     var AISidebarPanel = function () {
         var _useState = useState('');
         var result = _useState[0];
@@ -323,7 +586,7 @@
         var _useState2 = useState(false);
         var loading = _useState2[0];
         var setLoading = _useState2[1];
-        var _useState3 = useState(Object.keys(modelLabels)[0] || 'minimax');
+        var _useState3 = useState(window.aiPlusConfig.defaultModel && modelLabels[window.aiPlusConfig.defaultModel] ? window.aiPlusConfig.defaultModel : (Object.keys(modelLabels)[0] || 'minimax'));
         var model = _useState3[0];
         var setModel = _useState3[1];
         var _useState4 = useState('');
@@ -335,6 +598,12 @@
         var _useState6 = useState('zh');
         var translateTarget = _useState6[0];
         var setTranslateTarget = _useState6[1];
+        var _useState7 = useState('professional');
+        var writeStyle = _useState7[0];
+        var setWriteStyle = _useState7[1];
+        var _useState8 = useState('balanced');
+        var writeTone = _useState8[0];
+        var setWriteTone = _useState8[1];
 
         // ── Actions ───────────────────────────────────────────────────
         function doAction(action, payload, onSuccess, onError) {
@@ -354,6 +623,40 @@
             setGlobalResult({ type: 'info', text: '' });
 
             var apiContent = content;
+            // ── Translate: use /translate endpoint with correct param names ──
+            if (action === 'translate') {
+                var src = (payload && payload.source_lang) ? payload.source_lang : translateSource;
+                var tgt = (payload && payload.target_lang) ? payload.target_lang : translateTarget;
+                // 优先使用 handleTranslate 传入的原文（避免带入编辑器中的旧译文）
+                var translateContent = (payload && payload._content_for_translate) ? payload._content_for_translate : content;
+                apiRequest('translate', {
+                    model: model,
+                    content: translateContent,
+                    source_lang: src,
+                    target_lang: tgt
+                }).then(function(r) {
+                    setLoading(false);
+                    if (r.error) { setGlobalResult({ type: 'err', text: '❌ ' + r.error }); if (onError) onError(r.error); return; }
+                    setGlobalResult({ type: 'ok', text: '✅ 完成' });
+                    if (onSuccess) onSuccess(r, postId);
+                }).catch(function(e) { 
+                setLoading(false); 
+                var errorMsg = e.message || '未知错误';
+                // 超时错误特殊处理
+                if (errorMsg.indexOf('timeout') !== -1 || errorMsg.indexOf('超时') !== -1) {
+                    setGlobalResult({ 
+                        type: 'err', 
+                        text: '⏱️ 请求超时（' + errorMsg + '）\n\n建议：\n1. 切换到响应更快的模型（智谱/通义）\n2. 减少生成内容长度\n3. 检查网络连接后重试' 
+                    });
+                } else {
+                    setGlobalResult({ type: 'err', text: '❌ ' + errorMsg }); 
+                }
+                if (onError) onError(errorMsg);
+            });
+                return;
+            }
+            // ── End translate ──
+
             if (action === 'expand') {
                 try {
                     var sel = wp.data.select('core/editor').getEditorSelection();
@@ -361,10 +664,26 @@
                 } catch (e) {}
             }
 
+            // Build effective extra_prompt with style/tone context
+            var effectiveExtra = extraPrompt || '';
+            if ((action === 'generate' || action === 'rewrite' || action === 'expand') && (writeStyle !== 'default' || writeTone !== 'default')) {
+                var styleMap = {
+                    'default': '', 'professional': '专业严谨', 'casual': '轻松随意',
+                    'friendly': '亲切友好', 'technical': '技术详尽', 'marketing': '营销有感染力'
+                };
+                var toneMap = {
+                    'default': '', 'formal': '正式书面', 'conversational': '口语化自然',
+                    'balanced': '不偏不倚', 'passionate': '富有激情', 'calm': '冷静理性'
+                };
+                var styleStr = styleMap[writeStyle] || '';
+                var toneStr = toneMap[writeTone] || '';
+                var stylePart = (styleStr && toneStr) ? ('写作风格：' + styleStr + '；语气：' + toneStr) : (styleStr || toneStr || '');
+                effectiveExtra = effectiveExtra ? (stylePart + '。' + effectiveExtra) : stylePart;
+            }
             apiRequest('generate', Object.assign({
                 model: model, action: action,
                 content: title || apiContent,
-                extra_prompt: extraPrompt, post_id: postId
+                extra_prompt: effectiveExtra, post_id: postId
             }, payload || {}))
             .then(function(r) {
                 setLoading(false);
@@ -394,44 +713,86 @@
             });
         }
 
-        function handleSummarize() {
-            doAction('summarize', {}, function(r) {
+        function handleRewrite() {
+            var content = getCurrentContent();
+            if (!content) { setGlobalResult({ type: 'warn', text: '⚠️ 请先输入文章内容再改写' }); return; }
+            doAction('rewrite', {}, function(r) {
                 if (r.content) insertContent(0, r.content);
             });
         }
 
-        function handleKeyword() {
+        function handleSummarize() {
             var postId = 0;
             try { postId = wp.data.select('core/editor').getEditedPostAttribute('id') || 0; } catch (e) {}
-            var content = getCurrentContent();
-            if (!postId) { setGlobalResult({ type: 'warn', text: '⚠️ 请先保存文章后再提取标签' }); return; }
-            if (!content) { setGlobalResult({ type: 'warn', text: '⚠️ 请先输入文章内容' }); return; }
-            doAction('keyword', {}, function(r) {
-                var tagStr = (r.content || '').trim();
-                if (tagStr) {
-                    fetch(window.aiPlusConfig.apiUrl + 'tags-save', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': window.aiPlusConfig.nonce },
-                        body: JSON.stringify({ post_id: postId, tags: tagStr })
-                    }).then(function(resp) { return resp.json().then(function(d) { return { ok: resp.ok, data: d }; }); })
-                    .then(function(r) {
-                        if (r.ok && r.data.success) setGlobalResult({ type: 'ok', text: '✅ 标签已提取并保存：' + tagStr });
-                        else setGlobalResult({ type: 'warn', text: '⚠️ 标签已生成：' + tagStr + '\n（保存失败：' + (r.data.error || '未知原因') + '）' });
-                    })
-                    .catch(function() {
-                        setGlobalResult({ type: 'warn', text: '⚠️ 标签已生成：' + tagStr + '\n（网络错误）' });
-                    });
+            if (!postId) { setGlobalResult({ type: 'warn', text: '⚠️ 请先保存文章后再提取摘要' }); return; }
+            doAction('summarize', {}, function(r) {
+                if (r.content) {
+                    // 写入 Gutenberg 摘要字段 + 右侧面板显示
+                    try {
+                        wp.data.dispatch('core/editor').editPost({ excerpt: r.content });
+                    } catch(e) {}
+                    setGlobalResult({ type: 'ok', text: '✅ 摘要已写入右侧「摘要」面板：\n' + r.content });
                 } else {
-                    setGlobalResult({ type: 'warn', text: '⚠️ 未提取到标签' });
+                    setGlobalResult({ type: 'warn', text: '⚠️ 未提取到摘要，请重试' });
                 }
             });
         }
 
+function handleKeyword() {
+            var postId = 0;
+            try { postId = wp.data.select('core/editor').getEditedPostAttribute('id') || 0; } catch (e) {}
+            var content = getCurrentContent();
+            if (!postId) { setGlobalResult({ type: 'warn', text: '请先保存文章后再提取标签' }); return; }
+            if (!content) { setGlobalResult({ type: 'warn', text: '请先输入文章内容' }); return; }
+            doAction('keyword', {}, function(r) {
+                var tagStr = (r.content || '').trim();
+                if (!tagStr) { setGlobalResult({ type: 'warn', text: '未提取到标签' }); return; }
+                var tagArray = tagStr.split(/[,，、]/).map(function(t){return t.trim();}).filter(Boolean);
+                fetch(window.aiPlusConfig.apiUrl + 'tags-save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': window.aiPlusConfig.nonce },
+                    body: JSON.stringify({ post_id: postId, tags: tagStr })
+                }).then(function(resp){ return resp.json().then(function(d){ return { ok: resp.ok, data: d }; }); })
+                .then(function(resp) {
+                    if (resp.ok && resp.data.success) {
+                        // 使用接口返回的 term_ids（Gutenberg 需要 ID，而非标签名）
+                        if (resp.data.tag_ids && resp.data.tag_ids.length > 0) {
+                            try {
+                                wp.data.dispatch('core/editor').editPost({ tags: resp.data.tag_ids });
+                                console.log('[ZuoAI] Tags set in Gutenberg:', resp.data.tag_ids);
+                            } catch(e) {
+                                console.error('[ZuoAI] editPost tags failed:', e);
+                            }
+                        }
+                        setGlobalResult({ type: 'ok', text: '标签已写入侧边栏：' + tagStr });
+                    } else {
+                        setGlobalResult({ type: 'warn', text: '标签已生成：' + tagStr + ' (保存失败：' + (resp.data.error || '未知原因') + ')' });
+                    }
+                })
+                .catch(function() {
+                    setGlobalResult({ type: 'warn', text: '标签已生成：' + tagStr + ' (网络错误)' });
+                });
+            });
+        }
         function handleTranslate() {
+            var content = getCurrentContent();
+            if (!content) { setGlobalResult({ type: 'warn', text: '⚠️ 请先输入文章内容' }); return; }
+
+            // 首次翻译：保存原文到模块变量；后续翻译：优先用已保存的原文
+            if (!originalContentForTranslate) {
+                originalContentForTranslate = content;
+            } else {
+                // 用户已翻译过一次，用保存的原文重新翻译（避免带入编辑器中的旧译文）
+                content = originalContentForTranslate;
+            }
+
             doAction('translate', {
-                source: translateSource, target: translateTarget
+                source_lang: translateSource, target_lang: translateTarget,
+                _content_for_translate: content
             }, function(r) {
-                if (r.content) insertContent(0, r.content);
+                if (r.content) {
+                    insertContent(0, r.content, true); // replace mode：覆盖编辑器内容
+                }
             });
         }
 
@@ -495,7 +856,14 @@
                 return fetch(window.aiPlusConfig.apiUrl + 'featured-image-set', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': window.aiPlusConfig.nonce },
-                    body: JSON.stringify({ post_id: postId, image_url: imageUrl })
+                    body: JSON.stringify({
+                        post_id: postId, image_url: imageUrl,
+                        post_title: title, image_prompt: prompt,
+                        // 优先使用中文替代文本，不再使用英文 prompt
+                        alt_text: (r.chinese_alt || r.chinese_desc || ''),
+                        chinese_desc: (r.chinese_desc || ''),
+                        chinese_alt:  (r.chinese_alt || ''),
+                    })
                 }).then(function(resp) { return resp.json(); })
                 .then(function(data) {
                     setLoading(false);
@@ -503,7 +871,10 @@
                         setGlobalResult({ type: 'warn', text: '⚠️ 特色图设置失败\n\n提示词：' + prompt });
                     } else if (data.attachment_id) {
                         try { wp.data.dispatch('core/editor').editPost({ featured_media: parseInt(data.attachment_id) }); } catch(e) {}
-                        setGlobalResult({ type: 'ok', text: '✅ 特色图已设置！\n\n' + (imageUrl ? imageUrl : prompt) });
+                        var metaInfo = (data.title ?       ('📝 标题：'       + data.title + '\n') : '') +
+                                       (data.description ? ('📝 说明文字：' + data.description + '\n') : '') +
+                                       (data.alt ?        ('📝 替代文本：'  + data.alt) : '');
+                        setGlobalResult({ type: 'ok', text: '✅ 特色图已设置！\n\n' + metaInfo + (imageUrl ? ('\n🔗 ' + imageUrl) : '') });
                     }
                 });
             }).catch(function(e) {
@@ -605,16 +976,47 @@
                             wp.element.createElement('p', { style: cardHeadLabelStyle }, '文章生成')
                         ),
                         wp.element.createElement('div', { style: cardBodyStyle },
+                            // 风格选择
+                            wp.element.createElement('div', { style: { display: 'flex', gap: '6px', marginBottom: '8px' } },
+                                wp.element.createElement('select', {
+                                    value: writeStyle,
+                                    onChange: function(e) { setWriteStyle(e.target.value); },
+                                    style: Object.assign({}, selectStyle, { flex: 1, marginBottom: 0 }),
+                                },
+                                    wp.element.createElement('option', { value: 'default' }, '默认'),
+                                    wp.element.createElement('option', { value: 'professional' }, '专业严谨'),
+                                    wp.element.createElement('option', { value: 'casual' }, '轻松随意'),
+                                    wp.element.createElement('option', { value: 'friendly' }, '亲切友好'),
+                                    wp.element.createElement('option', { value: 'technical' }, '技术详尽'),
+                                    wp.element.createElement('option', { value: 'marketing' }, '营销有感染力'),
+                                ),
+                                wp.element.createElement('select', {
+                                    value: writeTone,
+                                    onChange: function(e) { setWriteTone(e.target.value); },
+                                    style: Object.assign({}, selectStyle, { flex: 1, marginBottom: 0 }),
+                                },
+                                    wp.element.createElement('option', { value: 'default' }, '默认语气'),
+                                    wp.element.createElement('option', { value: 'formal' }, '正式书面'),
+                                    wp.element.createElement('option', { value: 'conversational' }, '口语化'),
+                                    wp.element.createElement('option', { value: 'balanced' }, '不偏不倚'),
+                                    wp.element.createElement('option', { value: 'passionate' }, '富有激情'),
+                                ),
+                            ),
                             wp.element.createElement('button', {
                                 className: 'ai-plus-btn', style: btnAccent,
                                 onClick: handleGenerate, disabled: loading,
                             }, '✏️ 生成文章'),
                             wp.element.createElement('button', {
                                 className: 'ai-plus-btn', style: btnPurple,
+                                onClick: handleRewrite, disabled: loading,
+                            }, '🔄 改写内容'),
+                            wp.element.createElement('button', {
+                                className: 'ai-plus-btn', style: Object.assign({}, btnGray, { marginRight: 0 }),
                                 onClick: handleExpand, disabled: loading,
                             }, '📝 续写内容')
                         )
                     ),
+
 
                     // ── 内容处理 ──────────────────────────────────────
                     wp.element.createElement('div', { style: cardStyle() },

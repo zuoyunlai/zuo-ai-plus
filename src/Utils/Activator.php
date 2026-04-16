@@ -60,10 +60,27 @@ class Activator
             KEY action_type (action_type)
         ) $charset_collate;";
 
+        // AI 响应缓存表
+        $table_cache = $wpdb->prefix . 'ai_plus_cache';
+        $sql_cache = "CREATE TABLE $table_cache (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            cache_key varchar(64) NOT NULL,
+            model varchar(32) NOT NULL,
+            prompt_hash varchar(64) NOT NULL,
+            response longtext NOT NULL,
+            tokens int(11) DEFAULT 0,
+            expires_at datetime NOT NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY cache_key (cache_key),
+            KEY expires_at (expires_at)
+        ) $charset_collate;";
+
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql_chat);
         dbDelta($sql_templates);
         dbDelta($sql_history);
+        dbDelta($sql_cache);
 
         // 默认选项
         $defaults = [

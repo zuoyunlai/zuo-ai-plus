@@ -51,31 +51,85 @@ class MiniMaxModel extends BaseModel
         return $this->chat([['role' => 'user', 'content' => $prompt]], $opts);
     }
 
+
+    /**
+     * 将用户尺寸（如 1216*832）转换为 MiniMax aspect_ratio
+     * 1216*832 ≈ 3:2，实际用 3:2
+     */
+    private function normalizeSizeToAspectRatio(string $size): string
+    {
+        // 先归一化分隔符
+        $dim = strtolower(str_replace(['x', '*', '×'], 'x', $size));
+        return match ($dim) {
+            '1024x1024', '1:1', 'square'           => '1:1',
+            '1280x720', '1920x1080', '16:9'         => '16:9',
+            '720x1280', '1080x1920', '9:16'         => '9:16',
+            '1280x853', '853x1280', '3:2', '2:3'    => '3:2',
+            '1216x832', '832x1216'                  => '3:2', // ≈3:2
+            '1440x960', '960x1440'                  => '3:2',
+            '1344x960', '960x1344'                  => '3:2',
+            default                                    => '16:9', // 安全默认值
+        };
+    }
+
     public function image(string $prompt, array $opts = []): array
     {
+        $rawSize = $opts['size'] ?? '1280x720';
+        $aspect_ratio = $this->normalizeSizeToAspectRatio($rawSize);
+
+        // 优化提示词以提升质量（调用基类方法）
+        $optimizedPrompt = $this->optimizePromptForQuality($prompt);
+
         $body = [
-            'model' => $opts['model'] ?? 'image-01',
-            'prompt' => $prompt,
+            'model'        => $opts['model'] ?? 'image-01',
+            'prompt'       => mb_substr($optimizedPrompt, 0, 1200),
+            'aspect_ratio' => $aspect_ratio,
+            'prompt_optimizer' => true,
         ];
 
         $headers = [
-            'Content-Type' => 'application/json',
+            'Content-Type'  => 'application/json',
             'Authorization' => 'Bearer ' . $this->apiKey,
         ];
 
         $args = [
-            'method' => 'POST',
+            'method'  => 'POST',
             'headers' => $headers,
-            'body' => json_encode($body),
+            'body'    => json_encode($body),
             'timeout' => 120,
         ];
 
         $response = wp_remote_request("{$this->endpoint}/text2imageimagegeneration", $args);
+        $code = wp_remote_retrieve_response_code($response);
         $body_resp = json_decode(wp_remote_retrieve_body($response), true);
 
+        if ($code !== 200) {
+            $msg = $body_resp['base_resp']['status_msg'] ?? $body_resp['error']['message'] ?? ('HTTP ' . $code);
+            throw new \Exception('API错误 (' . $code . '): ' . $msg);
+        }
+
+        // 解析图片 URL：优先取 data[0].url，若返回 AIGC 合规元数据（含 AIGC 节点）则取 data[0].AIGC.url
+        $data0 = $body_resp['data'][0] ?? [];
+        $url   = '';
+        $aigc  = $data0['AIGC']['url'] ?? '';  // AIGC 合规节点含真实 URL
+
+        if (!empty($aigc)) {
+            // AIGC 节点优先（部分接口将图片 URL 放在这里）
+            $url = $aigc;
+        } elseif (!empty($data0['url'])) {
+            $url = $data0['url'];
+        }
+
+        // 如果 URL 仍然为空（API 返回纯 AIGC 合规数据但无图片 URL），抛出异常
+        if (empty($url)) {
+            $aigc_info = isset($data0['AIGC']) ? json_encode($data0['AIGC']) : '无有效图片 URL';
+            throw new \Exception('图片生成返回无效内容（AIGC 合规数据无 URL）：' . $aigc_info);
+        }
+
         return [
-            'url' => $body_resp['data'][0]['url'] ?? '',
-            'revised_prompt' => $prompt,
+            'url'            => $url,
+            'revised_prompt' => $data0['revised_prompt'] ?? $prompt,
+            'aigc_label'     => $data0['AIGC']['Label'] ?? '',
         ];
     }
 

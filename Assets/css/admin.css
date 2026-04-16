@@ -4,6 +4,205 @@
     max-width: 1100px;
 }
 
+/* ========== 移动端响应式优化 ========== */
+@media screen and (max-width: 782px) {
+    /* 整体容器 */
+    .ai-plus-wrap {
+        padding: 0 10px;
+    }
+
+    /* 导航标签优化 */
+    .nav-tab-wrapper {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        padding: 8px;
+    }
+    .nav-tab {
+        padding: 8px 12px;
+        font-size: 13px;
+        margin: 0;
+        border-radius: 4px;
+    }
+
+    /* 模型卡片网格 - 单列显示 */
+    .ai-models-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    .ai-model-card {
+        margin-bottom: 0;
+    }
+    .ai-model-card__header {
+        padding: 10px 12px;
+    }
+    .ai-model-card__body {
+        padding: 12px;
+    }
+
+    /* Playground 移动端垂直布局 */
+    .ai-playground {
+        flex-direction: column;
+        height: auto;
+        min-height: 500px;
+    }
+    .ai-playground-sidebar {
+        width: 100%;
+        max-height: 200px;
+        padding: 12px;
+        box-sizing: border-box;
+    }
+    .ai-playground-sidebar h3 {
+        font-size: 12px;
+        margin-bottom: 8px;
+    }
+    .ai-model-radio {
+        display: inline-block;
+        margin-right: 12px;
+        margin-bottom: 6px;
+        font-size: 12px;
+    }
+    .ai-playground-main {
+        min-height: 400px;
+    }
+    .ai-pg-messages {
+        min-height: 250px;
+    }
+    .ai-pg-input {
+        flex-direction: column;
+        gap: 8px;
+    }
+    .ai-pg-input textarea {
+        width: 100%;
+        min-height: 80px;
+    }
+    .ai-pg-input button {
+        width: 100%;
+        padding: 10px;
+    }
+
+    /* 表单表格优化 */
+    .ai-plus-settings .form-table {
+        padding: 12px;
+    }
+    .ai-plus-settings .form-table th {
+        width: 100%;
+        display: block;
+        padding: 10px 0 4px;
+        font-size: 13px;
+    }
+    .ai-plus-settings .form-table td {
+        display: block;
+        padding: 4px 0 12px;
+    }
+    .ai-plus-settings .form-table td input[type="text"],
+    .ai-plus-settings .form-table td input[type="password"],
+    .ai-plus-settings .form-table td textarea,
+    .ai-plus-settings .form-table td select {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box;
+    }
+    .ai-plus-settings textarea {
+        min-height: 100px;
+    }
+
+    /* 按钮组优化 */
+    .ai-model-card__field button {
+        width: 100%;
+        margin-top: 8px;
+    }
+
+    /* 消息样式优化 */
+    .ai-pg-messages .ai-msg {
+        max-width: 95%;
+        font-size: 14px;
+        padding: 10px;
+    }
+
+    /* 统计卡片优化 */
+    .ai-stat-card {
+        padding: 16px 12px;
+    }
+    .ai-stat-num {
+        font-size: 24px;
+    }
+
+    /* 图片操作按钮 */
+    .ai-img-actions {
+        justify-content: center;
+    }
+    .ai-img-actions .button {
+        flex: 1;
+        min-width: 80px;
+        text-align: center;
+    }
+
+    /* 消息操作按钮 */
+    .ai-msg-actions {
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+    .ai-msg-actions .button {
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+
+    /* 章节标题 */
+    .ai-section-title {
+        font-size: 15px;
+        margin: 20px 0 10px;
+    }
+
+    /* 隐藏旧表格 */
+    table.ai-models-table {
+        display: none;
+    }
+}
+
+/* 超小屏幕优化 */
+@media screen and (max-width: 480px) {
+    .ai-model-card__header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+    .ai-model-card__badge {
+        margin-left: 0;
+    }
+
+    .nav-tab {
+        font-size: 12px;
+        padding: 6px 10px;
+    }
+
+    /* Playground 侧边栏更紧凑 */
+    .ai-playground-sidebar {
+        max-height: 150px;
+        padding: 8px;
+    }
+    .ai-playground-sidebar label {
+        margin-top: 6px;
+        font-size: 11px;
+    }
+    .ai-playground-sidebar input[type=number] {
+        font-size: 11px;
+    }
+}
+
+/* 触摸设备优化 */
+@media (hover: none) and (pointer: coarse) {
+    .ai-model-card:hover {
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .ai-model-card--active:hover {
+        box-shadow: 0 0 0 1px #2271b1, 0 2px 6px rgba(34,113,177,0.15);
+    }
+    .ai-pg-input textarea {
+        font-size: 16px; /* 防止iOS缩放 */
+    }
+}
+
 .ai-section-title {
     font-size: 16px;
     margin-top: 30px;

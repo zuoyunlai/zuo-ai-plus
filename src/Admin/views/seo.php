@@ -144,6 +144,90 @@ table.seo-table {width:100%;border-collapse:collapse;font-size:13px;}
 .log-ok {color:#81c784;}
 .log-warn {color:#f0b429;}
 .log-error {color:#e57373;}
+
+/* ========== 移动端响应式优化 ========== */
+@media screen and (max-width: 782px) {
+    .seo-stat-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        margin: 16px 0 20px;
+    }
+    .seo-stat-card {
+        padding: 16px 8px;
+    }
+    .seo-stat-num {
+        font-size: 24px;
+    }
+    .seo-stat-label {
+        font-size: 12px;
+    }
+
+    .seo-actions {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+    .seo-actions .btn,
+    .seo-actions select {
+        width: 100%;
+        padding: 10px;
+        font-size: 14px;
+    }
+
+    /* 表格横向滚动 */
+    .seo-table-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    table.seo-table {
+        min-width: 600px;
+    }
+    .seo-table th,
+    .seo-table td {
+        padding: 8px 10px;
+        font-size: 12px;
+    }
+    .post-title-cell {
+        max-width: 150px;
+    }
+
+    /* 分页 */
+    .pagination-wrap {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    .pagination-wrap a,
+    .pagination-wrap span {
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+
+    /* 操作按钮 */
+    .action-btns {
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+    .action-btns .btn-sm {
+        padding: 6px 10px;
+        font-size: 11px;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .seo-stat-grid {
+        grid-template-columns: 1fr;
+    }
+    .seo-stat-num {
+        font-size: 28px;
+    }
+    .tag-list {
+        gap: 2px;
+    }
+    .tag-chip {
+        padding: 1px 5px;
+        font-size: 10px;
+    }
+}
 </style>
 
 <div class="wrap" style="max-width:1200px;">
@@ -411,7 +495,31 @@ table.seo-table {width:100%;border-collapse:collapse;font-size:13px;}
 
     // 诊断单篇
 
-    // 优化单篇
+    // 更新 Gutenberg 标签（修复标签不显示问题）
+    async function refreshGutenbergTags(postId, newTags) {
+        // 先尝试使用 WordPress REST API 刷新文章
+        try {
+            const response = await fetch('/wp-json/wp/v2/posts/' + postId + '?context=edit', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': nonce
+                }
+            });
+            
+            if (response.ok) {
+                const post = await response.json();
+                // 标签已通过后端保存，前端只需提示用户
+                return { success: true, message: '标签已保存，请手动刷新页面或编辑文章查看' };
+            }
+        } catch (e) {
+            console.warn('刷新文章失败:', e);
+        }
+        
+        return { success: false, message: '标签已保存，但无法自动刷新编辑器' };
+    }
+
+    // 优化单篇 - 修改版（不刷新页面，只更新 UI）
     document.querySelectorAll('.btn-optimize-one').forEach(btn => {
         btn.addEventListener('click', async function() {
             if (this.disabled) return;
@@ -431,7 +539,20 @@ table.seo-table {width:100%;border-collapse:collapse;font-size:13px;}
                     location.reload();
                 } else if (result && !result.error) {
                     log('文章 #' + id + ' 优化成功！新得分 ' + (result.score ?? 'N/A'), 'ok');
-                    location.reload();
+                    
+                    // 更新标签显示
+                    if (result.new_tags && Array.isArray(result.new_tags)) {
+                        const tagList = document.querySelector(`tr[data-post-id="${id}"] .tag-list`);
+                        if (tagList) {
+                            tagList.innerHTML = result.new_tags.map(tag => 
+                                `<span class="tag-chip">${tag}</span>`
+                            ).join('');
+                            log('标签已更新：' + result.new_tags.join('、'), 'ok');
+                        }
+                    }
+                    
+                    // 提示用户刷新
+                    log('提示：标签已保存，请手动刷新页面或编辑文章查看', 'info');
                 } else if (result && result.error) {
                     log('文章 #' + id + ' 优化失败：' + result.error, 'error');
                 } else {

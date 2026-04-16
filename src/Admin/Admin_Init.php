@@ -17,10 +17,12 @@ class Admin_Init
         'custom'  => ['name' => '自定义 (代理)', 'default' => '',                          'url' => ''],
     ];
 
-    // 支持文生图的平台及默认模型
+    // 支持文生图的平台及默认模型（不填的平台也可手动输入模型名）
     private $imageModels = [
         'zhipu'   => 'cogview-3',
         'tongyi'  => 'qwen-image-2.0-pro',
+        'minimax' => 'image-01',
+        'kimi'    => '',  // 可手动填写模型名（如 kimi-v1 等）
         'custom'  => '',  // 可选，用户自行填写
     ];
 
@@ -54,15 +56,17 @@ class Admin_Init
         \wp_enqueue_script(
             'ai-plus-gutenberg-sidebar',
             AI_PLUS_PLUGIN_URL . 'Assets/js/gutenberg-sidebar.js',
-            ['wp-edit-post', 'wp-plugins', 'wp-element', 'wp-data', 'wp-components', 'wp-api'],
+            ['wp-edit-post', 'wp-plugins', 'wp-element', 'wp-data', 'wp-components', 'wp-api', 'wp-blocks', 'wp-block-editor', 'wp-rich-text'],
             AI_PLUS_VERSION,
             true
         );
+        $defModel   = \get_option('ai_plus_default_model', 'zhipu');
         \wp_localize_script('ai-plus-gutenberg-sidebar', 'aiPlusConfig', [
-            'apiUrl'  => \rest_url('ai-plus/v1/'),
-            'nonce'   => \wp_create_nonce('wp_rest'),
-            'models'  => $this->models,
-            'apiKeys' => \get_option('ai_plus_api_keys', []),
+            'apiUrl'       => \rest_url('ai-plus/v1/'),
+            'nonce'        => \wp_create_nonce('wp_rest'),
+            'models'       => $this->models,
+            'apiKeys'      => \get_option('ai_plus_api_keys', []),
+            'defaultModel' => $defModel,
         ]);
     }
 
@@ -88,6 +92,7 @@ class Admin_Init
         \register_setting('ai_plus_settings', 'ai_plus_api_keys', ['sanitize_callback' => function($v) { return is_array($v) ? $v : []; }]);
         \register_setting('ai_plus_settings', 'ai_plus_default_model', ['sanitize_callback' => function($v) { return sanitize_text_field($v); }]);
         \register_setting('ai_plus_settings', 'ai_plus_image_model', ['sanitize_callback' => function($v) { return sanitize_text_field($v); }]);
+        \register_setting('ai_plus_settings', 'ai_plus_image_size', ['sanitize_callback' => function($v) { return sanitize_text_field($v); }]);
         // 迁移旧 key
         $old = \get_option('ai_plus_featured_image_model', '');
         if ($old && !\get_option('ai_plus_image_model', '')) {
@@ -154,7 +159,7 @@ class Admin_Init
                         <tr>
                             <th>背景知识（AI 生成时会参考）</th>
                             <td>
-                                <textarea name="ai_plus_knowledge_base" rows="4" style="width:600px;"
+                                <textarea name="ai_plus_knowledge_base" rows="4" style="width:100%;max-width:600px;"
 placeholder="例如：本公司专业生产铝合金衣柜，产品特点包括耐用、环保、美观..."><?php echo esc_html($kbBase); ?></textarea>
                                 <p class="description">填写后，AI 在生成文章时会自动参考这段内容作为背景</p>
                             </td>
@@ -202,7 +207,7 @@ placeholder="例如：本公司专业生产铝合金衣柜，产品特点包括�
                                     <label>文本模型 <em style="color:#999;font-weight:normal;">（通常留空）</em></label>
                                     <input type="text" name="ai_plus_api_keys[<?php echo esc_html($id) ?>][model]" value="<?php echo esc_attr($model); ?>" placeholder="默认：<?php echo esc_html($m['default']) ?>">
                                 </div>
-                                <?php if ($hasImg): ?>
+                                <?php if ($hasImg || $id === 'minimax' || $id === 'kimi'): // minimax/kimi 可手动填模型 ?>
                                 <div class="ai-model-card__field">
                                     <label>文生图模型 <em style="color:#999;font-weight:normal;">（可选）</em></label>
                                     <input type="text" name="ai_plus_api_keys[<?php echo esc_html($id) ?>][image_model]" value="<?php echo esc_attr($imgMdl); ?>" placeholder="<?php echo esc_html($imgPlaceholder) ?>">
@@ -247,15 +252,29 @@ placeholder="例如：本公司专业生产铝合金衣柜，产品特点包括�
                                     <?php foreach ($this->imageModels as $k => $imgM): ?>
                                         <?php
                                             $hasImgKey = hasKey($apiKeys[$k] ?? []);
-                                            $imgVal = $apiKeys[$k]['image_model'] ?? $imgM;
+                                            $imgVal = $apiKeys[$k]['image_model'] ?? '';
                                             $showCustom = $k === 'custom' && hasKey($apiKeys['custom'] ?? []) && !empty($apiKeys['custom']['base_url']);
                                             if ($k === 'custom' && !$showCustom) continue;
-                                            if ($k !== 'custom' && !$hasImgKey) continue;
+                                            // 必须同时有 API Key 和已配置的文生图模型才显示
+                                            if ($k !== 'custom' && (!$hasImgKey || empty($imgVal))) continue;
                                         ?>
                                             <option value="<?php echo esc_html($k) ?>" <?php echo  $k === $imgModel ? 'selected' : '' ?>><?php echo esc_html($this->models[$k]['name']) ?> — <?php echo esc_html($imgVal) ?></option>
                                     <?php endforeach; ?>
                                 </select>
                                 <p class="description">特色图专用模型（通义/智谱/MiniMax/自定义代理）</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>特色图尺寸</th>
+                            <td>
+                                <select name="ai_plus_image_size">
+                                    <option value="1024*1024" <?php echo  \get_option('ai_plus_image_size', '1216*832') === '1024*1024' ? 'selected' : '' ?>>正方形 1024×1024（1:1）</option>
+                                    <option value="1216*832"  <?php echo  \get_option('ai_plus_image_size', '1216*832') === '1216*832'  ? 'selected' : '' ?>>横版 1216×832（16:9 推荐）</option>
+                                    <option value="832*1216"  <?php echo  \get_option('ai_plus_image_size', '1216*832') === '832*1216'  ? 'selected' : '' ?>>竖版 832×1216（9:16）</option>
+                                    <option value="1920*1080" <?php echo  \get_option('ai_plus_image_size', '1216*832') === '1920*1080' ? 'selected' : '' ?>>横版高清 1920×1080（HD）</option>
+                                    <option value="1080*1920" <?php echo  \get_option('ai_plus_image_size', '1216*832') === '1080*1920' ? 'selected' : '' ?>>竖版高清 1080×1920（HD）</option>
+                                </select>
+                                <p class="description">生成的特色图尺寸。如果提示「size参数不合法」，请换一个尺寸试试（不同账号模型权限不同）</p>
                             </td>
                         </tr>
                     </table>
@@ -338,15 +357,15 @@ placeholder="例如：本公司专业生产铝合金衣柜，产品特点包括�
                             btn.disabled = false;
                             btn.textContent = '🔗 测试连接';
                             if (data.success) {
-                                result.innerHTML = '<span style="color:#10b981;">' + data.data.message + ' · ' + data.data.elapsed + '</span>';
+                                result.innerHTML = '<span style="color:#10b981;">' + (data.data.message ? data.data.message.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '') + ' · ' + (data.data.elapsed || '') + '</span>';
                             } else {
-                                result.innerHTML = '<span style="color:#e53e3e;">' + data.data.message + '</span>';
+                                result.innerHTML = '<span style="color:#e53e3e;">' + (data.data.message ? data.data.message.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '测试失败') + '</span>';
                             }
                         })
                         .catch(function(err) {
                             btn.disabled = false;
                             btn.textContent = '🔗 测试连接';
-                            result.innerHTML = '<span style="color:#e53e3e;">请求失败: ' + err.message + '</span>';
+                            result.innerHTML = '<span style="color:#e53e3e;">请求失败: ' + (err.message ? err.message.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '网络错误') + '</span>';
                         });
                 }
 
@@ -364,15 +383,15 @@ placeholder="例如：本公司专业生产铝合金衣柜，产品特点包括�
                             btn.disabled = false;
                             btn.textContent = '🗑️ 清除所有缓存';
                             if (data.success) {
-                                result.innerHTML = '<span style="color:#10b981;">' + data.data.message + '</span>';
+                                result.innerHTML = '<span style="color:#10b981;">' + (data.data.message ? data.data.message.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '清除成功') + '</span>';
                             } else {
-                                result.innerHTML = '<span style="color:#e53e3e;">' + data.data.message + '</span>';
+                                result.innerHTML = '<span style="color:#e53e3e;">' + (data.data.message ? data.data.message.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '清除失败') + '</span>';
                             }
                         })
                         .catch(function(err) {
                             btn.disabled = false;
                             btn.textContent = '🗑️ 清除所有缓存';
-                            result.innerHTML = '<span style="color:#e53e3e;">请求失败</span>';
+                            result.innerHTML = '<span style="color:#e53e3e;">请求失败: ' + (err.message ? err.message.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '网络错误') + '</span>';
                         });
                 }
                 </script>
@@ -416,9 +435,12 @@ placeholder="例如：本公司专业生产铝合金衣柜，产品特点包括�
                         foreach ($this->imageModels as $k => $imgM): ?>
                             <?php
                                 $hasImgKey = hasKey($apiKeys[$k] ?? []);
+                                $imgModelVal = $apiKeys[$k]['image_model'] ?? '';
+                                // 文生图列表：仅显示用户明确配置了文生图模型的平台
+                                $hasImgModel = !empty($imgModelVal);
                                 $showCustom = $k === 'custom' && hasKey($apiKeys['custom'] ?? []) && !empty($apiKeys['custom']['base_url']);
                                 if ($k === 'custom' && !$showCustom) continue;
-                                if ($k !== 'custom' && !$hasImgKey) continue;
+                                if ($k !== 'custom' && (!$hasImgKey || !$hasImgModel)) continue;
                             ?>
                                 <label class="ai-model-radio">
                                     <input type="radio" name="img_model" value="<?php echo esc_html($k) ?>" <?php echo  $k === $imgDefault ? 'checked' : '' ?>>

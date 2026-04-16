@@ -24,6 +24,135 @@ $version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.2.0';
 .ai-subcard h3 {margin: 0 0 8px; font-size: 13px; font-weight: 600;}
 .ai-subcard p {margin: 0; font-size: 12px; color: #666; line-height: 1.7;}
 .ai-footer {text-align: center; color: #aaa; font-size: 12px; padding-top: 8px;}
+
+/* ========== 移动端响应式优化 ========== */
+@media screen and (max-width: 782px) {
+    .ai-about-wrap {
+        padding: 0 10px;
+    }
+    .ai-about-hero {
+        flex-direction: column;
+        text-align: center;
+        padding: 24px 20px;
+        gap: 16px;
+    }
+    .ai-about-hero-icon {
+        font-size: 40px;
+    }
+    .ai-about-hero h1 {
+        font-size: 22px;
+    }
+    .ai-about-hero p {
+        font-size: 13px;
+    }
+
+    .ai-about-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    .ai-card {
+        padding: 16px;
+    }
+    .ai-card h2 {
+        font-size: 14px;
+    }
+    .ai-card table {
+        font-size: 12px;
+    }
+    .ai-card td {
+        padding: 6px 0;
+    }
+    .ai-card td:first-child {
+        width: auto;
+        min-width: 70px;
+        white-space: normal;
+        word-break: break-all;
+    }
+
+    .ai-full-card {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    .ai-subcard {
+        padding: 14px;
+    }
+
+    .ai-tip {
+        padding: 14px 16px;
+        font-size: 13px;
+        line-height: 1.8;
+    }
+
+    /* 表格横向滚动 */
+    .ai-card table {
+        display: block;
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .ai-card tbody {
+        display: table;
+        width: 100%;
+        min-width: 280px;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .ai-about-hero {
+        padding: 20px 16px;
+    }
+    .ai-about-hero h1 {
+        font-size: 20px;
+    }
+    .ai-about-hero-icon {
+        font-size: 36px;
+    }
+
+    .ai-card {
+        padding: 14px 12px;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .ai-card h2 {
+        font-size: 13px;
+        margin-bottom: 12px;
+    }
+    .ai-card table {
+        font-size: 11px;
+    }
+    .ai-card td {
+        padding: 5px 0;
+    }
+    .ai-card td:first-child {
+        min-width: 60px;
+        padding-right: 8px;
+    }
+    .ai-card code {
+        font-size: 10px;
+        padding: 1px 4px;
+    }
+
+    .ai-new-tag {
+        font-size: 9px;
+        padding: 1px 5px;
+    }
+
+    .ai-subcard h3 {
+        font-size: 12px;
+    }
+    .ai-subcard p {
+        font-size: 11px;
+    }
+
+    .ai-tip {
+        font-size: 12px;
+        padding: 12px 14px;
+    }
+
+    .ai-footer {
+        font-size: 11px;
+    }
+}
 </style>
 
 <div class="ai-about-wrap">
@@ -43,7 +172,8 @@ $version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.2.0';
         <strong>🚀 快速入门</strong><br>
         <strong>第一步：</strong>进入「Zuo AI Plus 文本模型」Tab，展开各平台卡片，填入 API Key<br>
         <strong>第二步：</strong>在文章编辑器右侧的 AI Plus 面板直接使用所有功能<br>
-        <strong>SEO 诊断：</strong>进入「🔍 SEO 诊断」Tab 批量查看并优化全站文章
+        <strong>SEO 诊断：</strong>进入「🔍 SEO 诊断」Tab 批量查看并优化全站文章<br>
+        <strong>知识库：</strong>在模型设置中添加背景知识，让 AI 更懂你的品牌
     </div>
 
     <!-- 功能列表 + 支持模型 -->
@@ -60,6 +190,14 @@ $version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.2.0';
                 <tr>
                     <td>📝 内容续写</td>
                     <td>在现有内容基础上续写更多细节、案例和论述</td>
+                </tr>
+                <tr>
+                    <td>✏️ 内容改写 <span class="ai-new-tag">NEW</span></td>
+                    <td>重写/润色现有内容，保持原意不变，优化表达方式</td>
+                </tr>
+                <tr>
+                    <td>🎭 风格语气 <span class="ai-new-tag">NEW</span></td>
+                    <td>多种文字风格选择：专业正式、轻松随性、温暖亲切等</td>
                 </tr>
                 <tr>
                     <td>🎯 标题优化 <span class="ai-new-tag">NEW</span></td>
@@ -82,8 +220,16 @@ $version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.2.0';
                     <td>支持 12 种语言互译，直接替换编辑器内容</td>
                 </tr>
                 <tr>
+                    <td>📚 知识库 <span class="ai-new-tag">NEW</span></td>
+                    <td>设置背景知识，AI 生成内容时自动参考品牌/产品信息</td>
+                </tr>
+                <tr>
                     <td>🖼️ 特色图生成</td>
                     <td>根据文章内容生成封面图，自动下载并设为特色图</td>
+                </tr>
+                <tr>
+                    <td>🖼️ 插图生成 <span class="ai-new-tag">NEW</span></td>
+                    <td>在文章任意位置插入 AI 生成的配图，自动上传媒体库</td>
                 </tr>
                 <tr>
                     <td>🎨 图片生成</td>
@@ -108,6 +254,18 @@ $version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.2.0';
                 <tr>
                     <td>🔄 Playground</td>
                     <td>自由对话测试，保存草稿，复制内容</td>
+                </tr>
+                <tr>
+                    <td>⚖️ 智能续写 <span class="ai-new-tag">NEW</span></td>
+                    <td>根据上下文自动判断续写方向，无需手动选择</td>
+                </tr>
+                <tr>
+                    <td>🔧 多模型切换 <span class="ai-new-tag">NEW</span></td>
+                    <td>后台任意位置快速切换 AI 模型，灵活对比测试</td>
+                </tr>
+                <tr>
+                    <td>📊 使用统计 <span class="ai-new-tag">NEW</span></td>
+                    <td>实时追踪 Token 消耗、操作次数、各模型使用分布</td>
                 </tr>
             </table>
         </div>

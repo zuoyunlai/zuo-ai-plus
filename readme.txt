@@ -2,9 +2,9 @@
 Contributors: zuoyunlai
 Tags: ai, content generator, translation, seo, image generator
 Requires at least: 6.0
-Tested up to: 6.9
+Tested up to: 6.8
 Requires PHP: 8.1
-Stable tag: 1.2.2
+Stable tag: 1.2.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: zuo-ai-plus
@@ -18,26 +18,35 @@ Zuo AI Plus brings powerful AI capabilities directly to your WordPress dashboard
 
 = Supported Models =
 
-* **Zhipu GLM** (glm-5, glm-4-plus, glm-4-flashx) — recommended for beginners
-* **Alibaba Tongyi Qianwen** (qwen-turbo, qwen-plus, qwen-max)
-* **MiniMax** (MiniMax-M2.7, abab-7.5)
-* **Kimi / Moonshot** (kimi-k2.5, moonshot-v1-128k) — excellent for long-context tasks
-* **DeepSeek** (deepseek-chat, deepseek-coder)
-* **Custom OpenAI-compatible endpoint**
+* **Zhipu GLM** (glm-5, glm-4-flashx, cogview-3) — text + image generation
+* **Alibaba Tongyi Qianwen** (qwen-turbo, qwen-plus, wanx2.1-image) — text + image generation
+* **MiniMax** (MiniMax-M2.7, image-01) — text + image generation
+* **Kimi / Moonshot** (kimi-k2.5, moonshot-v1-8k) — excellent for long-context tasks
+* **DeepSeek** (deepseek-chat, deepseek-coder) — coding and reasoning
+* **Custom OpenAI-compatible endpoint** — bring your own model
 
 = Key Features =
 
 * **AI Article Generation** — One-click full-length article generation from a title
+* **Content Rewrite** — Rewrite/polish existing content while keeping original meaning
+* **Writing Style/Tone** — Multiple styles: professional, casual, warm, academic, etc.
 * **Content Expansion** — Continue writing existing drafts seamlessly
-* **Translation** — 14 languages, translate directly in Gutenberg editor
-* **SEO Optimization** — Auto-generate title, meta description, keywords, and slug
-* **Auto Tagging** — AI-powered tag recommendations and creation
+* **Smart Continue** — Auto-detect continue direction based on context
+* **Title Optimization** — AI-generated SEO-friendly titles (30-60 chars)
+* **Auto Summary** — One-click 100-word summary generation
+* **Auto Tagging** — AI-powered tag extraction (3-5 SEO-friendly tags)
+* **Slug Generation** — Auto-generate WordPress-friendly URL aliases
+* **Knowledge Base** — Background knowledge for AI to reference your brand/product
+* **Translation** — 12 languages, translate directly in Gutenberg editor
 * **Featured Image Generation** — Generate contextual cover images via AI
+* **Inline Image Generation** — Insert AI-generated images anywhere in articles
+* **SEO Diagnosis** — Batch site-wide SEO scoring, analysis & AI optimization
 * **Customer Service Widget** — Floating AI chat, content-aware responses
-* **Gutenberg Blocks** — Insert interactive chat and image generation blocks
-* **Shortcode** — Embed `[ai_plus_chat]` anywhere
+* **Gutenberg Blocks** — Interactive chat + image generation blocks
+* **Shortcode** — Embed `[ai_plus_chat]` anywhere with model selection
 * **Playground** — Chat interface for testing all models
-* **Usage Statistics** — Track token usage per model
+* **Usage Statistics** — Track tokens, operations, model distribution
+* **Quick Model Switch** — Switch AI models anywhere in admin
 
 = Requirements =
 
@@ -78,6 +87,18 @@ Enable it in Zuo AI Plus → Customer Service settings. It automatically reads y
 4. Shortcode chat embed
 
 == Changelog ==
+
+= 1.2.3 =
+* 新增内容改写功能：重写/润色现有内容，保持原意优化表达
+* 新增风格语气选择：专业正式、轻松随性、温暖亲切等多种文风
+* 新增知识库功能：设置背景知识，AI生成时自动参考品牌信息
+* 新增插图生成功能：在文章任意位置插入AI生成的配图
+* 新增智能续写：根据上下文自动判断续写方向
+* 新增多模型快速切换：后台任意位置切换AI模型对比测试
+* 新增使用统计面板：实时追踪Token消耗、操作次数、模型分布
+* 移动端后台全面优化：所有页面适配手机/平板访问
+* 修复后台统计功能：同时统计聊天对话和其他AI操作
+* 更新关于页面：完整展示20项核心功能
 
 = 1.2.0 =
 * 全新导航系统：模型设置 / 文生图 / 文生文 / 统计 / SEO诊断 / 授权管理 / 关于

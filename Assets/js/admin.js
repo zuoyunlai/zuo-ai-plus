@@ -189,7 +189,8 @@
                 imgResult.innerHTML = '';
 
                 if (data.url) {
-                    addMsg(imgResult, '图片描述: ' + (data.image_prompt || prompt), 'assistant');
+                    addMsg(imgResult, '中文说明: ' + (data.chinese_desc || data.image_prompt || prompt), 'assistant');
+                    if (data.chinese_alt) addMsg(imgResult, '替代文本: ' + data.chinese_alt, 'assistant');
                     addImage(imgResult, data.url);
 
                     // 保存到媒体库按钮（admin.js 用原生 DOM，aiPlusAdmin.nonce 来自 wp_localize_script）
@@ -207,7 +208,17 @@
                                 var filename = 'ai-plus-' + Date.now() + '.png';
                                 var fd = new FormData();
                                 fd.append('file', blob, filename);
-                                fd.append('title', (prompt && prompt.slice) ? prompt.slice(0, 80) : filename);
+                                // 标题：取中文图片说明的前80字符
+                                var titleVal = (data.chinese_desc || data.content || prompt || filename).slice(0, 80);
+                                fd.append('title', titleVal);
+                                // 替代文本（alt）：中文 alt，不再使用英文 prompt
+                                var altText = (data.chinese_alt || data.chinese_desc || '').slice(0, 100);
+                                if (altText) fd.append('alt_text', altText);
+                                // 说明文字（description → post_content）：中文描述
+                                var descText = (data.chinese_desc || data.content || '');
+                                if (descText) fd.append('description', descText);
+                                // 摘要（caption → post_excerpt）：中文 alt 摘要
+                                if (altText) fd.append('caption', altText);
                                 return fetch('/wp-json/wp/v2/media', {
                                     method: 'POST',
                                     body: fd,
@@ -219,7 +230,8 @@
                                 btn.textContent = '✅ 已保存';
                                 btn.disabled = true;
                                 var src = media.source_url || (media.guid && media.guid.rendered) || '';
-                                addMsg(imgResult, '已保存到媒体库: ' + src, 'assistant');
+                                var openUrl = media.link || src;
+                                addMsg(imgResult, '已保存到媒体库: ' + (openUrl ? '“ + openUrl + ”' : src), 'assistant');
                             })
                             .catch(function(err) {
                                 btn.textContent = '保存失败';

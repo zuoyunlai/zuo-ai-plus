@@ -70,27 +70,27 @@ class SeoOptimizer
 
         // 标题检查
         if ($title_len < 10) {
-            $issues[] = ['type' => 'title', 'severity' => 'high', 'msg' => "标题太短（{$title_len}字），建议30-60字"];
+            $issues[] = ['type' => 'title', 'severity' => 'high', 'msg' => sprintf(__('标题太短（%d字），建议30-60字', 'zuo-ai-plus'), $title_len)];
             $score -= 30;
         } elseif ($title_len > 60) {
-            $issues[] = ['type' => 'title', 'severity' => 'medium', 'msg' => "标题过长（{$title_len}字），建议控制在60字以内"];
+            $issues[] = ['type' => 'title', 'severity' => 'medium', 'msg' => sprintf(__('标题过长（%d字），建议控制在60字以内', 'zuo-ai-plus'), $title_len)];
             $score -= 15;
         }
 
         // 标签检查
         if (empty($tags)) {
-            $issues[] = ['type' => 'tags', 'severity' => 'high', 'msg' => '没有标签'];
+            $issues[] = ['type' => 'tags', 'severity' => 'high', 'msg' => __('没有标签', 'zuo-ai-plus')];
             $score -= 25;
         } else {
             foreach ($tags as $tag) {
                 $len = mb_strlen($tag, 'utf-8');
                 if ($len > 8) {
-                    $issues[] = ['type' => 'tags', 'severity' => 'medium', 'msg' => "标签「{$tag}」过长（{$len}字），建议中英混合词不超过10字，纯中文不超过6字"];
+                    $issues[] = ['type' => 'tags', 'severity' => 'medium', 'msg' => sprintf(__('标签「%s」过长（%d字），建议中英混合词不超过10字，纯中文不超过6字', 'zuo-ai-plus'), $tag, $len)];
                     $score -= 5;
                 }
             }
             if (count($tags) > 6) {
-                $issues[] = ['type' => 'tags', 'severity' => 'low', 'msg' => "标签过多（" . count($tags) . "个），建议3-5个"];
+                $issues[] = ['type' => 'tags', 'severity' => 'low', 'msg' => sprintf(__('标签过多（%d个），建议3-5个', 'zuo-ai-plus'), count($tags))];
                 $score -= 5;
             }
         }
@@ -98,13 +98,13 @@ class SeoOptimizer
         // Description 检查（excerpt）
         $excerpt_len = mb_strlen($excerpt, 'utf-8');
         if ($excerpt_len < 50) {
-            $issues[] = ['type' => 'description', 'severity' => 'medium', 'msg' => '摘要缺失或太短，建议80-120字'];
+            $issues[] = ['type' => 'description', 'severity' => 'medium', 'msg' => __('摘要缺失或太短，建议80-120字', 'zuo-ai-plus')];
             $score -= 15;
         }
 
         // 内容长度检查
         if (mb_strlen($content, 'utf-8') < 300) {
-            $issues[] = ['type' => 'content', 'severity' => 'low', 'msg' => '文章内容偏短，建议500字以上'];
+            $issues[] = ['type' => 'content', 'severity' => 'low', 'msg' => __('文章内容偏短，建议500字以上', 'zuo-ai-plus')];
             $score -= 10;
         }
 
@@ -158,22 +158,36 @@ class SeoOptimizer
         $issues = array_column($audit['issues'], 'type');
 
         // 构建 prompt（避开内容过滤词）
-        $need_title = in_array('title', $issues);
-        $need_tags  = in_array('tags', $issues);
-        $need_desc  = in_array('description', $issues);
+        // 始终尝试优化所有内容，但重点修复有问题的部分
+        $has_title_issue = in_array('title', $issues);
+        $has_tags_issue  = in_array('tags', $issues) || empty($tags);
+        $has_desc_issue  = in_array('description', $issues) || empty($excerpt);
+
+        $need_title = true; // 总是尝试优化标题（AI决定是否真的需要改）
+        $need_tags  = true; // 总是尝试优化标签
+        $need_desc  = $has_desc_issue; // 描述只在有问题时优化
 
         if ($need_title || $need_tags || $need_desc) {
             $content_snippet = mb_substr($content, 0, 150, 'utf-8');
 
             $prompt = "写作任务：" . PHP_EOL;
-            $prompt .= "标题：{$title}" . PHP_EOL;
+            $prompt .= "原标题（供参考，新标题不要包含）：{$title}" . PHP_EOL;
             if ($cats) $prompt .= "分类：" . implode('、', $cats) . PHP_EOL;
             if ($tags) $prompt .= "现有标签：" . implode('、', $tags) . PHP_EOL;
             if ($excerpt) $prompt .= "摘要：" . mb_substr($excerpt, 0, 100, 'utf-8') . PHP_EOL;
             $prompt .= "内容要点：" . mb_substr($content_snippet, 0, 100, 'utf-8') . PHP_EOL;
             $prompt .= PHP_EOL;
-            if ($need_title) $prompt .= "请改写一个更吸引人的标题，30-60字，含关键词，直接输出。" . PHP_EOL;
-            if ($need_tags) $prompt .= "推荐3-5个标签，每个2-6字，用逗号分隔，直接输出。" . PHP_EOL;
+            if ($need_title) $prompt .= "新标题要求：\n" .
+                "1. 基于原标题和内容，写一个更吸引人的标题\n" .
+                "2. 30-60字，包含核心关键词\n" .
+                "3. 标题必须完整独立，不要包含原标题的任何前缀\n" .
+                "4. 直接输出新标题，不要加'新标题：'前缀" . PHP_EOL;
+            if ($need_tags) $prompt .= "标签要求（重要）：\n" .
+                "1. 从文章核心主题提取3-5个关键词（如：智能家居、极简设计、收纳技巧）\n" .
+                "2. 每个标签必须是完整的概念词，严禁将一句话拆分成多个词\n" .
+                "3. 错误示例：\"智能, 家居, 极简, 设计\"（这是拆分句子）\n" .
+                "4. 正确示例：\"智能家居, 极简设计, 收纳技巧\"（这是完整关键词）\n" .
+                "5. 每个标签2-6个中文字，用逗号分隔，直接输出标签列表" . PHP_EOL;
             if ($need_desc) $prompt .= "写一段80-120字的简介，直接输出。" . PHP_EOL;
         } else {
             // 无需强制优化，但也标记为已处理，避免重复触发
@@ -184,7 +198,7 @@ class SeoOptimizer
                 'post_id'   => $post_id,
                 'title'     => $title,
                 'skipped'   => true,
-                'skip_reason' => 'SEO 评分良好，无需强制优化',
+                'skip_reason' => __('SEO 评分良好，无需强制优化', 'zuo-ai-plus'),
                 'score'     => $audit['score'],
             ];
         }
@@ -253,6 +267,33 @@ class SeoOptimizer
             }
         } else {
             $parsed = $this->parseAiResponse($raw_text, $need_title, $need_tags, $need_desc);
+
+            // 修复：清理标题叠加问题（AI可能在原标题前加修饰语）
+            if (!empty($parsed['title']) && !empty($title)) {
+                $new_title = $parsed['title'];
+                $original_clean = trim($title, '《》');
+                $new_clean = trim($new_title, '《》');
+
+                // 只有当新标题以原标题"完全"开头（可能是AI把原标题和新标题连在一起了）
+                // 才需要截取，且新标题必须明显比原标题长
+                if (mb_strpos($new_title, $title) === 0 && mb_strlen($new_title) > mb_strlen($title) + 5) {
+                    $parsed['title'] = trim(mb_substr($new_title, mb_strlen($title)), '《》：: ');
+                } elseif (mb_strpos($new_title, $original_clean) === 0 && mb_strlen($new_title) > mb_strlen($original_clean) + 5) {
+                    $parsed['title'] = trim(mb_substr($new_title, mb_strlen($original_clean)), '《》：: ');
+                } else {
+                    // 正常情况：直接使用AI生成的新标题
+                    $parsed['title'] = $new_clean;
+                }
+
+                // 确保去除多余的书名号和冒号
+                $parsed['title'] = trim($parsed['title'], '《》：: ');
+
+                // 最终检查：如果清理后的标题太短或和原标题几乎一样，保留原标题
+                if (mb_strlen($parsed['title'], 'utf-8') < 10) {
+                    $parsed['title'] = $new_clean; // 回退到清理前的版本
+                }
+            }
+
             // 如果解析仍无结果，尝试规则保底
             if (empty($parsed['title']) && empty($parsed['tags']) && empty($parsed['description'])) {
                 $fallback = $this->generateFallback($post, $need_title, $need_tags, $need_desc);
@@ -262,6 +303,7 @@ class SeoOptimizer
                     }
                 }
             }
+            // 从解析结果构建更新内容
             $updates = [];
             if (!empty($parsed['title']))       $updates['title']       = $parsed['title'];
             if (!empty($parsed['tags']))        $updates['tags']         = $parsed['tags'];
@@ -272,19 +314,8 @@ class SeoOptimizer
             return new \WP_Error('ai_error', '未能提取到任何可更新的内容');
         }
 
-        // 应用优化
-        $updates = [];
-        if (!empty($parsed['title'])) {
-            $updates['title'] = $parsed['title'];
-        }
-        if (!empty($parsed['tags'])) {
-            $updates['tags'] = $parsed['tags'];
-        }
-        if (!empty($parsed['description'])) {
-            $updates['description'] = $parsed['description'];
-        }
-
         $new_score = $this->applyOptimizations($post_id, $updates);
+
         if (is_wp_error($new_score)) {
             return $new_score;
         }
@@ -324,12 +355,14 @@ class SeoOptimizer
                 // 文本很长（思考内容）：从后往前找第一个合理解标题
                 if (mb_strlen($text, 'utf-8') > 200) {
                     for ($i = count($lines) - 1; $i >= 0; $i--) {
+                        if (!isset($lines[$i])) continue;
                         $line = trim($lines[$i]);
+                        if (!$line) continue;
                         // 跳过思考标记行、分析行
                         if (preg_match('/^[#\-*·\[\(]|^分析|^思考|^结论|^选择|^关键词|^字数|^SEO|^标签|^描述|^打磨|^优化/u', $line)) continue;
                         if (preg_match('/^[0-9]+\./u', $line)) continue; // 编号列表
                         $len = mb_strlen($line, 'utf-8');
-                        if ($len >= 10 && $len <= 70 && strpos($line, '：') !== false || ($len >= 15 && $len <= 70)) {
+                        if (($len >= 10 && $len <= 70 && strpos($line, '：') !== false) || ($len >= 15 && $len <= 70)) {
                             $result['title'] = $line;
                             break;
                         }
@@ -355,7 +388,9 @@ class SeoOptimizer
             } elseif (mb_strlen($text, 'utf-8') > 200) {
                 // 长文本：从后往前找第一个含逗号的行
                 for ($i = count($lines) - 1; $i >= 0; $i--) {
+                    if (!isset($lines[$i])) continue;
                     $line = trim($lines[$i]);
+                    if (!$line) continue;
                     if (strpos($line, '，') !== false || strpos($line, ',') !== false) {
                         if (!preg_match('/^[#\-*·]|^分析|^思考|^结论|^选择|^SEO|^描述|^优化/u', $line)) {
                             $tag_text = $line;
@@ -371,11 +406,22 @@ class SeoOptimizer
                 }
             }
             if ($tag_text) {
-                $tags = array_filter(
-                    array_map('trim', preg_split('/[,，]/', $tag_text)),
-                    fn($t) => mb_strlen($t, 'utf-8') >= 2 && mb_strlen($t, 'utf-8') <= 8
-                );
-                $result['tags'] = array_slice(array_values($tags), 0, 5);
+                $raw_tags = array_map('trim', preg_split('/[,，、]/', $tag_text));
+                $tags = [];
+                foreach ($raw_tags as $t) {
+                    // 移除所有标点符号（保留中文、英文、数字）
+                    $pattern = "#[[:punct:]]|\s|\"|'|\"\"|''|（|）|【|】|《|》#u";
+                    $t = preg_replace($pattern, '', $t);
+                    $len = mb_strlen($t, 'utf-8');
+                    // 跳过太短的词
+                    if ($len < 2) continue;
+                    // 跳过可能是句子拆分的片段（单字或两字以下）
+                    if ($len <= 2 && preg_match('/^[\x{4e00}-\x{9fa5}]$/u', $t)) continue;
+                    // 只保留完整词汇，长度超过6的跳过（不截断，避免破坏语义）
+                    if ($len > 6) continue;
+                    $tags[] = $t;
+                }
+                $result['tags'] = array_slice(array_values(array_unique($tags)), 0, 5);
             }
         }
 
@@ -422,7 +468,12 @@ class SeoOptimizer
             $tags = [];
             foreach ($matches[0] as $w) {
                 // 过滤掉常见无意义词
-                if (in_array($w, ['的是','的一','和的','在的','是的','了','和','在','是','的','了','个','与','或','及','为','与','的','之','其','以','而','则','则','于','从','被','并','等','各','此','该','有时','或者'])) continue;
+                # 去重停用词（1-2字无意义词，使用 array_flip 避免 in_array 重复遍历）
+                static $stop = null;
+                if ($stop === null) {
+                    $stop = array_flip(['是的','的一','和的','在的','了','和','在','是','的','个','与','或','及','为','之','其','以','而','则','于','从','被','并','等','各','此','该','有时','或者']);
+                }
+                if (isset($stop[$w])) continue;
                 if (isset($seen[$w])) continue;
                 $seen[$w] = true;
                 $tags[] = $w;
@@ -438,61 +489,105 @@ class SeoOptimizer
         return $result;
     }
 
-    // ── 应用优化到文章 ──
+    // ── 应用优化到文章（带事务回滚） ──
     private function applyOptimizations($post_id, $updates)
     {
         // 调试：检查当前用户上下文
         $uid = get_current_user_id();
         $user = $uid ? get_user_by('id', $uid) : null;
         if (!$uid) {
-            return new \WP_Error('rest_forbidden', '无法确定当前登录用户（UID=0），请确认 WordPress 认证正常', ['status' => 401]);
+            return new \WP_Error('rest_forbidden', __('无法确定当前登录用户（UID=0），请确认 WordPress 认证正常', 'zuo-ai-plus'), ['status' => 401]);
         }
 
         // 权限检查：当前用户必须有编辑这篇文章的权限
         $post = get_post($post_id);
         if (!current_user_can('edit_post', $post_id) && !current_user_can('edit_others_posts')) {
-            return new \WP_Error('rest_cannot_edit', '当前账户没有文章编辑权限（UID=' . $uid . '，角色=' . ($user ? implode(',', $user->roles) : 'unknown') . '），请确认账户有编辑者或更高权限', ['status' => 401]);
+            return new \WP_Error('rest_cannot_edit', __('当前账户没有文章编辑权限', 'zuo-ai-plus') . '（UID=' . $uid . '，角色=' . ($user ? implode(',', $user->roles) : 'unknown') . '），' . __('请确认账户有编辑者或更高权限', 'zuo-ai-plus'), ['status' => 401]);
         }
+
+        // 备份原始数据（用于回滚）
+        $backup = [
+            'post_title'   => $post->post_title,
+            'post_excerpt' => $post->post_excerpt,
+            'tags'         => wp_get_post_tags($post_id, ['fields' => 'names']),
+        ];
 
         $wp_updates = ['ID' => $post_id];
+        $tag_update_success = false;
+        $post_update_success = false;
 
-        if (!empty($updates['title'])) {
-            $wp_updates['post_title'] = wp_strip_all_tags($updates['title']);
-        }
-
-        if (!empty($updates['tags'])) {
-            $tag_ids = [];
-            foreach ($updates['tags'] as $tag_name) {
-                $tag_name = trim($tag_name);
-                if (mb_strlen($tag_name, 'utf-8') < 2) continue;
-                $term = get_term_by('name', $tag_name, 'post_tag');
-                if ($term) {
-                    $tag_ids[] = $term->term_id;
-                } else {
-                    $new = wp_insert_term($tag_name, 'post_tag');
-                    if (!is_wp_error($new)) {
-                        $tag_ids[] = $new['term_id'];
+        try {
+            // 步骤1：更新标签
+            if (!empty($updates['tags'])) {
+                $tag_ids = [];
+                foreach ($updates['tags'] as $tag_name) {
+                    $tag_name = trim($tag_name);
+                    if (mb_strlen($tag_name, 'utf-8') < 2) continue;
+                    $term = get_term_by('name', $tag_name, 'post_tag');
+                    if ($term) {
+                        $tag_ids[] = $term->term_id;
+                    } else {
+                        $new = wp_insert_term($tag_name, 'post_tag');
+                        if (!is_wp_error($new)) {
+                            $tag_ids[] = $new['term_id'];
+                        }
                     }
                 }
+                $set = wp_set_object_terms($post_id, $tag_ids, 'post_tag');
+                if (is_wp_error($set)) {
+                    throw new \Exception(__('标签更新失败：', 'zuo-ai-plus') . $set->get_error_message());
+                }
+                $tag_update_success = true;
             }
-            $set = wp_set_object_terms($post_id, $tag_ids, 'post_tag');
-            if (is_wp_error($set)) {
-                return $set;
+
+            // 步骤2：更新文章数据
+            if (!empty($updates['title'])) {
+                $wp_updates['post_title'] = wp_strip_all_tags($updates['title']);
             }
-        }
 
-        if (!empty($updates['description'])) {
-            $wp_updates['post_excerpt'] = wp_strip_all_tags($updates['description']);
-        }
-
-        if (count($wp_updates) > 1) {
-            $updated = wp_update_post($wp_updates);
-            if (is_wp_error($updated)) {
-                return $updated;
+            if (!empty($updates['description'])) {
+                $wp_updates['post_excerpt'] = wp_strip_all_tags($updates['description']);
             }
-        }
 
-        return $this->auditPost(get_post($post_id))['score'];
+            if (count($wp_updates) > 1) {
+                $updated = wp_update_post($wp_updates, true); // true = 返回WP_Error
+                if (is_wp_error($updated)) {
+                    throw new \Exception(__('文章更新失败：', 'zuo-ai-plus') . $updated->get_error_message());
+                }
+                $post_update_success = true;
+            }
+
+            // 步骤3：更新优化标记
+            update_post_meta($post_id, self::META_OPTIMIZED, true);
+            update_post_meta($post_id, self::META_OPTIMIZED_AT, current_time('mysql'));
+
+            return $this->auditPost(get_post($post_id))['score'];
+
+        } catch (\Exception $e) {
+            // 回滚：恢复原始数据
+            if ($tag_update_success && !empty($backup['tags'])) {
+                $orig_tag_ids = [];
+                foreach ($backup['tags'] as $tag_name) {
+                    $term = get_term_by('name', $tag_name, 'post_tag');
+                    if ($term) {
+                        $orig_tag_ids[] = (int) $term->term_id;
+                    }
+                }
+                if (!empty($orig_tag_ids)) {
+                    wp_set_object_terms($post_id, $orig_tag_ids, 'post_tag');
+                }
+            }
+
+            if ($post_update_success) {
+                wp_update_post([
+                    'ID'           => $post_id,
+                    'post_title'   => $backup['post_title'],
+                    'post_excerpt' => $backup['post_excerpt'],
+                ], true);
+            }
+
+            return new \WP_Error('optimization_failed', $e->getMessage());
+        }
     }
 
     // ── 重置单篇文章优化状态 ──

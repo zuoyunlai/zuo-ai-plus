@@ -1,10 +1,16 @@
 (function (wp) {
     'use strict';
 
+    window.addEventListener('error', function(e) {
+        if (e.filename && e.filename.indexOf('blocks.js') !== -1) {
+            console.error('[AI+ blocks.js error]', e.message, 'at', e.filename + ':' + e.lineno);
+        }
+    });
+
     var el = wp.element.createElement;
     var Fragment = wp.element.Fragment;
     var registerBlockType = wp.blocks.registerBlockType;
-    var InspectorControls = wp.editor.InspectorControls;
+    var InspectorControls = wp.blockEditor ? wp.blockEditor.InspectorControls : wp.editor.InspectorControls;
     var TextControl = wp.components.TextControl;
     var Button = wp.components.Button;
     var Placeholder = wp.components.Placeholder;
@@ -14,6 +20,7 @@
         title: 'AI Plus 聊天',
         icon: 'format-chat',
         category: 'widgets',
+        apiVersion: 3,
         attributes: {
             model: { type: 'string', default: 'zhipu' },
             title: { type: 'string', default: 'AI 助手' },
@@ -138,13 +145,25 @@
         title: 'AI Plus 图片生成',
         icon: 'format-image',
         category: 'media',
+        apiVersion: 3,
+        supports: {
+            // 允许通过工具栏删除
+            lock: false,
+            // 允许在列表视图中操作
+            className: true,
+        },
         attributes: {
             prompt: { type: 'string', default: '' },
             imageUrl: { type: 'string', default: '' },
             imagePrompt: { type: 'string', default: '' },
+            englishPrompt: { type: 'string', default: '' },
+            chineseAlt: { type: 'string', default: '' },
+            chineseDesc: { type: 'string', default: '' },
+            attachmentId: { type: 'number', default: 0 },
             model: { type: 'string', default: 'tongyi' },
             caption: { type: 'string', default: '' },
             imgLoading: { type: 'boolean', default: false },
+            align: { type: 'string', default: 'wide' },
         },
         edit: function (props) {
             var prompt = props.attributes.prompt;
@@ -152,11 +171,15 @@
             var imagePrompt = props.attributes.imagePrompt;
             var model = props.attributes.model;
             var caption = props.attributes.caption;
-            var loading = props.attributes.chatLoading || false;
+            var englishPrompt = props.attributes.englishPrompt || '';
+            var chineseAlt = props.attributes.chineseAlt || '';
+            var chineseDesc = props.attributes.chineseDesc || '';
+            var attachmentId = props.attributes.attachmentId || 0;
+            var loading = props.attributes.imgLoading || false;
 
             function generate() {
                 if (!prompt.trim() || loading) return;
-                props.setAttributes({ chatLoading: true });
+                props.setAttributes({ imgLoading: true });
                 fetch(window.aiPlusConfig.apiUrl + 'generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': window.aiPlusConfig.nonce },
@@ -164,68 +187,211 @@
                 })
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
+                    var imgUrl = data.url || '';
+                    // 优先使用中文元数据
+                    var cDesc = data.chinese_desc || data.content || '';
+                    var cAlt = data.chinese_alt || cDesc || '';
+                    var ePrompt = data.image_prompt || prompt || '';
+                    
                     props.setAttributes({
-                        _loading: false,
-                        imageUrl: data.url || '',
-                        imagePrompt: data.image_prompt || prompt,
-                        caption: data.image_prompt || prompt
+                        imgLoading: false,
+                        imageUrl: imgUrl,
+                        imagePrompt: ePrompt,
+                        englishPrompt: ePrompt,
+                        chineseAlt: cAlt,
+                        chineseDesc: cDesc,
+                        caption: cDesc // 用中文描述作为 caption
+                    });
+                    
+                    if (!imgUrl) { 
+                        console.warn('[AI+] 图片生成失败，无图片URL');
+                        return; 
+                    }
+                    
+                    // 获取 post_id
+                    var postId = 0;
+                    try { postId = wp.data.select('core/editor').getEditedPostAttribute('id') || 0; } catch(e) {}
+                    
+                    // 保存到媒体库 - 使用中文元数据
+                    var saveData = { 
+                        post_id: postId, 
+                        image_url: imgUrl, 
+                        post_title: cDesc,      // 中文描述作为标题
+                        image_prompt: ePrompt,   // 英文提示词
+                        alt_text: cAlt,          // 中文替代文本
+                        chinese_desc: cDesc,     // 中文描述
+                        chinese_alt: cAlt        // 中文替代文本
+                    };
+                    
+                    console.log('[AI+] 保存到媒体库:', saveData);
+                    
+                    fetch(window.aiPlusConfig.apiUrl + 'featured-image-set', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': window.aiPlusConfig.nonce },
+                        body: JSON.stringify(saveData)
+                    }).then(function(resp) {
+                        return resp.json();
+                    })
+                    .then(function(up) {
+                        if (up.attachment_id) {
+                            props.setAttributes({ 
+                                imageUrl: up.url || imgUrl, 
+                                attachmentId: up.attachment_id 
+                            });
+                            console.log('[AI+] 图片已保存到媒体库:', up.attachment_id);
+                        } else {
+                            if (up.error) console.warn('[AI+] 保存媒体库失败:', up.error);
+                        }
+                    })
+                    .catch(function(err) {
+                        console.error('[AI+] 保存媒体库网络错误:', err);
                     });
                 })
-                .catch(function () {
-                    props.setAttributes({ chatLoading: false });
+                .catch(function (err) { 
+                    console.error('[AI+] 生成图片失败:', err);
+                    props.setAttributes({ imgLoading: false }); 
                 });
             }
 
-            // 已生成图片，显示图片
+            // 已生成图片，显示图片 - 与其他区块保持一致 840px 居中
             if (imageUrl) {
-                return el('figure', { className: 'wp-block-image' },
-                    el('img', { src: imageUrl, alt: caption || prompt, style: { maxWidth: '100%', height: 'auto' } }),
-                    caption ? el('figcaption', { style: { fontSize: '13px', color: '#555' } }, caption) : null,
-                    el('div', { style: { marginTop: '8px' } },
+                return el(Fragment, null,
+                    el('figure', { 
+                        className: 'wp-block-image alignwide',
+                        style: { 
+                            maxWidth: '840px',
+                            margin: '16px auto'
+                        } 
+                    },
+                        el('img', { 
+                            src: imageUrl, 
+                            alt: chineseAlt || caption || prompt, 
+                            style: { maxWidth: '100%', height: 'auto', display: 'block' } 
+                        }),
+                        caption ? el('figcaption', { style: { fontSize: '13px', color: '#555', textAlign: 'center', marginTop: '8px' } }, caption) : null
+                    ),
+                    el('div', { 
+                        className: 'ai-plus-image-actions',
+                        style: { 
+                            maxWidth: '840px',
+                            margin: '12px auto',
+                            textAlign: 'center',
+                            display: 'flex',
+                            gap: '8px',
+                            justifyContent: 'center'
+                        } 
+                    },
                         el(Button, {
-                            onClick: function () { props.setAttributes({ imageUrl: '', imagePrompt: '', caption: '', prompt: '' }); },
+                            onClick: function () { 
+                                props.setAttributes({ 
+                                    imageUrl: '', attachmentId: 0, imagePrompt: '', 
+                                    englishPrompt: '', chineseAlt: '', chineseDesc: '', 
+                                    caption: '', prompt: '' 
+                                }); 
+                            },
+                            isSecondary: true,
                             isSmall: true
-                        }, '重新生成')
+                        }, '🔄 重新生成'),
+                        el(Button, {
+                            onClick: function () {
+                                // 使用 Gutenberg API 删除当前区块
+                                var clientId = props.clientId;
+                                if (clientId && wp.data.dispatch('core/block-editor')) {
+                                    wp.data.dispatch('core/block-editor').removeBlock(clientId);
+                                }
+                            },
+                            isDestructive: true,
+                            isSmall: true
+                        }, '🗑️ 删除区块')
                     )
                 );
             }
 
-            // 未生成，显示输入界面
-            return el(InspectorControls, null,
-                el('div', { style: { padding: '16px' } },
-                    el('p', { style: { fontSize: '13px', color: '#555', marginBottom: '12px' } }, '选择图片生成模型：'),
+            // 未生成，显示中央输入界面 - 与其他区块对齐 840px
+            // 使用 ref 和 state 处理输入法合成状态
+            var inputRef = React.useRef(null);
+            var isComposing = React.useRef(false);
+            var [localPrompt, setLocalPrompt] = React.useState(prompt || '');
+            
+            // 同步外部 prompt 变化到本地状态
+            React.useEffect(function() {
+                setLocalPrompt(prompt || '');
+            }, [prompt]);
+            
+            return el('div', { 
+                style: { 
+                    padding: '20px', 
+                    background: '#f0f0f1', 
+                    borderRadius: '4px',
+                    maxWidth: '840px',
+                    margin: '0 auto'
+                } 
+            },
+                el('div', { style: { marginBottom: '16px' } },
+                    el('label', { style: { display: 'block', marginBottom: '8px', fontWeight: '500' } }, '选择图片生成模型：'),
                     el('select', {
                         value: model,
                         onChange: function (e) { props.setAttributes({ model: e.target.value }); },
-                        style: { width: '100%', marginBottom: '12px' }
+                        style: { width: '100%', padding: '6px', fontSize: '14px', boxSizing: 'border-box' }
                     },
                         el('option', { value: 'tongyi' }, '通义千问 — qwen-image-2.0-pro'),
                         el('option', { value: 'zhipu' }, '智谱 GLM — cogview-3'),
                         el('option', { value: 'minimax' }, 'MiniMax — image-01')
                     )
                 ),
-                el(Placeholder, { icon: 'format-image', label: 'AI 图片生成' },
+                el('div', { style: { marginBottom: '16px' } },
+                    el('label', { style: { display: 'block', marginBottom: '8px', fontWeight: '500' } }, '图片描述：'),
                     el('textarea', {
-                        value: prompt,
-                        rows: 3,
-                        placeholder: '输入图片描述，例如：一张现代简约风格的铝合金衣柜，高清写实摄影',
-                        onChange: function (e) { props.setAttributes({ prompt: e.target.value }); },
-                        style: { width: '100%', resize: 'vertical', fontSize: '14px', padding: '8px', marginBottom: '12px' }
-                    }),
-                    el(Button, {
-                        onClick: generate,
-                        isPrimary: true,
-                        disabled: loading || !prompt.trim()
-                    }, loading ? '⏳ 生成中...' : '✨ 生成图片')
-                )
+                        ref: inputRef,
+                        value: localPrompt,
+                        rows: 4,
+                        placeholder: '输入图片描述，例如：一张现代简约风格的铝合金衣柜，高清写实摄影\n\nAI 将自动生成英文绘图提示词，并创建中文标题、说明和替代文本',
+                        onCompositionStart: function() { isComposing.current = true; },
+                        onCompositionEnd: function(e) { 
+                            isComposing.current = false;
+                            setLocalPrompt(e.target.value);
+                            props.setAttributes({ prompt: e.target.value });
+                        },
+                        onChange: function (e) { 
+                            var value = e.target.value;
+                            setLocalPrompt(value);
+                            // 只有在非输入法合成状态下才更新属性
+                            if (!isComposing.current) {
+                                props.setAttributes({ prompt: value });
+                            }
+                        },
+                        onBlur: function(e) {
+                            // 失去焦点时确保同步
+                            props.setAttributes({ prompt: e.target.value });
+                        },
+                        style: { 
+                            width: '100%', 
+                            maxWidth: '100%',
+                            resize: 'vertical', 
+                            fontSize: '14px', 
+                            padding: '10px', 
+                            borderRadius: '4px', 
+                            border: '1px solid #c5c5c5',
+                            boxSizing: 'border-box'
+                        }
+                    })
+                ),
+                el(Button, {
+                    onClick: generate,
+                    isPrimary: true,
+                    disabled: loading || !localPrompt.trim(),
+                    style: { width: '100%', justifyContent: 'center' }
+                }, loading ? '⏳ 生成中...' : '✨ 生成图片')
             );
         },
         save: function (props) {
             var imageUrl = props.attributes.imageUrl;
             var caption = props.attributes.caption;
             if (imageUrl) {
-                return el('figure', { className: 'wp-block-image' },
-                    el('img', { src: imageUrl, alt: caption || '' }),
+                var align = props.attributes.align || 'wide';
+                var figClass = 'wp-block-image align' + align;
+                return el('figure', { className: figClass },
+                    el('img', { src: imageUrl, alt: (props.attributes.chineseAlt || caption || '') }),
                     caption ? el('figcaption', null, caption) : null
                 );
             }

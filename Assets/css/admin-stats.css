@@ -1,3 +1,62 @@
 .ai-stat-card { background:#fff;border:1px solid #ddd;border-radius:8px;padding:20px;text-align:center; }
 .ai-stat-num { font-size:28px;font-weight:bold;color:#2271b1; }
 .ai-stat-label { color:#666;margin-top:4px; }
+
+/* ========== 移动端响应式优化 ========== */
+@media screen and (max-width: 782px) {
+    /* 统计卡片网格 - 2x2布局 */
+    .wrap h1 + div[style*="grid-template-columns"] {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 10px !important;
+    }
+
+    .ai-stat-card {
+        padding: 16px 8px;
+    }
+    .ai-stat-num {
+        font-size: 22px;
+    }
+    .ai-stat-label {
+        font-size: 12px;
+    }
+
+    /* 表格横向滚动 */
+    .wrap table.widefat {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+    }
+    .wrap table.widefat th,
+    .wrap table.widefat td {
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+
+    /* 标题字号 */
+    .wrap h1 {
+        font-size: 20px;
+    }
+    .wrap h2 {
+        font-size: 16px;
+        margin-top: 20px;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    /* 超小屏幕单列 */
+    .wrap h1 + div[style*="grid-template-columns"] {
+        grid-template-columns: 1fr !important;
+    }
+
+    .ai-stat-num {
+        font-size: 26px;
+    }
+
+    /* 表格更紧凑 */
+    .wrap table.widefat th,
+    .wrap table.widefat td {
+        padding: 8px 10px;
+        font-size: 12px;
+    }
+}

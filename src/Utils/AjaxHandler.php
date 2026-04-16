@@ -12,20 +12,27 @@ function require_login(): void {
     }
 }
 
-// 生成并设置特色图
+// 生成并设置特色图 - 需要编辑权限
 \add_action('wp_ajax_ai_plus_featured_image', function () {
     if (!\is_user_logged_in()) {
-        $nonce = isset($_POST['nonce']) ? sanitize_text_field(wp_unslash($_POST['nonce'])) : '';
-        if (!wp_verify_nonce($nonce, 'wp_rest')) {
-            wp_send_json_error(['message' => 'Unauthorized'], 401);
-        }
+        \wp_send_json_error(['message' => __('请先登录', 'zuo-ai-plus')], 401);
+    }
+    if (!current_user_can('edit_posts')) {
+        \wp_send_json_error(['message' => __('没有编辑权限', 'zuo-ai-plus')], 403);
+    }
+    $nonce = isset($_POST['nonce']) ? sanitize_text_field(wp_unslash($_POST['nonce'])) : '';
+    if (!wp_verify_nonce($nonce, 'wp_rest')) {
+        wp_send_json_error(['message' => 'Unauthorized'], 401);
     }
 
     $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+    if ($post_id && !current_user_can('edit_post', $post_id)) {
+        \wp_send_json_error(['message' => '没有编辑此文章的权限'], 403);
+    }
     $image_prompt = isset($_POST['image_prompt']) ? sanitize_text_field(wp_unslash($_POST['image_prompt'])) : '';
 
-    if (!$post_id) { \wp_send_json_error(['message' => '无法获取文章ID']); }
-    if (empty($image_prompt)) { \wp_send_json_error(['message' => '图片描述不能为空']); }
+    if (!$post_id) { \wp_send_json_error(['message' => __('无法获取文章ID', 'zuo-ai-plus')]); }
+    if (empty($image_prompt)) { \wp_send_json_error(['message' => __('图片描述不能为空', 'zuo-ai-plus')]); }
 
     require_once ABSPATH . 'wp-admin/includes/file.php';
     require_once ABSPATH . 'wp-admin/includes/image.php';
@@ -64,11 +71,35 @@ function require_login(): void {
     \imagejpeg($img, $tmp, 90);
     \imagedestroy($img);
 
+    // 验证临时文件
+    if (!file_exists($tmp)) {
+        \wp_send_json_error(['message' => __('图片生成失败：临时文件不存在', 'zuo-ai-plus')]);
+    }
+    
+    // 验证文件大小（最大5MB）
+    $file_size = filesize($tmp);
+    if ($file_size === false || $file_size > 5 * 1024 * 1024) {
+        @unlink($tmp);
+        \wp_send_json_error(['message' => __('图片生成失败：文件过大', 'zuo-ai-plus')]);
+    }
+    
+    // 验证文件类型（MIME检查）
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime_type = finfo_file($finfo, $tmp);
+    finfo_close($finfo);
+    
+    $allowed_mimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!in_array($mime_type, $allowed_mimes, true)) {
+        @unlink($tmp);
+        \wp_send_json_error(['message' => __('图片生成失败：不支持的文件类型', 'zuo-ai-plus') . ' ' . $mime_type]);
+    }
+
     $filename = 'featured-' . $post_id . '-' . time() . '.jpg';
 
     $att_id = \media_handle_sideload([
         'name'     => $filename,
         'tmp_name' => $tmp,
+        'type'     => 'image/jpeg',
     ], $post_id);
 
     if (\is_wp_error($att_id)) {
@@ -85,30 +116,21 @@ function require_login(): void {
     ]);
 });
 
-// 保存文章内容
-// 保存 License Key
-add_action('wp_ajax_ai_plus_save_license_key', function () {
-    if (!current_user_can('manage_options')) {
-        wp_send_json_error(['message' => 'Unauthorized'], 401);
-    }
-    $nonce = isset($_POST['nonce']) ? sanitize_text_field(wp_unslash($_POST['nonce'])) : '';
-    if (!wp_verify_nonce($nonce, 'wp_rest')) {
-        wp_send_json_error(['message' => 'Unauthorized'], 401);
-    }
-    $key = isset($_POST['license_key']) ? sanitize_text_field(wp_unslash($_POST['license_key'])) : '';
-    $server_url = isset($_POST['license_server_url']) ? sanitize_url(wp_unslash($_POST['license_server_url'])) : '';
-    update_option('ai_plus_license_key', $key, true);
-    update_option('ai_plus_license_server_url', $server_url, true);
-    delete_transient('ai_plus_license_status');
-    wp_send_json_success(['saved' => true, 'key' => $key]);
-});
-
+// 保存文章内容 - 需要编辑权限
 add_action('wp_ajax_ai_plus_save_content', function () {
     if (!\is_user_logged_in()) {
         $nonce = isset($_POST['nonce']) ? sanitize_text_field(wp_unslash($_POST['nonce'])) : (isset($_POST['rest_nonce']) ? sanitize_text_field(wp_unslash($_POST['rest_nonce'])) : '');
         if (!\wp_verify_nonce($nonce, 'wp_rest') && !\wp_verify_nonce($nonce, 'ai_plus_nonce')) {
             \wp_send_json_error(['message' => 'Unauthorized'], 401);
         }
+    }
+    // 检查编辑权限
+    $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+    if ($post_id && !current_user_can('edit_post', $post_id)) {
+        \wp_send_json_error(['message' => '没有编辑权限'], 403);
+    }
+    if (!current_user_can('edit_posts')) {
+        \wp_send_json_error(['message' => '没有编辑权限'], 403);
     }
 
     $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
@@ -132,9 +154,12 @@ add_action('wp_ajax_ai_plus_save_content', function () {
     ]);
 });
 
-// 写入别名
+// 写入别名 - 需要编辑权限
 \add_action('wp_ajax_ai_plus_save_slug', function () {
     if (!\is_user_logged_in()) { require_login(); }
+    if (!current_user_can('edit_posts')) {
+        \wp_send_json_error(['message' => '没有编辑权限'], 403);
+    }
     $nonce = isset($_POST['nonce']) ? sanitize_text_field(wp_unslash($_POST['nonce'])) : '';
     if (!wp_verify_nonce($nonce, 'wp_rest')) {
         wp_send_json_error(['message' => 'Unauthorized'], 401);
@@ -144,20 +169,31 @@ add_action('wp_ajax_ai_plus_save_content', function () {
     $slug = isset($_POST['slug']) ? sanitize_title(wp_unslash($_POST['slug'])) : '';
 
     if (!$post_id) { \wp_send_json_error(['message' => '文章ID无效']); }
+    if (!current_user_can('edit_post', $post_id)) {
+        \wp_send_json_error(['message' => '没有编辑此文章的权限'], 403);
+    }
 
     \wp_update_post(['ID' => $post_id, 'post_name' => $slug]);
     \wp_send_json_success(['slug' => $slug]);
 });
 
-// 写入标签
+// 写入标签 - 需要编辑权限
 \add_action('wp_ajax_ai_plus_save_tags', function () {
     if (!\is_user_logged_in()) { require_login(); }
+    if (!current_user_can('edit_posts')) {
+        \wp_send_json_error(['message' => '没有编辑权限'], 403);
+    }
     $nonce = isset($_POST['nonce']) ? sanitize_text_field(wp_unslash($_POST['nonce'])) : '';
     if (!wp_verify_nonce($nonce, 'wp_rest')) {
         wp_send_json_error(['message' => 'Unauthorized'], 401);
     }
 
     $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+    if (!$post_id) { \wp_send_json_error(['message' => '文章ID无效']); }
+    if (!current_user_can('edit_post', $post_id)) {
+        \wp_send_json_error(['message' => '没有编辑此文章的权限'], 403);
+    }
+
     // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- checked with isset, value is unslashed below
     $_tag_names = isset($_POST['tag_names']) ? wp_unslash($_POST['tag_names']) : null;
     // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- checked with isset, value is unslashed below
@@ -165,7 +201,6 @@ add_action('wp_ajax_ai_plus_save_content', function () {
     $raw = is_array($_tag_names) ? $_tag_names : (is_array($_tags) ? $_tags : []);
     $tags = is_array($raw) ? array_map('sanitize_text_field', $raw) : (is_string($raw) ? sanitize_text_field($raw) : []);
 
-    if (!$post_id) { \wp_send_json_error(['message' => '文章ID无效']); }
     if (!is_array($tags)) { $tags = explode(',', $tags); }
 
     $tag_ids = [];
@@ -184,8 +219,29 @@ add_action('wp_ajax_ai_plus_save_content', function () {
     \wp_send_json_success(['tags' => $names]);
 });
 
-// 测试模型连接
+// 保存 License Key - 仅管理员
+add_action('wp_ajax_ai_plus_save_license_key', function () {
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(['message' => 'Unauthorized'], 401);
+    }
+    $nonce = isset($_POST['nonce']) ? sanitize_text_field(wp_unslash($_POST['nonce'])) : '';
+    if (!wp_verify_nonce($nonce, 'wp_rest')) {
+        wp_send_json_error(['message' => 'Unauthorized'], 401);
+    }
+    $key = isset($_POST['license_key']) ? sanitize_text_field(wp_unslash($_POST['license_key'])) : '';
+    $server_url = isset($_POST['license_server_url']) ? sanitize_url(wp_unslash($_POST['license_server_url'])) : '';
+    update_option('ai_plus_license_key', $key, true);
+    update_option('ai_plus_license_server_url', $server_url, true);
+    delete_transient('ai_plus_license_status');
+    wp_send_json_success(['saved' => true, 'key' => $key]);
+});
+
+// 测试模型连接 - 需要管理员权限
 \add_action('wp_ajax_ai_plus_test_model', function () {
+    if (!\is_user_logged_in()) { require_login(); }
+    if (!current_user_can('manage_options')) {
+        \wp_send_json_error(['message' => '没有权限'], 403);
+    }
     $nonce = isset($_POST['nonce']) ? sanitize_key($_POST['nonce']) : '';
     if (!wp_verify_nonce($nonce, 'wp_rest')) {
         \wp_send_json_error(['message' => 'Unauthorized'], 401);
@@ -252,8 +308,12 @@ add_action('wp_ajax_ai_plus_save_content', function () {
     }
 });
 
-// 清除 AI 缓存
+// 清除 AI 缓存 - 需要管理员权限
 \add_action('wp_ajax_ai_plus_flush_cache', function () {
+    if (!\is_user_logged_in()) { require_login(); }
+    if (!current_user_can('manage_options')) {
+        \wp_send_json_error(['message' => '没有权限'], 403);
+    }
     $nonce = isset($_POST['nonce']) ? sanitize_key($_POST['nonce']) : '';
     if (!wp_verify_nonce($nonce, 'wp_rest')) {
         \wp_send_json_error(['message' => 'Unauthorized'], 401);
