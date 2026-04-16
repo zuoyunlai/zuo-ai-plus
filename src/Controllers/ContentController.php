@@ -34,9 +34,9 @@ class ContentController extends BaseController
         // 速率限制检查
         $action = sanitize_text_field($request->get_param('action'));
         $rateLimitConfig = [
-            'generate'       => ['max' => 5, 'window' => 60],    // 文章生成：每分钟5次
-            'expand'         => ['max' => 10, 'window' => 60],   // 扩写：每分钟10次
-            'rewrite'        => ['max' => 10, 'window' => 60],   // 改写：每分钟10次
+            'generate'       => ['max' => 15, 'window' => 60],    // 文章生成：每分钟15次
+            'expand'         => ['max' => 25, 'window' => 60],   // 扩写：每分钟25次
+            'rewrite'        => ['max' => 25, 'window' => 60],   // 改写：每分钟25次
             'summarize'      => ['max' => 20, 'window' => 60],   // 摘要：每分钟20次
             'keyword'        => ['max' => 20, 'window' => 60],   // 关键词：每分钟20次
             'slug'           => ['max' => 30, 'window' => 60],   // slug：每分钟30次
