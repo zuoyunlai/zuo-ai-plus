@@ -510,13 +510,18 @@ class UtilityController extends BaseController
         $tag_names = $request->get_param('tag_names');
         $tags_raw  = $request->get_param('tags');
 
-        // 处理逗号分隔的字符串
+        // 处理逗号分隔的字符串，并应用标签过滤标准（2-6字，最多4个）
         if (empty($tag_names) && !empty($tags_raw)) {
             if (is_string($tags_raw)) {
-                $tag_names = array_filter(array_map('trim', preg_split('/[,，、]/', $tags_raw)));
+                $tag_names = $this->parseTags($tags_raw);  // 使用 parseTags 过滤
             } elseif (is_array($tags_raw)) {
-                $tag_names = $tags_raw;
+                $tag_names = $this->parseTags(implode(',', $tags_raw));  // 数组转字符串后过滤
             }
+        } elseif (!empty($tag_names) && is_array($tag_names)) {
+            // 如果已经有 tag_names 数组，也需要过滤
+            $tag_names = $this->parseTags(implode(',', $tag_names));
+        } else {
+            $tag_names = [];
         }
 
         $term_ids = [];
