@@ -70,10 +70,10 @@ class SeoOptimizer
 
         // 标题检查
         if ($title_len < 10) {
-            $issues[] = ['type' => 'title', 'severity' => 'high', 'msg' => sprintf(__('标题太短（%d字），建议30-60字', 'zuo-ai-plus'), $title_len)];
+            $issues[] = ['type' => 'title', 'severity' => 'high', 'msg' => sprintf(__('标题过短（%d字），SEO标准6-30字', 'zuo-ai-plus'), $title_len)];
             $score -= 30;
-        } elseif ($title_len > 60) {
-            $issues[] = ['type' => 'title', 'severity' => 'medium', 'msg' => sprintf(__('标题过长（%d字），建议控制在60字以内', 'zuo-ai-plus'), $title_len)];
+        } elseif ($title_len > 30) {
+            $issues[] = ['type' => 'title', 'severity' => 'medium', 'msg' => sprintf(__('标题过长（%d字），SEO标准6-30字', 'zuo-ai-plus'), $title_len)];
             $score -= 15;
         }
 
@@ -97,9 +97,12 @@ class SeoOptimizer
 
         // Description 检查（excerpt）
         $excerpt_len = mb_strlen($excerpt, 'utf-8');
-        if ($excerpt_len < 50) {
-            $issues[] = ['type' => 'description', 'severity' => 'medium', 'msg' => __('摘要缺失或太短，建议80-120字', 'zuo-ai-plus')];
+        if ($excerpt_len < 60) {
+            $issues[] = ['type' => 'description', 'severity' => 'medium', 'msg' => __('摘要缺失或太短，SEO标准60-120字', 'zuo-ai-plus')];
             $score -= 15;
+        } elseif ($excerpt_len > 120) {
+            $issues[] = ['type' => 'description', 'severity' => 'medium', 'msg' => __('摘要过长，SEO标准60-120字', 'zuo-ai-plus')];
+            $score -= 10;
         }
 
         // 内容长度检查
@@ -177,18 +180,27 @@ class SeoOptimizer
             if ($excerpt) $prompt .= "摘要：" . mb_substr($excerpt, 0, 100, 'utf-8') . PHP_EOL;
             $prompt .= "内容要点：" . mb_substr($content_snippet, 0, 100, 'utf-8') . PHP_EOL;
             $prompt .= PHP_EOL;
-            if ($need_title) $prompt .= "新标题要求：\n" .
-                "1. 基于原标题和内容，写一个更吸引人的标题\n" .
-                "2. 30-60字，包含核心关键词\n" .
-                "3. 标题必须完整独立，不要包含原标题的任何前缀\n" .
-                "4. 直接输出新标题，不要加'新标题：'前缀" . PHP_EOL;
-            if ($need_tags) $prompt .= "标签要求（重要）：\n" .
-                "1. 从文章核心主题提取3-5个关键词（如：智能家居、极简设计、收纳技巧）\n" .
-                "2. 每个标签必须是完整的概念词，严禁将一句话拆分成多个词\n" .
-                "3. 错误示例：\"智能, 家居, 极简, 设计\"（这是拆分句子）\n" .
-                "4. 正确示例：\"智能家居, 极简设计, 收纳技巧\"（这是完整关键词）\n" .
-                "5. 每个标签2-6个中文字，用逗号分隔，直接输出标签列表" . PHP_EOL;
-            if ($need_desc) $prompt .= "写一段80-120字的简介，直接输出。" . PHP_EOL;
+            if ($need_title) $prompt .= "新标题要求（严格遵守）：\n" .
+                "1. 长度：6-30个汉字\n" .
+                "2. 必须包含文章核心关键词，语言自然流畅\n" .
+                "3. 不要包含原标题的前缀或句式\n" .
+                "4. 直接输出新标题，不要任何前缀、编号或引号\n" .
+                "5. 不要使用【】、『』、《》、「」等特殊符号\n" .
+                "6. 在标题前加入搜索意图词以提升点击率\n" .
+                "输出格式：新标题：（直接写标题内容，不要写\"新标题：\"这几个字）\n" . PHP_EOL;
+            if ($need_tags) $prompt .= "标签要求（严格遵守，共2-4个）：\n" .
+                "1. 每个标签必须是2-6个汉字的完整词汇（如：实木家具、环保材料、小户型收纳）\n" .
+                "2. 必须是文章核心主题词或细分领域词，能反映文章讨论的具体内容\n" .
+                "3. 不要单个汉字，不要太宽泛的词（如「技术」「方法」「产品」），不要完整句子\n" .
+                "4. 不要品牌名、公司名、日期或无意义词\n" .
+                "5. 共输出2-4个标签，用中文逗号「，」分隔，不要编号、不要任何解释\n" .
+                "输出格式：标签：（直接写标签列表）\n" . PHP_EOL;
+            if ($need_desc) $prompt .= "摘要要求（严格遵守）：\n" .
+                "1. 长度：60-120个汉字\n" .
+                "2. 准确概括文章核心内容和观点\n" .
+                "3. 直接输出摘要，不要任何前缀、编号或引号\n" .
+                "4. 不要换行，不要包含标签或列表\n" .
+                "输出格式：摘要：（直接写摘要内容，不要写\"摘要：\"这几个字）" . PHP_EOL;
         } else {
             // 无需强制优化，但也标记为已处理，避免重复触发
             update_post_meta($post_id, self::META_OPTIMIZED, true);
@@ -372,7 +384,7 @@ class SeoOptimizer
                 if (empty($result['title'])) {
                     foreach ($lines as $line) {
                         $len = mb_strlen($line, 'utf-8');
-                        if ($len >= 10 && $len <= 70 && !preg_match('/^[#\-*·\[\(]|^SEO|^标签|^描述|^新标题|^新标签|^优化/u', $line)) {
+                        if ($len >= 6 && $len <= 30 && !preg_match('/^[#\-*·\[\(]|^SEO|^标签|^描述|^新标题|^新标签|^优化/u', $line)) {
                             $result['title'] = $line;
                             break;
                         }
@@ -421,12 +433,12 @@ class SeoOptimizer
                     if ($len > 10) continue;
                     $tags[] = $t;
                 }
-                $result['tags'] = array_slice(array_values(array_unique($tags)), 0, 5);
+                $result['tags'] = array_slice(array_values(array_unique($tags)), 0, 4);
             }
         }
 
         if ($need_desc) {
-            if (preg_match('/(?:SEO)?描述[：:]\s*(.+)/u', $text, $m)) {
+            if (preg_match('/摘要[：:]\s*(.+)/u', $text, $m)) {
                 $result['description'] = trim($m[1]);
             } elseif (count($lines) >= 3) {
                 foreach (array_slice($lines, 2) as $line) {
