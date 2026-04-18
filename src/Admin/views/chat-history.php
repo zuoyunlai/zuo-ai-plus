@@ -90,8 +90,8 @@ function extract_user_message($msg_raw) {
                 <?php $user_msg = extract_user_message($row['message']); ?>
                 <tr>
                     <td><?php echo (int) $row['id']; ?></td>
-                    <td title="<?php echo esc_attr($row['session_id']); ?>">
-                        <?php echo esc_html(mb_substr($row['session_id'], 0, 24)); ?>
+                    <td title="<?php echo esc_attr((string)($row['session_id'] ?? '')); ?>">
+                        <?php echo esc_html(mb_substr((string)($row['session_id'] ?? ''), 0, 24)); ?>
                     </td>
                     <td><?php echo esc_html($row['model']); ?></td>
                     <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
