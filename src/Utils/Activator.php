@@ -82,6 +82,10 @@ class Activator
         dbDelta($sql_history);
         dbDelta($sql_cache);
 
+        // SEO统计优化可选操作（如需优化 getStats AVG 查询性能，可手动执行）：
+        // ALTER TABLE {$wpdb->postmeta} ADD INDEX idx_meta_key (meta_key);
+        // 这对文章数量超过1000篇时的 AVG(_seo_score) 查询有显著加速
+
         // 默认选项
         $defaults = [
             'ai_plus_enabled_models' => ['zhipu', 'tongyi', 'minimax', 'kimi'],

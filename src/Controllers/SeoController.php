@@ -71,6 +71,7 @@ class SeoController extends BaseController
             'methods'             => 'POST',
             'callback'            => [$this, 'handleReset'],
             'permission_callback' => [$this, 'canEdit'],
+            'permission_callback' => [$this, 'canEdit'],
         ]);
     }
 

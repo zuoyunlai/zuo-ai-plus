@@ -209,8 +209,7 @@ class ContentController extends BaseController
 
         // DEBUG: 记录解析结果
         if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[ZuoAI] handleImage rawText: ' . substr($rawText, 0, 500));
-            error_log('[ZuoAI] handleImage parsed: desc=' . $chineseDesc . ', alt=' . $chineseAlt);
+
         }
 
         // 再用英文提示词调用绘图模型
@@ -343,10 +342,7 @@ class ContentController extends BaseController
 
         // DEBUG: 记录 AI 原始输出和解析结果（仅调试模式）
         if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[ZuoAI] handleImageGeneration rawPrompt: ' . substr($rawPrompt, 0, 500));
-            error_log('[ZuoAI] handleImageGeneration parsed englishPrompt: ' . substr($englishPrompt, 0, 200));
-            error_log('[ZuoAI] handleImageGeneration chineseDesc: ' . $chineseDesc);
-            error_log('[ZuoAI] handleImageGeneration chineseAlt: ' . $chineseAlt);
+
         }
 
         try {
