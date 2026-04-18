@@ -735,10 +735,12 @@ class SeoOptimizer
         if (get_option('ai_plus_cache_enabled', true)) {
             global $wpdb;
             $postPrefix = 'ai_cache_post_' . $post_id . '_';
-            $like = '_transient_' . $wpdb->esc_like($postPrefix) . '%';
+            $likeData = '_transient_' . $wpdb->esc_like($postPrefix) . '%';
+            $likeTimeout = '_transient_timeout_' . $wpdb->esc_like($postPrefix) . '%';
+            // 同时删除数据和对应的 timeout 记录
             $wpdb->query($wpdb->prepare(
-                "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
-                $like
+                "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
+                $likeData, $likeTimeout
             ));
         }
 

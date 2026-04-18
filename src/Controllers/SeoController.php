@@ -70,8 +70,7 @@ class SeoController extends BaseController
         register_rest_route('ai-plus/v1', '/seo-reset/(?P<post_id>\d+)', [
             'methods'             => 'POST',
             'callback'            => [$this, 'handleReset'],
-            'permission_callback' => [$this, 'canEdit'],
-            'permission_callback' => [$this, 'canEdit'],
+            'permission_callback' => [$this, 'canManage'],
         ]);
     }
 

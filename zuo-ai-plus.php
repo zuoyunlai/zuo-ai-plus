@@ -99,7 +99,7 @@ add_filter('the_content', function ($content) {
     $articleText = wp_strip_all_tags($content);
     // esc_attr() 对超长字符串有内部缓冲区限制，截断到 4000 字符确保安全
     if (mb_strlen($articleText, 'utf-8') > 4000) {
-        $articleText = mb_substr($articleText, 0, 4000, 'utf-8') . '...[内容截断]';
+        $articleText = mb_substr($articleText, 0, 4000, 'utf-8');
     }
 
     foreach ($blocks as $block) {
