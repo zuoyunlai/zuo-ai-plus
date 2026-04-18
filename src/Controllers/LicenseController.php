@@ -29,6 +29,7 @@ class LicenseController extends BaseController
 
         update_option('ai_plus_license_key', $key, true);
         delete_transient('ai_plus_license_status');
+        delete_transient('ai_plus_license_verified');  // 清除验证缓存
 
         return $this->success(['saved' => true, 'key' => $this->maskKey($key)]);
     }
