@@ -27,7 +27,7 @@ class Logger
      */
     public static function log(string $level, string $message, array $context = []): void
     {
-        $timestamp = date('Y-m-d H:i:s');
+        $timestamp = gmdate('Y-m-d H:i:s');
         $contextStr = !empty($context) ? ' ' . json_encode($context, JSON_UNESCAPED_UNICODE) : '';
         $logMessage = "[AI Plus][{$timestamp}][{$level}] {$message}{$contextStr}";
         

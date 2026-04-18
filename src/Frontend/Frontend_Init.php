@@ -24,7 +24,8 @@ class Frontend_Init
 
         \wp_enqueue_style('ai-plus-frontend', AI_PLUS_PLUGIN_URL . 'Assets/css/frontend.css', [], AI_PLUS_VERSION);
         // marked.js：Markdown → HTML 渲染（CDN，45KB，零依赖）
-        \wp_enqueue_script('marked', 'https://cdn.jsdelivr.net/npm/marked/marked.min.js', [], AI_PLUS_VERSION, true);
+        \wp_register_script('marked', 'https://cdn.jsdelivr.net/npm/marked/marked.min.js', [], AI_PLUS_VERSION, true);
+        \wp_enqueue_script("marked");
         \wp_enqueue_script('ai-plus-frontend', AI_PLUS_PLUGIN_URL . 'Assets/js/frontend.js', ['jquery', 'marked'], AI_PLUS_VERSION, true);
 
         $defaultModel = \get_option('ai_plus_default_model', 'minimax');
@@ -104,7 +105,7 @@ class Frontend_Init
             $options .= '<option value="' . \esc_attr($id) . '"' . $sel . '>' . \esc_html($label) . '</option>';
         }
 
-        $htmlId = 'ai-embed-' . (function_exists('wp_generate_uuid4') ? \wp_generate_uuid4() : substr(md5(uniqid(rand(), true)), 0, 13));
+        $htmlId = 'ai-embed-' . (function_exists('wp_generate_uuid4') ? \wp_generate_uuid4() : substr(md5(uniqid(wp_rand(), true)), 0, 13));
         return \sprintf(
             '<div class="ai-plus-embed-chat" id="%s" data-model="%s">' .
             '<div class="ai-chat-header"><span>AI 对话</span><select class="embed-model-sel" style="margin-left:auto;font-size:12px;">%s</select></div>' .

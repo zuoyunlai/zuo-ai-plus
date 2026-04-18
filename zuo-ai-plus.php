@@ -165,7 +165,7 @@ add_action('ai_plus_cleanup_cache', function () {
     $chat_table = $wpdb->prefix . 'ai_plus_chat';
     $wpdb->query($wpdb->prepare(
         "DELETE FROM {$chat_table} WHERE created_at < %s",
-        date('Y-m-d H:i:s', strtotime('-30 days'))
+        gmdate('Y-m-d H:i:s', strtotime('-30 days'))
     ));
     // DEBUG: 缓存清理完成（仅在调试模式记录）
     if (defined('WP_DEBUG') && WP_DEBUG) {

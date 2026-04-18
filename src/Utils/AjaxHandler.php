@@ -79,7 +79,7 @@ function require_login(): void {
     // 验证文件大小（最大5MB）
     $file_size = filesize($tmp);
     if ($file_size === false || $file_size > 5 * 1024 * 1024) {
-        @unlink($tmp);
+        wp_delete_file($tmp);
         \wp_send_json_error(['message' => __('图片生成失败：文件过大', 'zuo-ai-plus')]);
     }
     
@@ -90,7 +90,7 @@ function require_login(): void {
     
     $allowed_mimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!in_array($mime_type, $allowed_mimes, true)) {
-        @unlink($tmp);
+        wp_delete_file($tmp);
         \wp_send_json_error(['message' => __('图片生成失败：不支持的文件类型', 'zuo-ai-plus') . ' ' . $mime_type]);
     }
 

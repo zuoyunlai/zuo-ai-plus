@@ -40,6 +40,8 @@ class Admin_Init
         \wp_enqueue_style('ai-plus-admin', AI_PLUS_PLUGIN_URL . 'Assets/css/admin.css', [], AI_PLUS_VERSION);
         \wp_enqueue_script('ai-plus-admin', AI_PLUS_PLUGIN_URL . 'Assets/js/admin.js', ['jquery'], AI_PLUS_VERSION, true);
 
+        // SweetAlert2 主题样式（用于 stats 页面弹窗）
+        \wp_enqueue_style("sweetalert-wordpress-admin", "https://cdn.jsdelivr.net/npm/@sweetalert2/theme-wordpress-admin@3/wordpress-admin.css", [], AI_PLUS_VERSION);
         // 统计页面专用样式
         if ($page === 'ai_plus_stats') {
             \wp_enqueue_style('ai-plus-stats', AI_PLUS_PLUGIN_URL . 'Assets/css/admin-stats.css', [], AI_PLUS_VERSION);

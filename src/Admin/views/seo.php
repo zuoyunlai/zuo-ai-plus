@@ -87,7 +87,6 @@ foreach ($platform_names as $key => $label) {
 }
 $default_model = get_option('ai_plus_default_model', 'minimax');
 ?>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-wordpress-admin@3/wordpress-admin.css">
 <style>
 .seo-stat-grid {display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:20px 0 30px;}
 .seo-stat-card {background:#fff;border:1px solid #ddd;border-radius:8px;padding:20px;text-align:center;}
@@ -322,8 +321,8 @@ table.seo-table {width:100%;border-collapse:collapse;font-size:13px;}
                     elseif ($issue_count <= 1) $icls = 'issue-low';
                     else $icls = 'issue-high';
                 ?>
-                <tr data-post-id="<?php echo $post_id; ?>" data-score="<?php echo $score !== null ? $score : ''; ?>">
-                    <td><input type="checkbox" class="chk-post" value="<?php echo $post_id; ?>"></td>
+                <tr data-post-id="<?php echo esc_attr($post_id); ?>" data-score="<?php echo esc_attr($score !== null ? $score : ''); ?>">
+                    <td><input type="checkbox" class="chk-post" value="<?php echo esc_attr($post_id); ?>"></td>
                     <td class="post-title-cell">
                         <a href="<?php echo esc_url(get_edit_post_link($post_id)); ?>" target="_blank">
                             <?php echo esc_html($post['post_title']); ?>
@@ -333,10 +332,10 @@ table.seo-table {width:100%;border-collapse:collapse;font-size:13px;}
                             <?php if ($is_opt): ?>&nbsp;<span style="color:#00a32a;font-size:11px;">✅已优化</span><?php endif; ?>
                         </div>
                     </td>
-                    <td><span class="score-badge <?php echo $score_cls; ?>"><?php echo $score_text; ?></span></td>
+                    <td><span class="score-badge <?php echo esc_attr($score_cls); ?>"><?php echo esc_html($score_text); ?></span></td>
                     <td>
                         <?php if ($score !== null): ?>
-                        <span class="issue-count <?php echo $icls; ?>"><?php echo $issue_count; ?></span>
+                        <span class="issue-count <?php echo esc_attr($icls); ?>"><?php echo $issue_count; ?></span>
                         <?php else: ?>
                         <span class="issue-count issue-none">0</span>
                         <?php endif; ?>
@@ -351,10 +350,10 @@ table.seo-table {width:100%;border-collapse:collapse;font-size:13px;}
                     </td>
                     <td>
                         <div class="action-btns">
-                            <button class="btn btn-secondary btn-sm btn-audit-one" data-id="<?php echo $post_id; ?>">诊断</button>
+                            <button class="btn btn-secondary btn-sm btn-audit-one" data-id="<?php echo esc_attr($post_id); ?>">诊断</button>
                             <button class="btn btn-primary btn-sm btn-optimize-one" data-id="<?php echo $post_id; ?>" data-model="<?php echo esc_attr($default_model); ?>">优化</button>
                             <?php if ($is_opt): ?>
-                            <button class="btn btn-warning btn-sm btn-reset-one" data-id="<?php echo $post_id; ?>">重置</button>
+                            <button class="btn btn-warning btn-sm btn-reset-one" data-id="<?php echo esc_attr($post_id); ?>">重置</button>
                             <?php endif; ?>
                         </div>
                     </td>
@@ -369,13 +368,13 @@ table.seo-table {width:100%;border-collapse:collapse;font-size:13px;}
     <div class="pagination-wrap">
         <?php for ($i = 1; $i <= $total_pages; $i++): ?>
             <?php if ($i == $paged): ?>
-                <span class="current"><?php echo $i; ?></span>
+                <span class="current"><?php echo esc_html($i); ?></span>
             <?php else: ?>
                 <?php 
                 $base_url = admin_url('admin.php?page=ai_plus_seo');
                 $page_url = add_query_arg('paged', $i, $base_url);
                 ?>
-                <a href="<?php echo esc_url(wp_nonce_url($page_url, 'ai_plus_admin')); ?>"><?php echo $i; ?></a>
+                <a href="<?php echo esc_url(wp_nonce_url($page_url, 'ai_plus_admin')); ?>"><?php echo esc_html($i); ?></a>
             <?php endif; ?>
         <?php endfor; ?>
     </div>

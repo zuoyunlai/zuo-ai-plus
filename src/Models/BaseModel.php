@@ -253,7 +253,7 @@ abstract class BaseModel
             
             // 友好的错误提示
             if (stripos($errorMsg, 'timeout') !== false || stripos($errorMsg, 'timed out') !== false) {
-                throw new \Exception('AI服务响应超时（' . round($elapsed/1000) . '秒），可能是网络问题或服务器繁忙，请稍后重试');
+                throw new \Exception(esc_html('AI服务响应超时（' . (string)round($elapsed/1000) . '秒），可能是网络问题或服务器繁忙，请稍后重试'));
             }
             if (stripos($errorMsg, 'cURL error') !== false) {
                 throw new \Exception('网络连接失败: ' . esc_html(substr($errorMsg, 0, 100)) . '，请检查网络连接或API配置');
@@ -271,7 +271,7 @@ abstract class BaseModel
             $userMsg = !empty($error) && is_string($error)
                 ? ("AI服务返回错误 (" . intval($code) . "): " . esc_html(mb_substr(wp_strip_all_tags($error), 0, 200)))
                 : ("AI服务返回异常 (" . intval($code) . ")，请稍后重试");
-            throw new \Exception($userMsg);
+            throw new \Exception(esc_html($userMsg));
         }
 
         // 缓存成功响应

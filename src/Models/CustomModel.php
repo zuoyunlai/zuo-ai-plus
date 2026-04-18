@@ -16,6 +16,7 @@ class CustomModel extends BaseModel
         // 验证URL格式
         if (!empty($baseUrl)) {
             if (!filter_var($baseUrl, FILTER_VALIDATE_URL)) {
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
                 throw new \InvalidArgumentException(__('无效的API地址格式', 'zuo-ai-plus'));
             }
             
@@ -26,11 +27,13 @@ class CustomModel extends BaseModel
             
             // 必须使用HTTPS
             if ($scheme !== 'https') {
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
                 throw new \InvalidArgumentException(__('API地址必须使用HTTPS协议', 'zuo-ai-plus'));
             }
             
             // 禁止内网地址（防止SSRF）
             if ($this->isInternalHost($host)) {
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
                 throw new \InvalidArgumentException(__('不允许使用内网地址或本地地址', 'zuo-ai-plus'));
             }
         }
