@@ -193,7 +193,7 @@
                 return;
             }
 
-            var fetchBody = { model: model, messages: messages, max_tokens: 2048 };
+            var fetchBody = { model: model, messages: messages, max_tokens: 2048, session_id: 'block_' + Date.now() };
             if (articleContext) fetchBody.context = articleContext;
 
             fetch(apiUrl + 'chat', {
