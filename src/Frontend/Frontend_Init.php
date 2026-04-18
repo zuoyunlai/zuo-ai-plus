@@ -75,6 +75,11 @@ class Frontend_Init
 
     public function shortcodeChat($atts): string
     {
+        // 匿名用户不允许调用聊天接口，显示友好提示
+        if (!is_user_logged_in()) {
+            return '<div class="ai-plus-embed-chat"><div class="ai-chat-header"><span>AI 对话</span></div><div class="ai-chat-messages embed-messages" style="padding:12px;color:#888;">请先登录后再使用 AI 对话功能。</div></div>';
+        }
+
         $defaultModel = \get_option('ai_plus_default_model', 'minimax');
         $atts = \shortcode_atts(['model' => $defaultModel], $atts);
         $model = \sanitize_text_field($atts['model']);

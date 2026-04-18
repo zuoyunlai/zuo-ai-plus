@@ -13,7 +13,7 @@ class ChatController extends BaseController
         register_rest_route('ai-plus/v1', '/chat', [
             'methods'             => 'POST',
             'callback'            => [$this, 'handleChat'],
-            'permission_callback' => '__return_true', // 公开接口
+            'permission_callback' => [$this, 'canEdit'],
         ]);
     }
 

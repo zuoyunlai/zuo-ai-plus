@@ -18,13 +18,15 @@
 
     function getModelLabel(k) {
         var m = modelDefs[k] || {};
-        var savedModel = (apiKeys[k] && apiKeys[k].model) ? apiKeys[k].model : (m.default || '');
+        // 新结构：apiKeys[k].configured (bool) + apiKeys[k].customModel (string)
+        var savedModel = (apiKeys[k] && apiKeys[k].customModel) ? apiKeys[k].customModel : (m.default || '');
         return (m.name || k) + (savedModel ? (' — ' + savedModel) : '');
     }
 
     var modelLabels = {};
     Object.keys(modelDefs).forEach(function(k) {
-        if (apiKeys[k] && apiKeys[k].api_key) {
+        // 只检查是否已配置（不暴露 key 内容）
+        if (apiKeys[k] && apiKeys[k].configured) {
             modelLabels[k] = getModelLabel(k);
         }
     });

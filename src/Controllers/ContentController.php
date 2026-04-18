@@ -75,10 +75,13 @@ class ContentController extends BaseController
         $maxTokens = $this->getMaxTokens($action);
 
         try {
-            // 传递文章ID和内容哈希，优化缓存策略
-            $cacheOpts = ['post_id' => $postId];
+            // 传递文章ID、内容哈希和显式 TTL（不依赖 prompt 文本推断）
+            $cacheOpts = [
+                'post_id'   => $postId,
+                // 显式指定缓存 TTL，避免 BaseModel::getCacheTtl() 从 prompt 文本误判操作类型
+                'cache_ttl' => $this->getCacheTtlForAction($action),
+            ];
             if ($postId) {
-                // 如果有文章ID，生成内容哈希作为缓存键的一部分
                 $contentHash = md5($content);
                 $cacheOpts['content_hash'] = $contentHash;
             }
@@ -138,8 +141,8 @@ class ContentController extends BaseController
                     $len = mb_strlen($tag, 'utf-8');
                     // 太短不要
                     if ($len < 3) continue;
-                    // 太长不要（超过12字基本不是独立词）
-                    if ($len > 12) continue;
+                    // 太长不要（超过16字基本不是SEO友好标签）
+                    if ($len > 16) continue;
                     // 必须含中文
                     if (!preg_match('/[\x{4e00}-\x{9fa5}]/u', $tag)) continue;
                     // 排除纯英文/数字
@@ -614,5 +617,21 @@ class ContentController extends BaseController
         // 替代文本：简短版
         $alt = mb_substr($desc, 0, 18, 'utf-8');
         return ['desc' => $desc, 'alt' => $alt];
+    }
+
+    /**
+     * 根据操作类型返回明确的缓存 TTL（秒），避免依赖 prompt 文本推断
+     */
+    private function getCacheTtlForAction(string $action): int
+    {
+        return match ($action) {
+            'generate', 'expand', 'rewrite'  => 86400,  // 24小时
+            'summarize'                         => 86400,  // 24小时
+            'keyword'                          => 3600,   // 1小时
+            'slug'                             => 0,      // 不缓存
+            'title_optimize'                   => 86400,  // 24小时
+            'featured_image', 'image'          => 604800, // 7天
+            default                            => 3600,   // 默认1小时
+        };
     }
 }

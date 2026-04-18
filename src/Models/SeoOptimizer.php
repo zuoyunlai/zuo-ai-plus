@@ -706,15 +706,14 @@ class SeoOptimizer
             delete_post_meta($post_id, $key);
         }
 
-        // 清除 AI 缓存：前缀扫描删所有 post_{id} 变体（不依赖固定模型名）
-        // 注意：WordPress transient 存储时自动加 _transient_ 前缀，实际 key 是 _transient_ai_cache_xxx
+        // 清除 AI 缓存：精确删除该文章的缓存（新 key 结构：ai_cache_post_{$postId}_{hash}）
         if (get_option('ai_plus_cache_enabled', true)) {
             global $wpdb;
-            $prefix = '_transient_ai_cache_';
-            $like = $wpdb->esc_like($prefix) . '%';
+            $postPrefix = 'ai_cache_post_' . $post_id . '_';
+            $like = '_transient_' . $wpdb->esc_like($postPrefix) . '%';
             $wpdb->query($wpdb->prepare(
-                "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s AND LOCATE(%s, option_name) > 0",
-                $like, $wpdb->esc_like('post_' . $post_id)
+                "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
+                $like
             ));
         }
 

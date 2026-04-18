@@ -522,7 +522,7 @@ class UtilityController extends BaseController
                 $len = mb_strlen($tag, 'utf-8');
                 return !empty($tag)
                     && $len >= 3
-                    && $len <= 12
+                    && $len <= 16  // SEO友好标签常见「铝合金衣柜」「小户型收纳」等13-16字词
                     && preg_match('/[\x{4e00}-\x{9fa5}]/u', $tag)
                     && !preg_match('/^[a-zA-Z0-9]+$/', $tag);
             }

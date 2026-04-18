@@ -38,11 +38,11 @@ class SeoController extends BaseController
             'permission_callback' => [$this, 'canEdit'],
         ]);
 
-        // 批量优化
+        // 批量优化（高危操作：消耗 AI 配额，仅限管理员）
         register_rest_route('ai-plus/v1', '/seo-optimize-batch', [
             'methods'             => 'POST',
             'callback'            => [$this, 'handleBatchOptimize'],
-            'permission_callback' => [$this, 'canEdit'],
+            'permission_callback' => [$this, 'canManage'],
         ]);
 
         // 单篇文章诊断

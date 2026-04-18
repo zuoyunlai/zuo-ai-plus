@@ -96,7 +96,9 @@ class Model_Init
             return '';
         }
 
-        return json_encode($result, JSON_UNESCAPED_UNICODE);
+        // 无法解析时返回空串（不泄漏 API 响应内容）
+        error_log('AI Plus extractContent: unexpected response format - ' . json_encode(array_keys($result)));
+        return '';
     }
 
     /**

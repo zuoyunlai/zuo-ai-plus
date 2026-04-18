@@ -114,7 +114,9 @@ class TongyiModel extends BaseModel
             return ['url' => $imageUrl, 'revised_prompt' => $response['output']['revised_prompt'] ?? $prompt];
         }
 
-        throw new \Exception('图片生成失败: ' . esc_html($response['message'] ?? json_encode($response)));
+        // 完整响应记日志，对外给通用提示
+        error_log('AI Plus TongyiModel image error: ' . json_encode($response));
+        throw new \Exception('图片生成失败，请检查通义千问 API Key 配额或模型配置');
     }
 
     public function countTokens(string $text): int

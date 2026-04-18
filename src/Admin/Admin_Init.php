@@ -61,11 +61,21 @@ class Admin_Init
             true
         );
         $defModel   = \get_option('ai_plus_default_model', 'zhipu');
+        // 只传配置状态（是否有 key、是否有 custom 自定义模型），不传实际 key 值
+        $apiKeysRaw = \get_option('ai_plus_api_keys', []);
+        $apiKeysConfigured = [];
+        foreach ($this->models as $k => $m) {
+            $saved = $apiKeysRaw[$k] ?? [];
+            $apiKeysConfigured[$k] = [
+                'configured' => !empty($saved['api_key']),
+                'customModel' => !empty($saved['api_key']) ? ($saved['model'] ?? '') : '',
+            ];
+        }
         \wp_localize_script('ai-plus-gutenberg-sidebar', 'aiPlusConfig', [
             'apiUrl'       => \rest_url('ai-plus/v1/'),
             'nonce'        => \wp_create_nonce('wp_rest'),
             'models'       => $this->models,
-            'apiKeys'      => \get_option('ai_plus_api_keys', []),
+            'apiKeys'      => $apiKeysConfigured,
             'defaultModel' => $defModel,
         ]);
     }

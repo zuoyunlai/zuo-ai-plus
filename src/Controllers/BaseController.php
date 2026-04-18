@@ -152,8 +152,14 @@ abstract class BaseController
      */
     protected function checkRateLimit(string $action, int $maxRequests = 10, int $windowSeconds = 60): ?\WP_REST_Response
     {
+        // 匿名用户（userId=0）按 IP 区分，避免不同匿名用户共享同一限速桶
         $userId = get_current_user_id();
-        $transientKey = 'ai_plus_rate_' . $action . '_' . $userId;
+        if ($userId === 0) {
+            $ip = isset($_SERVER['REMOTE_ADDR']) ? md5(sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR']))) : 'anon';
+            $transientKey = 'ai_plus_rate_' . $action . '_ip_' . $ip;
+        } else {
+            $transientKey = 'ai_plus_rate_' . $action . '_user_' . $userId;
+        }
         $current = get_transient($transientKey) ?: 0;
 
         if ($current >= $maxRequests) {

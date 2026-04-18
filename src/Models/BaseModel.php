@@ -36,7 +36,12 @@ abstract class BaseModel
      */
     protected function getCacheTtl(array $opts, array $body = []): int
     {
-        // 优先从 opts（调用方元数据）取 post_id
+        // 优先使用调用方显式指定的 TTL（ContentController 等已根据 action 类型确定 TTL）
+        if (isset($opts['cache_ttl'])) {
+            return (int) $opts['cache_ttl'];
+        }
+
+        // 以下基于 prompt 文本的推断作为后备（仅在其他手段无效时）
         $postId = $opts['post_id'] ?? null;
 
         // 从请求体中检测操作类型
@@ -175,10 +180,11 @@ abstract class BaseModel
             $modelInBody = is_array($body) ? ($body['model'] ?? $this->modelId) : $this->modelId;
             $userId = get_current_user_id() ?: 0;
 
-            // 如果有文章ID，使用文章ID+prompt哈希作为缓存键（确保相同文章+相同prompt命中缓存）
+            // 如果有文章ID，使用「可查询」的缓存键结构：post_$postId 前缀在 key 名中（不在哈希里），
+            // 这样 flushPostCache() 可以精确删除该文章的缓存而不影响其他文章
             if ($postId) {
-                $promptHash = md5($bodyJson);
-                $cacheKey = 'ai_cache_' . md5($this->name . '|' . $userId . '|' . $modelInBody . '|' . 'post_' . $postId . '|' . $promptHash);
+                $promptHash = md5($this->name . '|' . $userId . '|' . $modelInBody . '|' . $bodyJson);
+                $cacheKey = 'ai_cache_post_' . $postId . '_' . $promptHash;
             } elseif ($contentHash) {
                 $cacheKey = 'ai_cache_' . md5($this->name . '|' . $userId . '|' . $modelInBody . '|' . 'content_' . $contentHash);
             } else {
@@ -256,8 +262,13 @@ abstract class BaseModel
         $body = json_decode(wp_remote_retrieve_body($response), true);
 
         if ($code < 200 || $code >= 300) {
-            $error = $body['error']['message'] ?? json_encode($body);
-            throw new \Exception("API错误 (" . intval($code) . "): " . esc_html($error));
+            $error = $body['error']['message'] ?? ($body['error'] ?? ($body['message'] ?? ''));
+            // 完整错误记入日志（用于排查），对外显示通用提示
+            error_log("AI Plus API Error [{$this->name}] HTTP {$code}: " . json_encode($body));
+            $userMsg = !empty($error) && is_string($error)
+                ? ("AI服务返回错误 (" . intval($code) . "): " . esc_html(mb_substr(strip_tags($error), 0, 200)))
+                : ("AI服务返回异常 (" . intval($code) . ")，请稍后重试");
+            throw new \Exception($userMsg);
         }
 
         // 缓存成功响应
@@ -311,25 +322,16 @@ abstract class BaseModel
     public function flushPostCache(int $postId, ?string $modelId = null): void
     {
         global $wpdb;
-        $modelId = $modelId ?? $this->modelId;
-        $userId = get_current_user_id() ?: 0;
-
-        // 方案A：清除该文章所有变体的缓存键（精确 key + 前缀扫描）
-        // 1. 精确 key（无 promptHash 的旧缓存）
-        $exactKey = 'ai_cache_' . md5($this->name . '|' . $userId . '|' . $modelId . '|' . 'post_' . $postId);
-        delete_transient($exactKey);
-        $this->logDebug("Cache FLUSH [{$this->name}] exact key: " . substr($exactKey, 0, 30) . '...');
-
-        // 2. 批量扫描：删除所有含 "post_{$postId}" 的缓存键
-        // 注意：缓存 key 结构为 ai_cache_{md5串}，post ID 藏在 md5 哈希里，
-        //       所以此处只能按前缀扫描 WordPress options 表中含 _transient_ai_cache_ 的记录
-        $prefix = '_transient_ai_cache_';
-        $like = $wpdb->esc_like($prefix) . '%';
+        // 新缓存 key 结构：ai_cache_post_{$postId}_{hash}
+        // post_id 在 key 名中而非哈希里，SQL 可精确匹配
+        $postPrefix = 'ai_cache_post_' . $postId . '_';
+        $transientLike = '_transient_' . $wpdb->esc_like($postPrefix) . '%';
         $deleted = $wpdb->query($wpdb->prepare(
             "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
-            $like
+            $transientLike
         ));
-        $this->logDebug("Cache FLUSH [{$this->name}] post_{$postId} variants: {$deleted} rows deleted");
+        wp_cache_delete('alloptions', 'options');
+        $this->logDebug("Cache FLUSH [{$this->name}] post_{$postId}: {$deleted} cache entries deleted");
     }
 
     protected function isRetryableError(string $error): bool

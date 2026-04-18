@@ -87,7 +87,15 @@ class CustomModel extends BaseModel
             $content = $response['data'][0]['text'] ?? '';
         }
 
-        return ['content' => $content];
+        return [
+            'content' => $content,
+            'usage' => [
+                'prompt_tokens' => $response['usage']['prompt_tokens'] ?? 0,
+                'completion_tokens' => $response['usage']['completion_tokens'] ?? 0,
+                'total_tokens' => $response['usage']['total_tokens'] ?? 0,
+            ],
+            'raw' => $response,
+        ];
     }
 
     public function completion(string $prompt, array $opts = []): array
