@@ -136,10 +136,16 @@
             return;
         }
 
-        console.log('insertContent called, postId:', postId, 'realPostId:', realPostId);
+        console.log('insertContent called, postId:', postId, 'realPostId:', realPostId, 'replaceMode:', replaceMode);
 
-        var current = replaceMode ? '' : getCurrentContent();
-        var merged = current.trim() ? (current + '\n\n' + newContent) : newContent;
+        // replaceMode=true：直接用新内容（rewrite/expand）；false：追加到现有内容后面
+        var merged;
+        if (replaceMode) {
+            merged = newContent;
+        } else {
+            var current = getCurrentContent();
+            merged = current.trim() ? (current + '\n\n' + newContent) : newContent;
+        }
 
         if (!merged || !merged.trim()) {
             console.error('Empty content to insert');
@@ -149,7 +155,7 @@
 
         console.log('merged content length:', merged.length);
 
-        // 确保新内容被段落标签包裹
+        // 只有纯文本（非HTML）才包裹为<p>段落；AI返回的HTML（以<开头）直接使用
         if (!merged.trim().match(/^</)) {
             merged = '<p>' + merged.replace(/\n\n+/g, '</p><p>').replace(/\n/g, '<br/>') + '</p>';
         }
@@ -176,10 +182,18 @@
                 retries++;
                 var all = blockSel.getBlocks() || [];
                 var ids = all.map(function(b) { return b.clientId; });
-                if (newClientIds.every(function(id) { return ids.indexOf(id) >= 0; }) || retries > 15) {
+                if (newClientIds.every(function(id) { return ids.indexOf(id) >= 0; })) {
+                    // 块成功确认：保存并提示成功
                     clearInterval(iv);
                     try { wp.data.dispatch('core/editor').savePost(); } catch(e) {}
                     setGlobalResult({ type: 'ok', text: '✅ 已写入编辑器！' });
+                } else if (retries > 15) {
+                    // 超时未确认：提示失败，提供复制选项
+                    clearInterval(iv);
+                    setGlobalResult({ type: 'err', text: '❌ 编辑器写入超时（块插入未被确认），内容已复制到剪贴板，请手动粘贴' });
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(merged).catch(function() {});
+                    }
                 }
             }, 200);
         }
@@ -690,7 +704,8 @@ var setGlobalResult = function(){};
 
         function handleExpand() {
             doAction('expand', {}, function(r) {
-                if (r.content) insertContent(0, r.content);
+                // expand 续写 = 替换全文（AI 返回的是续写后的完整内容）
+                if (r.content) insertContent(0, r.content, true);
             });
         }
 
@@ -698,7 +713,8 @@ var setGlobalResult = function(){};
             var content = getCurrentContent();
             if (!content) { setGlobalResult({ type: 'warn', text: '⚠️ 请先输入文章内容再改写' }); return; }
             doAction('rewrite', {}, function(r) {
-                if (r.content) insertContent(0, r.content);
+                // rewrite 和 expand 必须用 replaceMode=true（替换全文），不能用追加
+                if (r.content) insertContent(0, r.content, true);
             });
         }
 
