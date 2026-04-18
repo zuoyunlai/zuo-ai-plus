@@ -253,7 +253,7 @@ placeholder="例如：本公司专业生产铝合金衣柜，产品特点包括�
                                         <?php
                                             $hasImgKey = hasKey($apiKeys[$k] ?? []);
                                             $imgVal = $apiKeys[$k]['image_model'] ?? '';
-                                            $showCustom = $k === 'custom' && hasKey($apiKeys['custom'] ?? []) && !empty($apiKeys['custom']['base_url']);
+                                            $showCustom = $k === 'custom' && hasKey($apiKeys['custom'] ?? []) && !empty($apiKeys['custom']['base_url']) && !empty($imgVal);
                                             if ($k === 'custom' && !$showCustom) continue;
                                             // 必须同时有 API Key 和已配置的文生图模型才显示
                                             if ($k !== 'custom' && (!$hasImgKey || empty($imgVal))) continue;
