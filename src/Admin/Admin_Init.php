@@ -438,7 +438,7 @@ placeholder="例如：本公司专业生产铝合金衣柜，产品特点包括�
                                 $imgModelVal = $apiKeys[$k]['image_model'] ?? '';
                                 // 文生图列表：仅显示用户明确配置了文生图模型的平台
                                 $hasImgModel = !empty($imgModelVal);
-                                $showCustom = $k === 'custom' && hasKey($apiKeys['custom'] ?? []) && !empty($apiKeys['custom']['base_url']);
+                                $showCustom = $k === 'custom' && hasKey($apiKeys['custom'] ?? []) && !empty($apiKeys['custom']['base_url']) && !empty($imgModelVal);
                                 if ($k === 'custom' && !$showCustom) continue;
                                 if ($k !== 'custom' && (!$hasImgKey || !$hasImgModel)) continue;
                             ?>
