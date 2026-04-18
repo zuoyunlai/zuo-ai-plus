@@ -18,18 +18,31 @@ $offset        = ($page - 1) * $per_page;
 $current_uid   = get_current_user_id();
 $cache_key     = "ai_plus_chat_total_uid_{$current_uid}";
 $total         = wp_cache_get($cache_key);
+$is_admin      = current_user_can('manage_options');
 
-if (false === $total) {
-    $total = (int) $wpdb->get_var(
-        $wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE user_id = %d", $current_uid)
+if ($is_admin) {
+    // 管理员：看全部用户的记录
+    if (false === $total) {
+        $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
+        wp_cache_set($cache_key, $total, '', HOUR_IN_SECONDS);
+    }
+    $results = $wpdb->get_results(
+        $wpdb->prepare("SELECT * FROM {$table} ORDER BY created_at DESC LIMIT %d OFFSET %d", $per_page, $offset),
+        ARRAY_A
     );
-    wp_cache_set($cache_key, $total, '', HOUR_IN_SECONDS);
+} else {
+    // 普通用户/访客：只看自己的记录（user_id=0 为访客）
+    if (false === $total) {
+        $total = (int) $wpdb->get_var(
+            $wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE user_id = %d", $current_uid)
+        );
+        wp_cache_set($cache_key, $total, '', HOUR_IN_SECONDS);
+    }
+    $results = $wpdb->get_results(
+        $wpdb->prepare("SELECT * FROM {$table} WHERE user_id = %d ORDER BY created_at DESC LIMIT %d OFFSET %d", $current_uid, $per_page, $offset),
+        ARRAY_A
+    );
 }
-
-$results     = $wpdb->get_results(
-    $wpdb->prepare("SELECT * FROM {$table} WHERE user_id = %d ORDER BY created_at DESC LIMIT %d OFFSET %d", $current_uid, $per_page, $offset),
-    ARRAY_A
-);
 $total_pages = ceil($total / $per_page);
 
 /**
