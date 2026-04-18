@@ -185,8 +185,20 @@
                 if (newClientIds.every(function(id) { return ids.indexOf(id) >= 0; })) {
                     // 块成功确认：保存并提示成功
                     clearInterval(iv);
-                    try { wp.data.dispatch('core/editor').savePost(); } catch(e) {}
-                    setGlobalResult({ type: 'ok', text: '✅ 已写入编辑器！' });
+                    // 等 savePost 完成后再提示（确保内容真正持久化）
+                    var saveDone = function() {
+                        setGlobalResult({ type: 'ok', text: '✅ 已写入编辑器！' });
+                    };
+                    try {
+                        var saveResult = wp.data.dispatch('core/editor').savePost();
+                        if (saveResult && typeof saveResult.then === 'function') {
+                            saveResult.then(saveDone).catch(function() { setGlobalResult({ type: 'ok', text: '✅ 已写入编辑器！' }); });
+                        } else {
+                            setTimeout(saveDone, 500); // fallback: 500ms后确认
+                        }
+                    } catch(e) {
+                        setTimeout(saveDone, 500);
+                    }
                 } else if (retries > 15) {
                     // 超时未确认：提示失败，提供复制选项
                     clearInterval(iv);
