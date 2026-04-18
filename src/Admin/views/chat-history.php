@@ -15,18 +15,19 @@ $table         = $wpdb->prefix . 'ai_plus_chat';
 $page          = max(1, intval($_GET['paged'] ?? 1));
 $per_page      = 20;
 $offset        = ($page - 1) * $per_page;
-$cache_key    = "ai_plus_chat_total";
+$current_uid   = get_current_user_id();
+$cache_key     = "ai_plus_chat_total_uid_{$current_uid}";
 $total         = wp_cache_get($cache_key);
 
 if (false === $total) {
     $total = (int) $wpdb->get_var(
-        $wpdb->prepare("SELECT COUNT(*) FROM {$table}")
+        $wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE user_id = %d", $current_uid)
     );
     wp_cache_set($cache_key, $total, '', HOUR_IN_SECONDS);
 }
 
 $results     = $wpdb->get_results(
-    $wpdb->prepare("SELECT * FROM {$table} ORDER BY created_at DESC LIMIT %d OFFSET %d", $per_page, $offset),
+    $wpdb->prepare("SELECT * FROM {$table} WHERE user_id = %d ORDER BY created_at DESC LIMIT %d OFFSET %d", $current_uid, $per_page, $offset),
     ARRAY_A
 );
 $total_pages = ceil($total / $per_page);

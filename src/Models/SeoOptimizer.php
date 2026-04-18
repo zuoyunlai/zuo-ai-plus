@@ -501,6 +501,8 @@ class SeoOptimizer
                 $raw_tags = array_map('trim', mb_split('[,，、]', $tag_text));
                 $tags = [];
                 foreach ($raw_tags as $t) {
+                    // 强制剥离 HTML 标签，防止 AI 返回含 HTML 的标签名导致存储型 XSS
+                    $t = strip_tags($t);
                     // 移除所有标点符号（保留中文、英文、数字）
                     $pattern = "#[[:punct:]]|\s|\"|'|\"\"|''|（|）|【|】|《|》#u";
                     $t = preg_replace($pattern, '', $t);

@@ -208,7 +208,6 @@ class UtilityController extends BaseController
     {
         $post_id  = intval($request->get_param('post_id') ?: 0);
         $tags_raw = $request->get_param('tags') ?: '';
-        error_log('[ZuoAI] handleTagsSave post_id=' . $post_id . ' tags_len=' . mb_strlen($tags_raw, 'utf-8'));
 
         if (!$post_id) {
             return $this->error('无法获取文章ID');
@@ -528,7 +527,7 @@ class UtilityController extends BaseController
             return [];
         }
         $tags = array_filter(
-            array_map('trim', $parts),
+            array_map(function ($tag) { return trim(strip_tags($tag)); }, $parts),
             function ($tag) {
                 $len = mb_strlen($tag, 'utf-8');
                 return !empty($tag)
