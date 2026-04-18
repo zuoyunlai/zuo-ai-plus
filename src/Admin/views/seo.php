@@ -335,7 +335,7 @@ table.seo-table {width:100%;border-collapse:collapse;font-size:13px;}
                     <td><span class="score-badge <?php echo esc_attr($score_cls); ?>"><?php echo esc_html($score_text); ?></span></td>
                     <td>
                         <?php if ($score !== null): ?>
-                        <span class="issue-count <?php echo esc_attr($icls); ?>"><?php echo $issue_count; ?></span>
+                        <span class="issue-count <?php echo esc_attr($icls); ?>"><?php echo esc_html($issue_count); ?></span>
                         <?php else: ?>
                         <span class="issue-count issue-none">0</span>
                         <?php endif; ?>
@@ -351,7 +351,7 @@ table.seo-table {width:100%;border-collapse:collapse;font-size:13px;}
                     <td>
                         <div class="action-btns">
                             <button class="btn btn-secondary btn-sm btn-audit-one" data-id="<?php echo esc_attr($post_id); ?>">诊断</button>
-                            <button class="btn btn-primary btn-sm btn-optimize-one" data-id="<?php echo $post_id; ?>" data-model="<?php echo esc_attr($default_model); ?>">优化</button>
+                            <button class="btn btn-primary btn-sm btn-optimize-one" data-id="<?php echo esc_attr($post_id); ?>" data-model="<?php echo esc_attr($default_model); ?>">优化</button>
                             <?php if ($is_opt): ?>
                             <button class="btn btn-warning btn-sm btn-reset-one" data-id="<?php echo esc_attr($post_id); ?>">重置</button>
                             <?php endif; ?>
@@ -391,8 +391,8 @@ table.seo-table {width:100%;border-collapse:collapse;font-size:13px;}
 
 <script>
 (function() {
-    const apiBase = '<?php echo rest_url('ai-plus/v1/'); ?>';
-    const nonce = '<?php echo wp_create_nonce('wp_rest'); ?>';
+    const apiBase = <?php echo wp_json_encode(rest_url('ai-plus/v1/')); ?>;
+    const nonce = <?php echo wp_json_encode(wp_create_nonce('wp_rest')); ?>;
 
     function api(method, endpoint, data) {
         return fetch(apiBase + endpoint, {

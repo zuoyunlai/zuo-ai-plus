@@ -24,7 +24,7 @@ class Frontend_Init
 
         \wp_enqueue_style('ai-plus-frontend', AI_PLUS_PLUGIN_URL . 'Assets/css/frontend.css', [], AI_PLUS_VERSION);
         // marked.js：Markdown → HTML 渲染（CDN，45KB，零依赖）
-        \wp_register_script('marked', 'https://cdn.jsdelivr.net/npm/marked/marked.min.js', [], AI_PLUS_VERSION, true);
+        \wp_register_script('marked', AI_PLUS_PLUGIN_URL . 'Assets/js/marked.min.js', [], AI_PLUS_VERSION, true);
         \wp_enqueue_script("marked");
         \wp_enqueue_script('ai-plus-frontend', AI_PLUS_PLUGIN_URL . 'Assets/js/frontend.js', ['jquery', 'marked'], AI_PLUS_VERSION, true);
 
