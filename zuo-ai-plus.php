@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: Zuo AI Plus
- * Description: 集成智谱GLM、阿里通义、MiniMax、Kimi等国内大模型，支持文章生成、摘要摘要、图文生成、翻译、SEO优化、客服聊天等功能。
+ * Description: 集成智谱GLM、阿里通义、MiniMax、Kimi等国内大模型,支持文章生成、摘要摘要、图文生成、翻译、SEO优化、客服聊天等功能。
  * Version: 1.2.4
  * Author: 左运来
  * Author URI: https://www.yily.top?from=wp-plugin
@@ -13,7 +13,7 @@
  */
 if (!defined('ABSPATH')) exit;
 
-// ── 常量（插件常量检查防止重复加载）─────────────────────────────────────────
+// ── 常量(插件常量检查防止重复加载)─────────────────────────────────────────
 if (!defined('AI_PLUS_VERSION')) {
     define('AI_PLUS_VERSION', '1.2.4');
 }
@@ -27,10 +27,10 @@ if (!defined('AI_PLUS_PLUGIN_BASENAME')) {
     define('AI_PLUS_PLUGIN_BASENAME', plugin_basename(__FILE__));
 }
 
-// ── 类自动加载（所有类统一从此入口加载）────────────────────────────────────
+// ── 类自动加载(所有类统一从此入口加载)────────────────────────────────────
 require_once AI_PLUS_PLUGIN_DIR . 'src/Loader.php';
 
-// ── REST API 路由注册（在 rest_api_init 时加载所有 Controller）──────────────
+// ── REST API 路由注册(在 rest_api_init 时加载所有 Controller)──────────────
 add_action('rest_api_init', function () {
     (new \ZuoAIPlus\Controllers\ContentController())->registerRoutes();
     (new \ZuoAIPlus\Controllers\UtilityController())->registerRoutes();
@@ -51,9 +51,9 @@ add_action('plugins_loaded', function () {
     new \ZuoAIPlus\Frontend\Frontend_Init();
 });
 
-// ── 插件激活（建表/建选项）─────────────────────────────────────────────────
+// ── 插件激活(建表/建选项)─────────────────────────────────────────────────
 register_activation_hook(__FILE__, function () {
-    // 设置缓存清理定时任务（每天清理一次过期的AI缓存）
+    // 设置缓存清理定时任务(每天清理一次过期的AI缓存)
     if (!wp_next_scheduled('ai_plus_cleanup_cache')) {
         wp_schedule_event(time(), 'daily', 'ai_plus_cleanup_cache');
     }
@@ -94,10 +94,10 @@ add_filter('the_content', function ($content) {
     $blocks = parse_blocks($post->post_content);
     $chat_html = '';
 
-    // 文章正文（WordPress 已应用 the_content 过滤器，HTML 已处理）
-    // 剥去所有 HTML 标签保留纯文本，限制长度防超限
+    // 文章正文(WordPress 已应用 the_content 过滤器,HTML 已处理)
+    // 剥去所有 HTML 标签保留纯文本,限制长度防超限
     $articleText = wp_strip_all_tags($content);
-    // esc_attr() 对超长字符串有内部缓冲区限制，截断到 4000 字符确保安全
+    // esc_attr() 对超长字符串有内部缓冲区限制,截断到 4000 字符确保安全
     if (mb_strlen($articleText, 'utf-8') > 4000) {
         $articleText = mb_substr($articleText, 0, 4000, 'utf-8');
     }
@@ -112,7 +112,7 @@ add_filter('the_content', function ($content) {
         $messages = $block['attrs']['messages'] ?? [];
 
         $chat_html .= '<div class="ai-plus-chat-rendered" data-model="' . $model . '" style="border:1px solid #e5e7eb;border-radius:12px;padding:24px;margin:24px auto;background:#fff;max-width:700px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">';
-        // 用隐藏 input 而非 data 属性：避免 HTML 转义破坏文章内容
+        // 用隐藏 input 而非 data 属性:避免 HTML 转义破坏文章内容
         $chat_html .= '<input type="hidden" class="ai-article-context-val" value="' . esc_attr($articleText) . '">';
         $chat_html .= '<div style="font-weight:600;margin-bottom:16px;font-size:16px;color:#1a1a1a;border-bottom:2px solid #f0f0f0;padding-bottom:12px;">' . $title . '</div>';
         $chat_html .= '<div class="ai-plus-chat-messages" style="max-height:400px;overflow-y:auto;margin-bottom:16px;padding:12px;background:#f9fafb;border-radius:8px;">';
@@ -132,7 +132,7 @@ add_filter('the_content', function ($content) {
 
         $chat_html .= '</div>';
         $chat_html .= '<div style="display:flex;gap:8px;align-items:flex-end;">';
-        $chat_html .= '<textarea class="ai-plus-chat-input" rows="2" placeholder="输入消息... (Enter发送，Shift+Enter换行)" style="flex:1;resize:none;font-size:14px;padding:12px 16px;border:1px solid #dcdcde;border-radius:8px;box-shadow:inset 0 1px 2px rgba(0,0,0,0.05);transition:border-color 0.2s;"></textarea>';
+        $chat_html .= '<textarea class="ai-plus-chat-input" rows="2" placeholder="输入消息... (Enter发送,Shift+Enter换行)" style="flex:1;resize:none;font-size:14px;padding:12px 16px;border:1px solid #dcdcde;border-radius:8px;box-shadow:inset 0 1px 2px rgba(0,0,0,0.05);transition:border-color 0.2s;"></textarea>';
         $chat_html .= '<button class="ai-plus-chat-send" style="padding:12px 20px;background:#2271b1;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;white-space:nowrap;font-weight:500;box-shadow:0 2px 4px rgba(0,0,0,0.1);transition:all 0.2s;">发送</button>';
         $chat_html .= '<span class="ai-plus-chat-loading" style="display:none;color:#999;">⏳</span>';
         $chat_html .= '</div></div>';
@@ -141,18 +141,18 @@ add_filter('the_content', function ($content) {
     return $content . $chat_html;
 });
 
-// ── 前端聊天交互脚本（已迁移到 Frontend_Init 统一管理）────────────────────
-// 注意：浮窗和所有聊天功能现在统一由 src/Frontend/Frontend_Init.php 加载 frontend.js
-// 这里不再重复注册，避免脚本重复加载或条件不一致
+// ── 前端聊天交互脚本(已迁移到 Frontend_Init 统一管理)────────────────────
+// 注意:浮窗和所有聊天功能现在统一由 src/Frontend/Frontend_Init.php 加载 frontend.js
+// 这里不再重复注册,避免脚本重复加载或条件不一致
 
 // ── 定时清理过期缓存 ─────────────────────────────────────────────────────────
 add_action('ai_plus_cleanup_cache', function () {
     global $wpdb;
 
-    // 直接删除所有 AI 缓存 transient（不依赖 timeout 比对，
-    // WordPress 会自动清理已过期的 transient，这里主动清释放数据库空间）
+    // 直接删除所有 AI 缓存 transient(不依赖 timeout 比对,
+    // WordPress 会自动清理已过期的 transient,这里主动清释放数据库空间)
     $prefix = $wpdb->esc_like('_transient_ai_cache_');
-    // 使用 $wpdb::esc_like 已处理，直接拼接入 SQL（prefix 无用户输入）
+    // 使用 $wpdb::esc_like 已处理,直接拼接入 SQL(prefix 无用户输入)
     // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- LIKE pattern is safe (no user input)
     $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '{$prefix}%'");
     // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
@@ -160,7 +160,13 @@ add_action('ai_plus_cleanup_cache', function () {
 
     // 清理 alloptions 缓存
     wp_cache_delete('alloptions', 'options');
-    
+
+    // 清理旧对话历史（超过30天的记录）
+    $chat_table = $wpdb->prefix . 'ai_plus_chat';
+    $wpdb->query($wpdb->prepare(
+        "DELETE FROM {$chat_table} WHERE created_at < %s",
+        date('Y-m-d H:i:s', strtotime('-30 days'))
+    ));
     // DEBUG: 缓存清理完成（仅在调试模式记录）
     if (defined('WP_DEBUG') && WP_DEBUG) {
         error_log('AI Plus: Cache cleanup completed');
@@ -171,14 +177,14 @@ add_action('ai_plus_cleanup_cache', function () {
 register_deactivation_hook(__FILE__, function () {
     // 移除定时任务
     wp_clear_scheduled_hook('ai_plus_cleanup_cache');
-    
+
     // 清理所有缓存
     global $wpdb;
     $prefix = $wpdb->esc_like('_transient_ai_cache_') . '%';
     $timeout_prefix = $wpdb->esc_like('_transient_timeout_ai_cache_') . '%';
-    
+
     $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $prefix));
     $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $timeout_prefix));
-    
+
     wp_cache_delete('alloptions', 'options');
 });
