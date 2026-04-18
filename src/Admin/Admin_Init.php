@@ -158,9 +158,8 @@ class Admin_Init
 
     public function renderPage(): void
     {
-        // Verify request when switching tabs via URL
-        if (isset($_GET['page']) && isset($_GET['_wpnonce']) && !wp_verify_nonce(sanitize_key($_GET['_wpnonce']), 'ai_plus_admin')) {
-            wp_die('Security check failed.');
+        if (isset($_GET['_wpnonce']) && !wp_verify_nonce(sanitize_key($_GET['_wpnonce']), 'ai_plus_admin')) {
+            wp_die('安全检查失败，请刷新页面后重试。');
         }
         $tab = \sanitize_key(wp_unslash($_GET['page'] ?? 'ai_plus'));
         $h   = function($s) { return \esc_html($s); }; // phpcs:ignore WordPress.WP.GlobalVariablesOverride
