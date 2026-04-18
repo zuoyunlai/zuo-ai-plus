@@ -81,6 +81,7 @@ class UtilityController extends BaseController
 
     public function handleTranslate(\WP_REST_Request $request): \WP_REST_Response
     {
+        if ($err = $this->checkRateLimit('translate', 20, 60)) { return $err; }
         $modelName  = sanitize_text_field($request->get_param('model') ?: $this->getDefaultModel());
         $content    = sanitize_textarea_field($request->get_param('content'));
         $sourceLang = sanitize_text_field($request->get_param('source_lang') ?: 'auto');
@@ -119,6 +120,7 @@ class UtilityController extends BaseController
 
     public function handleSlug(\WP_REST_Request $request): \WP_REST_Response
     {
+        if ($err = $this->checkRateLimit('slug', 30, 60)) { return $err; }
         $title   = sanitize_text_field($request->get_param('title') ?: '');
         $content = sanitize_textarea_field($request->get_param('content') ?: '');
 
@@ -135,6 +137,7 @@ class UtilityController extends BaseController
 
     public function handleSummarize(\WP_REST_Request $request): \WP_REST_Response
     {
+        if ($err = $this->checkRateLimit('summarize', 20, 60)) { return $err; }
         $modelName = sanitize_text_field($request->get_param('model') ?: $this->getDefaultModel());
         $content   = sanitize_textarea_field($request->get_param('content') ?: '');
 
@@ -160,6 +163,7 @@ class UtilityController extends BaseController
 
     public function handleKeywords(\WP_REST_Request $request): \WP_REST_Response
     {
+        if ($err = $this->checkRateLimit('keyword', 20, 60)) { return $err; }
         $modelName = sanitize_text_field($request->get_param('model') ?: $this->getDefaultModel());
         $content   = sanitize_textarea_field($request->get_param('content') ?: '');
 
