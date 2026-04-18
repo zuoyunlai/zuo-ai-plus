@@ -95,9 +95,11 @@ class SeoOptimizer
 
         // 标题检查
         if ($title_len < 10) {
+            /* translators: %d is the actual title length */
             $issues[] = ['type' => 'title', 'severity' => 'high', 'msg' => sprintf(__('标题过短（%d字），SEO标准6-30字', 'zuo-ai-plus'), $title_len)];
             $score -= 30;
         } elseif ($title_len > 30) {
+            /* translators: %d is the actual title length */
             $issues[] = ['type' => 'title', 'severity' => 'medium', 'msg' => sprintf(__('标题过长（%d字），SEO标准6-30字', 'zuo-ai-plus'), $title_len)];
             $score -= 15;
         }
@@ -110,11 +112,13 @@ class SeoOptimizer
             foreach ($tags as $tag) {
                 $len = mb_strlen($tag, 'utf-8');
                 if ($len > 10) {
-                    $issues[] = ['type' => 'tags', 'severity' => 'medium', 'msg' => sprintf(__('标签「%s」过长（%d字），SEO标准2-10字（含义完整的词汇）', 'zuo-ai-plus'), $tag, $len)];
+                    /* translators: %1$s is the tag name, %2$d is the tag length */
+                    $issues[] = ['type' => 'tags', 'severity' => 'medium', 'msg' => sprintf(__('标签「%1$s」过长（%2$d字），SEO标准2-10字（含义完整的词汇）', 'zuo-ai-plus'), $tag, $len)];
                     $score -= 5;
                 }
             }
             if (count($tags) > 6) {
+                /* translators: %d is the number of tags */
                 $issues[] = ['type' => 'tags', 'severity' => 'low', 'msg' => sprintf(__('标签过多（%d个），建议3-5个', 'zuo-ai-plus'), count($tags))];
                 $score -= 5;
             }
@@ -502,7 +506,7 @@ class SeoOptimizer
                 $tags = [];
                 foreach ($raw_tags as $t) {
                     // 强制剥离 HTML 标签，防止 AI 返回含 HTML 的标签名导致存储型 XSS
-                    $t = strip_tags($t);
+                    $t = wp_strip_all_tags($t);
                     // 移除所有标点符号（保留中文、英文、数字）
                     $pattern = "#[[:punct:]]|\s|\"|'|\"\"|''|（|）|【|】|《|》#u";
                     $t = preg_replace($pattern, '', $t);
@@ -651,6 +655,7 @@ class SeoOptimizer
                     if ($lock_age < 180) {
                         $lock_user = $lock_uid && $lock_uid > 0 ? get_user_by('id', (int)$lock_uid) : null;
                         $user_name = $lock_user ? $lock_user->display_name : ("UID={$lock_uid}");
+                        /* translators: %1$s is the user display name or UID, %2$d is seconds remaining */
                         throw new \Exception(sprintf(
                             __('文章正被其他用户编辑中（锁定者：%1$s，剩余约%2$d秒后自动解除）。请稍后再试，或在 Gutenberg 编辑器中关闭该文章后重试。', 'zuo-ai-plus'),
                             $user_name,
