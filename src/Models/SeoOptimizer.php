@@ -656,7 +656,7 @@ class SeoOptimizer
                         $lock_user = $lock_uid && $lock_uid > 0 ? get_user_by('id', (int)$lock_uid) : null;
                         $user_name = $lock_user ? $lock_user->display_name : ("UID={$lock_uid}");
                         throw new \Exception(sprintf(
-                        /* translators: %1$s is the user display name or UID, %2$d is seconds remaining */
+                            /* translators: %1$s is the user display name or UID, %2$d is seconds remaining */
                             __('文章正被其他用户编辑中（锁定者：%1$s，剩余约%2$d秒后自动解除）。请稍后再试，或在 Gutenberg 编辑器中关闭该文章后重试。', 'zuo-ai-plus'),
                             $user_name,
                             180 - $lock_age
