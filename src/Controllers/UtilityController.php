@@ -527,7 +527,7 @@ class UtilityController extends BaseController
             return [];
         }
         $tags = array_filter(
-            array_map(function ($tag) { return trim(strip_tags($tag)); }, $parts),
+            array_map(function ($tag) { return trim(wp_strip_all_tags($tag)); }, $parts),
             function ($tag) {
                 $len = mb_strlen($tag, 'utf-8');
                 return !empty($tag)
