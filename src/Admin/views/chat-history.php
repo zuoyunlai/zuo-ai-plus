@@ -6,8 +6,8 @@
 if (!defined('ABSPATH')) exit;
 
 // Nonce verification
-if (isset($_GET['_wpnonce']) && !wp_verify_nonce(sanitize_key($_GET['_wpnonce']), 'ai_plus_chat')) {
-    wp_die('Security check failed.');
+if (isset($_GET['_wpnonce']) && !wp_verify_nonce(sanitize_key($_GET['_wpnonce']), 'ai_plus_admin')) {
+    wp_die('安全检查失败，请刷新页面后重试。');
 }
 
 global $wpdb;
@@ -76,7 +76,7 @@ $total_pages = ceil($total / $per_page);
         <div class="tablenav" style="margin-top:16px;">
             <?php for ($i = 1; $i <= $total_pages; $i++): ?>
                 <a class="button <?php echo $i === $page ? 'button-primary' : ''; ?>"
-                   href="<?php echo esc_url(wp_nonce_url('?page=ai-plus-chat&paged=' . $i, 'ai_plus_chat')); ?>">
+                   href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_chat_history&paged=' . $i, 'ai_plus_admin')); ?>">
                     <?php echo (int) $i; ?>
                 </a>
             <?php endfor; ?>
