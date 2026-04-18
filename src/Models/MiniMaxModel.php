@@ -105,10 +105,10 @@ class MiniMaxModel extends BaseModel
             $url = $data0['url'];
         }
 
-        // 如果 URL 仍然为空（API 返回纯 AIGC 合规数据但无图片 URL），抛出异常
+        // 如果 URL 仍然为空（API 返回纯 AIGC 合规数据但无图片 URL），记录日志并给通用提示
         if (empty($url)) {
-            $aigc_info = isset($data0['AIGC']) ? json_encode($data0['AIGC']) : '无有效图片 URL';
-            throw new \Exception('图片生成返回无效内容（AIGC 合规数据无 URL）：' . $aigc_info);
+            error_log('AI Plus MiniMaxModel image: no URL in response, AIGC keys: ' . json_encode(array_keys($data0['AIGC'] ?? [])));
+            throw new \Exception('图片生成返回无效内容，请检查 MiniMax API 配额或模型配置');
         }
 
         return [

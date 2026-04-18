@@ -390,6 +390,10 @@ class ContentController extends BaseController
      */
     private function parseChineseImageMetadata(string $rawText, string $userPrompt = ''): array
     {
+        // 防止超长AI响应导致正则性能问题，最多处理前5000字符
+        if (mb_strlen($rawText, 'utf-8') > 5000) {
+            $rawText = mb_substr($rawText, 0, 5000, 'utf-8');
+        }
         $chineseDesc   = '';
         $chineseAlt    = '';
         $englishPrompt = $rawText;

@@ -219,7 +219,15 @@ class UtilityController extends BaseController
         }
 
         if (empty($term_ids)) {
-            return $this->error('标签解析结果为空（AI 生成的长标签被后端过滤）。已保留原标签，未做任何修改。');
+            // 标签全被过滤属于「正常不操作」，返回成功而非错误，前端不显示红色警告
+            $saved = wp_get_post_terms($post_id, 'post_tag', ['fields' => 'names']);
+            return $this->success([
+                'success'   => true,
+                'skipped'   => true,
+                'reason'    => 'AI生成的标签均不符合规范（过长/过短/含无效字符），已保留原标签',
+                'tag_ids'   => [],
+                'tag_names' => is_array($saved) ? array_slice($saved, 0, 4) : [],
+            ]);
         }
 
         $result = wp_set_object_terms($post_id, $term_ids, 'post_tag');

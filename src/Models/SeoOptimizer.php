@@ -67,10 +67,11 @@ class SeoOptimizer
         }
 
         return [
-            'posts'      => $results,
-            'total'      => (int) $query->found_posts,
-            'total_pages'=> $query->max_num_pages,
+            'posts'        => $results,
+            'total'        => (int) $query->found_posts,
+            'total_pages'  => $query->max_num_pages,
             'current_page' => $paged,
+            'skipped_count' => $skip_done ? count(array_filter($results, fn($r) => !empty($r['skipped']))) : 0,
         ];
     }
 

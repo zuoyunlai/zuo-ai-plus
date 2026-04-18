@@ -51,7 +51,7 @@ class Frontend_Init
             if ($post) {
                 $articleText = \wp_strip_all_tags($post->post_content ?: '');
                 if (mb_strlen($articleText, 'utf-8') > 8000) {
-                    $articleText = mb_substr($articleText, 0, 8000, 'utf-8') . '...[内容截断]';
+                    $articleText = mb_substr($articleText, 0, 8000, 'utf-8');
                 }
             }
         }

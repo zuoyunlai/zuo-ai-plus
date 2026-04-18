@@ -114,8 +114,8 @@ class TongyiModel extends BaseModel
             return ['url' => $imageUrl, 'revised_prompt' => $response['output']['revised_prompt'] ?? $prompt];
         }
 
-        // 完整响应记日志，对外给通用提示
-        error_log('AI Plus TongyiModel image error: ' . json_encode($response));
+        // 完整响应记日志（限key防止过长），对外给通用提示
+        error_log('AI Plus TongyiModel image error: ' . json_encode(array_keys($response)));
         throw new \Exception('图片生成失败，请检查通义千问 API Key 配额或模型配置');
     }
 

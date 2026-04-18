@@ -265,8 +265,8 @@ abstract class BaseModel
 
         if ($code < 200 || $code >= 300) {
             $error = $body['error']['message'] ?? ($body['error'] ?? ($body['message'] ?? ''));
-            // 完整错误记入日志（用于排查），对外显示通用提示
-            error_log("AI Plus API Error [{$this->name}] HTTP {$code}: " . json_encode($body));
+            // 完整错误记入日志（仅key名，用于排查），对外显示通用提示
+            error_log("AI Plus API Error [{$this->name}] HTTP {$code}: " . json_encode(array_keys($body)) . " | msg: " . mb_substr((string)($body['error']['message'] ?? $body['error'] ?? $body['message'] ?? ''), 0, 200));
             $userMsg = !empty($error) && is_string($error)
                 ? ("AI服务返回错误 (" . intval($code) . "): " . esc_html(mb_substr(strip_tags($error), 0, 200)))
                 : ("AI服务返回异常 (" . intval($code) . ")，请稍后重试");
@@ -301,12 +301,13 @@ abstract class BaseModel
         global $wpdb;
         $prefix = '_transient_ai_cache_';
         $like    = $wpdb->esc_like($prefix) . '%';
-        $wpdb->query(
-            $wpdb->prepare(
-                "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
+        // 分批删除避免大表锁表（每批500条）
+        do {
+            $deleted = $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s LIMIT 500",
                 $like
-            )
-        );
+            ));
+        } while ($deleted === 500);
         wp_cache_delete('alloptions', 'options');
     }
 
