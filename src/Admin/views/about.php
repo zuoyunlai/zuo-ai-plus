@@ -1,6 +1,6 @@
 <?php
 if (!defined('ABSPATH')) exit;
-$version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.2.0';
+$version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.3.0';
 ?>
 <style>
 .ai-about-wrap {font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 960px; color: #1e1e1e;}

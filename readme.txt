@@ -4,7 +4,7 @@ Tags: ai, content generator, translation, seo, image generator
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 8.1
-Stable tag: 1.2.4
+Stable tag: 1.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: zuo-ai-plus
@@ -87,6 +87,18 @@ Enable it in Zuo AI Plus → Customer Service settings. It automatically reads y
 4. Shortcode chat embed
 
 == Changelog ==
+
+= 1.3.0 =
+* 🔒 安全修复：IDOR漏洞 — 对话历史添加用户隔离
+* 🔒 安全修复：存储型XSS — AI标签经过strip_tags过滤
+* 🐛 修复：许可证管理后台添加登录保护
+* 🐛 修复：对话历史菜单项缺失及Nonce验证冲突
+* 🐛 修复：消息显示乱码、会话ID空值保护
+* 🐛 修复：访客记录显示、前台聊天区块session_id补全
+* 🐛 修复：SEO批量优化模型参数名错误
+* 🐛 修复：flushPostCache无缓存开关、replaceMode空内容问题
+* 🌟 新增：对话历史30天自动清理
+* 🌟 优化：许可证5分钟本地缓存、WP兼容性兜底
 
 = 1.2.3 =
 * 新增内容改写功能：重写/润色现有内容，保持原意优化表达
