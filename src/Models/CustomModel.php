@@ -20,7 +20,7 @@ class CustomModel extends BaseModel
             }
             
             // 解析URL组件
-            $parsed = parse_url($baseUrl);
+            $parsed = wp_parse_url($baseUrl);
             $host = $parsed['host'] ?? '';
             $scheme = $parsed['scheme'] ?? '';
             

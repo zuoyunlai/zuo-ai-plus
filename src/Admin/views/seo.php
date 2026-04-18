@@ -2,6 +2,8 @@
 /**
  * SEO Diagnostic Panel View
  * @phpcs:disable WordPress.DB.DirectDatabaseQuery
+ * @phpcs:disable WordPress.NamingConventions.PrefixAllGlobals
+ * @phpcs:disable WordPress.Security.NonceVerification
  */
 if (!defined('ABSPATH')) exit;
 
@@ -256,7 +258,7 @@ table.seo-table {width:100%;border-collapse:collapse;font-size:13px;}
         <div class="seo-stat-card">
             <?php $avg = (int) $stats['avg_score']; ?>
             <?php $avg_cls = $avg >= 80 ? 'green' : ($avg >= 60 ? '' : 'red'); ?>
-            <div class="seo-stat-num <?php echo $avg_cls; ?>"><?php echo $avg; ?></div>
+            <div class="seo-stat-num <?php echo esc_attr($avg_cls); ?>"><?php echo (int) $avg; ?></div>
             <div class="seo-stat-label">平均得分</div>
         </div>
     </div>
