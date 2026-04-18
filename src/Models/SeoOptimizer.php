@@ -84,8 +84,8 @@ class SeoOptimizer
         } else {
             foreach ($tags as $tag) {
                 $len = mb_strlen($tag, 'utf-8');
-                if ($len > 8) {
-                    $issues[] = ['type' => 'tags', 'severity' => 'medium', 'msg' => sprintf(__('标签「%s」过长（%d字），建议中英混合词不超过10字，纯中文不超过6字', 'zuo-ai-plus'), $tag, $len)];
+                if ($len > 10) {
+                    $issues[] = ['type' => 'tags', 'severity' => 'medium', 'msg' => sprintf(__('标签「%s」过长（%d字），SEO标准2-10字（含义完整的词汇）', 'zuo-ai-plus'), $tag, $len)];
                     $score -= 5;
                 }
             }
@@ -144,8 +144,11 @@ class SeoOptimizer
             return new \WP_Error('invalid_post', '文章不存在或非公开文章');
         }
 
-        // 保存原始值（仅首次）
-        if (!get_post_meta($post_id, self::META_OPTIMIZED, true)) {
+        // 保存原始值（仅首次）：即使重置后再次优化，也要以存档的原始值为准
+        $orig_title_archived = get_post_meta($post_id, self::META_ORIG_TITLE, true);
+        $orig_tags_archived  = get_post_meta($post_id, self::META_ORIG_TAGS, true);
+        if (!$orig_tags_archived) {
+            // 真正首次优化，存档原始值
             $old_tags = wp_get_post_tags($post_id, ['fields' => 'names']);
             update_post_meta($post_id, self::META_ORIG_TITLE, $post->post_title);
             update_post_meta($post_id, self::META_ORIG_TAGS, json_encode($old_tags, JSON_UNESCAPED_UNICODE));
@@ -153,7 +156,9 @@ class SeoOptimizer
 
         $title    = $post->post_title;
         $content  = wp_strip_all_tags($post->post_content);
-        $tags     = wp_get_post_tags($post_id, ['fields' => 'names']);
+        // 始终使用存档的原始标签，不受重置影响
+        $tags_raw = $orig_tags_archived ? json_decode($orig_tags_archived, true) : null;
+        $tags     = is_array($tags_raw) ? $tags_raw : wp_get_post_tags($post_id, ['fields' => 'names']);
         $cats     = wp_get_post_terms($post_id, 'category', ['fields' => 'names']);
         $excerpt  = $post->post_excerpt;
 
@@ -187,13 +192,15 @@ class SeoOptimizer
                 "4. 直接输出新标题，不要任何前缀、编号或引号\n" .
                 "5. 不要使用【】、『』、《》、「」等特殊符号\n" .
                 "6. 在标题前加入搜索意图词以提升点击率\n" .
-                "输出格式：新标题：（直接写标题内容，不要写\"新标题：\"这几个字）\n" . PHP_EOL;
+                "输出格式：新标题：（直接写标题内容，不要写\"新标题：\"这几个字）\n" .
+                "注意：绝对不要在标题中包含\"（X字）\"、\"（约X字）\"、\"（N个字）\"等字数提示，也不要包含星号*或其他符号\n" . PHP_EOL;
             if ($need_tags) $prompt .= "标签要求（严格遵守，共2-4个）：\n" .
-                "1. 每个标签必须是2-6个汉字的完整词汇（如：实木家具、环保材料、小户型收纳）\n" .
-                "2. 必须是文章核心主题词或细分领域词，能反映文章讨论的具体内容\n" .
+                "1. 每个标签必须是含义完整的中文词汇，禁止截断（如：「实木家具」而非「实木」，「小户型收纳」而非「小户型」或「收纳」）\n" .
+                "2. 必须与文章正文内容高度相关，是文章核心主题词或细分领域词，能反映文章讨论的具体内容\n" .
                 "3. 不要单个汉字，不要太宽泛的词（如「技术」「方法」「产品」），不要完整句子\n" .
                 "4. 不要品牌名、公司名、日期或无意义词\n" .
                 "5. 共输出2-4个标签，用中文逗号「，」分隔，不要编号、不要任何解释\n" .
+                "6. 符合SEO友好和WordPress规范\n" .
                 "输出格式：标签：（直接写标签列表）\n" . PHP_EOL;
             if ($need_desc) $prompt .= "摘要要求（严格遵守）：\n" .
                 "1. 长度：60-120个汉字\n" .
@@ -239,7 +246,11 @@ class SeoOptimizer
             $m = \ZuoAIPlus\Models\Model_Init::getModel($mname);
             if (!$m) continue;
 
-            $opts = ['max_tokens' => 800, 'temperature' => 0.3];
+            $opts = [
+                'max_tokens' => 800, 
+                'temperature' => 0.3,
+                'post_id' => $post_id,  // 传递文章ID，优化缓存策略
+            ];
             // Kimi 关闭思考过程
             if ($mname === 'kimi') {
                 $opts['thinking'] = ['type' => 'budget', 'budget_tokens' => 1];
@@ -258,6 +269,12 @@ class SeoOptimizer
                         continue;
                     }
                     $raw_text  = \ZuoAIPlus\Models\Model_Init::extractContent($ai_result);
+                    // 预检：如果返回内容看起来是内部思考/prompt内容，拒绝
+                    if (preg_match('/then the|wait:|output format says|we should not|just output|should not include/i', $raw_text)) {
+                        $last_error = 'Thinking content detected in response';
+                        $raw_text   = '';
+                        continue;
+                    }
                     if (strlen($raw_text) > 5 && strpos($raw_text, '"error"') === false && strpos($raw_text, 'base_resp') === false) {
                         $used_model = $mname;
                         break 2;
@@ -271,6 +288,7 @@ class SeoOptimizer
         }
 
         // AI 失败，使用规则引擎保底
+        $parsed = [];  // 初始化，防止 AI 失败分支未定义
         if ($raw_text === '') {
             $fallback = $this->generateFallback($post, $need_title, $need_tags, $need_desc);
             $updates  = array_filter($fallback, fn($v) => !empty($v));
@@ -368,7 +386,25 @@ class SeoOptimizer
         if ($need_title) {
             // 优先：带前缀的行
             if (preg_match('/(?:新)?标题[：:]\s*(.+)/u', $text, $m)) {
-                $result['title'] = trim($m[1]);
+                $raw_title = trim($m[1]);
+                    // 防御性清理：去掉所有形式的字数提示（"（20字）"/"（X字）"/"（约X字）"等）
+                    $raw_title = preg_replace('/[（（][^）]*?[字个篇条][）)]/u', '', $raw_title);
+                    // 去掉英文前缀（如 "Original title:" / "New title:" / "Suggested title:" 等）
+                    $raw_title = preg_replace('/^(?:original\s*title|new\s*title|suggested\s*title|recommended\s*title|final\s*title|optimized\s*title)[：:]\s*/i', '', $raw_title);
+                    $raw_title = preg_replace('/（[^）]*?\d[^）]*?[字个篇条][）)]/u', '', $raw_title);
+                    $raw_title = preg_replace('/（[^）]*?[字个篇条]）/u', '', $raw_title);
+                    $raw_title = preg_replace('/^\s*\*+\s*/', '', $raw_title);
+                    $raw_title = preg_replace('/\*+$/', '', $raw_title);
+                    $raw_title = trim($raw_title);
+                    // 必须有中文（防止提取到纯英文提示词/思考内容）
+                    // 拒绝含英文计数/思考关键词的标题（如 "Let's count...Characters"）
+                    if (preg_match('/count|character|word.?count/i', $raw_title)
+                        && preg_match('/^[a-zA-Z]/', $raw_title)
+                        && preg_match('/[\x{4e00}-\x{9fa5}]/u', $raw_title)) {
+                        // 含英文思考词+英文开头+含中文 = 拒绝
+                    } elseif (preg_match('/[\x{4e00}-\x{9fa5}]/u', $raw_title)) {
+                        $result['title'] = $raw_title;
+                    }
             } elseif (!empty($lines)) {
                 // 文本很长（思考内容）：从后往前找第一个合理解标题
                 if (mb_strlen($text, 'utf-8') > 200) {
@@ -377,21 +413,34 @@ class SeoOptimizer
                         $line = trim($lines[$i]);
                         if (!$line) continue;
                         // 跳过思考标记行、分析行
-                        if (preg_match('/^[#\-*·\[\(]|^分析|^思考|^结论|^选择|^关键词|^字数|^SEO|^标签|^描述|^打磨|^优化/u', $line)) continue;
+                        if (preg_match('/^[#\-*·\[\(]|^分析|^思考|^结论|^选择|^关键词|^字数|^SEO|^标签|^描述|^打磨|^优化|^内容|^要点|^写作|^任务|^格式|^输出|^提示|^说明|^参考|^注意|^直接|^标题[：:]/u', $line)) continue;
+                        // 跳过含提示词/思考内容的行
+                        if (preg_match('/count|counting|character|characters|word.?count|字数|字符|长度|length|prefix|content|label|tag|note|text|output|format|input|result|生成|写给|给你的|参考的|输出格式|写作任务|标签为|直接写|前缀|不要写|新标题[：:]|original\s*title|new\s*title|suggested\s*title|suggested\s*title/iu', $line)) continue;
                         if (preg_match('/^[0-9]+\./u', $line)) continue; // 编号列表
+                        // 标题必须包含至少一个中文字符（防止纯英文/符号行被误选）
+                        if (!preg_match('/[\x{4e00}-\x{9fa5}]/u', $line)) continue;
                         $len = mb_strlen($line, 'utf-8');
-                        if (($len >= 10 && $len <= 70 && strpos($line, '：') !== false) || ($len >= 15 && $len <= 70)) {
-                            $result['title'] = $line;
+                        // 提高阈值：严格模式要求10字+，宽松模式要求20字+
+                        if (($len >= 10 && $len <= 70 && strpos($line, '：') !== false) || ($len >= 20 && $len <= 70)) {
+                            // 统一去掉英文前缀
+                            $line = preg_replace('/^(?:original\s*title|new\s*title|suggested\s*title|recommended\s*title|final\s*title|optimized\s*title)[：:]\s*/i', '', $line);
+                            $result['title'] = trim($line);
                             break;
                         }
                     }
                 }
-                // 正常情况：取第一行
+                // 正常情况：取第一行（更严格过滤）
                 if (empty($result['title'])) {
                     foreach ($lines as $line) {
                         $len = mb_strlen($line, 'utf-8');
-                        if ($len >= 6 && $len <= 30 && !preg_match('/^[#\-*·\[\(]|^SEO|^标签|^描述|^新标题|^新标签|^优化/u', $line)) {
-                            $result['title'] = $line;
+                        // 必须有中文，且不在skip列表中，且不含提示词
+                        if ($len >= 6 && $len <= 30
+                            && !preg_match('/^[#\-*·\[\(]|^SEO|^标签|^描述|^新标题|^新标签|^优化|^内容|^要点|^分析|^思考|^写作|^任务|^格式|^输出|^提示|^直接|^参考|^prefix|^content|^label|^note|^text|^output/u', $line)
+                            && !preg_match('/count|counting|character|characters|word.?count|字数|字符|长度|length|prefix|content|label|tag|note|text|output|format|生成|写给|标签为|直接写|前缀|不要写|新标题[：:]|original\s*title|new\s*title|suggested\s*title/iu', $line)
+                            && preg_match('/[\x{4e00}-\x{9fa5}]/u', $line)) {
+                            // 统一去掉英文前缀
+                            $line = preg_replace('/^(?:original\s*title|new\s*title|suggested\s*title|recommended\s*title|final\s*title|optimized\s*title)[：:]\s*/i', '', $line);
+                            $result['title'] = trim($line);
                             break;
                         }
                     }
@@ -431,8 +480,9 @@ class SeoOptimizer
                     $pattern = "#[[:punct:]]|\s|\"|'|\"\"|''|（|）|【|】|《|》#u";
                     $t = preg_replace($pattern, '', $t);
                     $len = mb_strlen($t, 'utf-8');
-                    // 只保留2-6字的标签（符合标准）
-                    if ($len < 2 || $len > 6) continue;
+                    // 保留含义完整的标签：纯中文2-10字，中英混合可达15字（不截断完整词汇）
+                    if ($len < 2) continue;
+                    if ($len > 15) continue;
                     // 跳过无中文的标签
                     if (!preg_match('/[\x{4e00}-\x{9fa5}]/u', $t)) continue;
                     $tags[] = $t;
@@ -566,9 +616,30 @@ class SeoOptimizer
             }
 
             if (count($wp_updates) > 1) {
+                // 前置检查：若文章正被活跃编辑（锁未过期），给出明确提示而非笼统报错
+                $lock_meta = get_post_meta($post_id, '_edit_lock', true);
+                if ($lock_meta) {
+                    list($lock_time, $lock_uid) = explode(':', $lock_meta, 2);
+                    $lock_age = time() - (int)$lock_time;
+                    if ($lock_age < 180) {
+                        $lock_user = $lock_uid && $lock_uid > 0 ? get_user_by('id', (int)$lock_uid) : null;
+                        $user_name = $lock_user ? $lock_user->display_name : ("UID={$lock_uid}");
+                        throw new \Exception(sprintf(
+                            __('文章正被其他用户编辑中（锁定者：%1$s，剩余约%2$d秒后自动解除）。请稍后再试，或在 Gutenberg 编辑器中关闭该文章后重试。', 'zuo-ai-plus'),
+                            $user_name,
+                            180 - $lock_age
+                        ));
+                    }
+                }
+
                 $updated = wp_update_post($wp_updates, true); // true = 返回WP_Error
                 if (is_wp_error($updated)) {
-                    throw new \Exception(__('文章更新失败：', 'zuo-ai-plus') . $updated->get_error_message());
+                    $err_msg = $updated->get_error_message();
+                    // 细化数据库写入失败的常见原因
+                    if (strpos($err_msg, 'database') !== false || strpos($err_msg, 'Could not') !== false) {
+                        throw new \Exception(__('文章更新失败：数据库写入被拒绝。可能是文章正被其他编辑器占用，或服务器超时。建议：1) 确认 Gutenberg 编辑器中是否已关闭该文章；2) 稍后重试。', 'zuo-ai-plus'));
+                    }
+                    throw new \Exception(__('文章更新失败：', 'zuo-ai-plus') . $err_msg);
                 }
                 $post_update_success = true;
             }
@@ -628,10 +699,23 @@ class SeoOptimizer
             }
         }
 
-        foreach ([self::META_OPTIMIZED, self::META_OPTIMIZED_AT, self::META_ORIG_TITLE,
-                   self::META_ORIG_TAGS, self::META_NEW_TITLE, self::META_NEW_TAGS,
+        // 只清除优化状态，保留原始存档（允许再次优化且有基准参考）
+        foreach ([self::META_OPTIMIZED, self::META_OPTIMIZED_AT,
+                   self::META_NEW_TITLE, self::META_NEW_TAGS,
                    self::META_SCORE, self::META_ISSUES] as $key) {
             delete_post_meta($post_id, $key);
+        }
+
+        // 清除 AI 缓存：前缀扫描删所有 post_{id} 变体（不依赖固定模型名）
+        // 注意：WordPress transient 存储时自动加 _transient_ 前缀，实际 key 是 _transient_ai_cache_xxx
+        if (get_option('ai_plus_cache_enabled', true)) {
+            global $wpdb;
+            $prefix = '_transient_ai_cache_';
+            $like = $wpdb->esc_like($prefix) . '%';
+            $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s AND LOCATE(%s, option_name) > 0",
+                $like, $wpdb->esc_like('post_' . $post_id)
+            ));
         }
 
         return true;
@@ -643,8 +727,13 @@ class SeoOptimizer
         global $wpdb;
         $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type='post' AND post_status='publish'");
         $optimized = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->postmeta} WHERE meta_key=%s AND meta_value='1'",
+            "SELECT COUNT(pm.post_id) FROM {$wpdb->postmeta} pm JOIN {$wpdb->posts} p ON pm.post_id=p.ID WHERE pm.meta_key=%s AND pm.meta_value='1' AND p.post_status='publish' AND p.post_type='post'",
             self::META_OPTIMIZED
+        ));
+        // 清理孤立的 meta 记录（已删除文章的残留数据）
+        $wpdb->query($wpdb->prepare(
+            "DELETE pm FROM {$wpdb->postmeta} pm LEFT JOIN {$wpdb->posts} p ON pm.post_id=p.ID WHERE p.ID IS NULL AND pm.meta_key IN (%s,%s,%s)",
+            self::META_OPTIMIZED, self::META_OPTIMIZED_AT, self::META_SCORE
         ));
         $avg_score = (int) $wpdb->get_var(
             $wpdb->prepare(
@@ -656,7 +745,7 @@ class SeoOptimizer
         return [
             'total'     => $total,
             'optimized' => $optimized,
-            'pending'    => $total - $optimized,
+            'pending'    => max(0, $total - $optimized),
             'avg_score' => $avg_score ?: 0,
         ];
     }

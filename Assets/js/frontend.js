@@ -1,72 +1,152 @@
 /**
- * AI Plus Frontend JS - 客服聊天窗口
+ * AI Plus Frontend JS - 统一聊天窗口初始化
+ * 职责：
+ *   1. 浮窗聊天（.ai-plus-chat-btn / #ai-plus-chat-window）
+ *   2. 嵌入聊天区块（.ai-plus-embed-chat，短代码 [ai_plus_chat]）
+ *   3. 文章嵌入聊天（.ai-plus-chat-rendered，Gutenberg 区块渲染）
  */
 (function () {
     'use strict';
 
-    // ========== 浮窗聊天 ==========
-    var aiChatOpen = false;
+    // ── 浮窗聊天 ──────────────────────────────────────────────────────────────
+    var chatHistory = [];
 
     window.toggleAiChat = function () {
-        aiChatOpen = !aiChatOpen;
         var win = document.getElementById('ai-plus-chat-window');
         var btn = document.getElementById('ai-plus-chat-btn');
-        if (aiChatOpen) {
-            win.style.display = 'flex';
-            btn.innerHTML = '✕';
-        } else {
+        if (!win || !btn) return;
+
+        var isOpen = win.style.display !== 'none';
+        if (isOpen) {
             win.style.display = 'none';
             btn.innerHTML = '💬';
+        } else {
+            win.style.display = 'flex';
+            btn.innerHTML = '✕';
         }
     };
 
     window.sendAiChat = function () {
-        var input = document.getElementById('ai-chat-msg'); if (!input) return;
+        var input = document.getElementById('ai-chat-msg');
+        if (!input) return;
         var msg = input.value.trim();
         if (!msg) return;
 
-        var model = aiPlusChat && aiPlusChat.defaultModel ? aiPlusChat.defaultModel : 'zhipu';
+        // 优先用 window.aiPlusChat（Frontend_Init 设置），兼容 window.aiPlusConfig
+        var config = window.aiPlusChat || window.aiPlusConfig || {};
+        var model = config.defaultModel || 'minimax';
+        var apiUrl = config.apiUrl;
+        var nonce = config.nonce;
+        if (!apiUrl || !nonce) return;
+
         var container = document.getElementById('ai-chat-messages');
 
-        addMessage(msg, 'user', container);
+        // 浮窗客服：读取当前文章上下文（PHP 写入 hidden input）
+        var ctxInput = document.getElementById('ai-chat-article-context');
+        var articleContext = ctxInput ? (ctxInput.value || '') : '';
+
+        // 渲染用户消息
+        addMessageEl(container, msg, 'user');
         chatHistory.push({ role: 'user', content: msg });
         input.value = '';
 
+        // 显示 loading
         var loadingEl = document.createElement('div');
         loadingEl.className = 'ai-chat-msg assistant';
         loadingEl.innerHTML = '<em>思考中...</em>';
         container.appendChild(loadingEl);
         container.scrollTop = container.scrollHeight;
 
-        fetch(aiPlusChat.apiUrl + 'chat', {
+        var fetchBody = { model: model, messages: chatHistory, session_id: 'web_' + Date.now() };
+        if (articleContext) fetchBody.context = articleContext;
+
+        fetch(apiUrl + 'chat', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-WP-Nonce': aiPlusChat.nonce
+                'X-WP-Nonce': nonce
             },
-            body: JSON.stringify({ model: model, messages: chatHistory, context: getArticleContextForChat(), session_id: 'web_' + Date.now() })
+            body: JSON.stringify(fetchBody)
         })
         .then(function (r) { return r.json(); })
         .then(function (data) {
             loadingEl.remove();
             var reply = data.choices?.[0]?.message?.content || data.content || '抱歉出错了: ' + (data.error || '未知错误');
-            addMessage(reply, 'assistant', container);
+            addMessageEl(container, reply, 'assistant');
             chatHistory.push({ role: 'assistant', content: reply });
         })
-        .catch(function (err) {
+        .catch(function () {
             loadingEl.remove();
-            addMessage('网络错误，请稍后重试', 'assistant', container);
+            addMessageEl(container, '网络错误，请稍后重试', 'assistant');
         });
     };
 
-    var chatHistory = [];
+    // ── 嵌入聊天（短代码 / 文章内嵌入块）─────────────────────────────────────
+    function initEmbedChat(chat) {
+        var modelSel = chat.querySelector('.embed-model-sel');
+        var container = chat.querySelector('.embed-messages');
+        var input = chat.querySelector('.embed-msg-input');
+        var sendBtn = chat.querySelector('.embed-send-btn');
+        var history = [];
 
-    function getArticleContextForChat() {
+        if (!input || !sendBtn || !container) return;
+
+        function send() {
+            var msg = input.value.trim();
+            if (!msg) return;
+
+            var config = window.aiPlusChat || window.aiPlusConfig || {};
+            var apiUrl = config.apiUrl;
+            var nonce = config.nonce;
+            if (!apiUrl || !nonce) return;
+
+            var model = modelSel ? modelSel.value : (chat.dataset.model || 'minimax');
+
+            // 渲染用户消息
+            addMessageEl(container, msg, 'user');
+            history.push({ role: 'user', content: msg });
+            input.value = '';
+
+            // 显示 loading
+            var loadingEl = document.createElement('div');
+            loadingEl.className = 'ai-chat-msg assistant';
+            loadingEl.innerHTML = '<em>思考中...</em>';
+            container.appendChild(loadingEl);
+            container.scrollTop = container.scrollHeight;
+
+            fetch(apiUrl + 'chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': nonce
+                },
+                body: JSON.stringify({ model: model, messages: history, session_id: 'embed_' + Date.now() })
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                loadingEl.remove();
+                var reply = data.choices?.[0]?.message?.content || data.content || data.error || '无响应';
+                addMessageEl(container, reply, 'assistant');
+                history.push({ role: 'assistant', content: reply });
+            })
+            .catch(function () {
+                loadingEl.remove();
+                addMessageEl(container, '网络错误，请重试', 'assistant');
+            });
+        }
+
+        sendBtn.addEventListener('click', send);
+        input.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') send();
+        });
+    }
+
+    // ── 文章嵌入聊天区块（Gutenberg 动态块）───────────────────────────────────
+    function getArticleContext() {
         var selectors = [
             '.entry-content', '.post-content', '.article-content',
             '.single-post .entry-content', 'article .entry-content',
-            '.content-area', 'main article', '.post-body',
-            '.yoo-content', '.article-body', '.post-inner'
+            '.content-area', 'main article', '.post-body'
         ];
         for (var i = 0; i < selectors.length; i++) {
             var el = document.querySelector(selectors[i]);
@@ -80,67 +160,207 @@
         return '';
     }
 
-    // ========== 嵌入聊天初始化 ==========
-    function initEmbedChat(chat) {
-        var modelSel = chat.querySelector('.embed-model-sel');
-        var container = chat.querySelector('.embed-messages');
-        var input = chat.querySelector('.embed-msg-input');
-        var sendBtn = chat.querySelector('.embed-send-btn');
-        var history = [];
+    function initBlockChat(el) {
+        var model = el.dataset.model || 'minimax';
+        var messages = [];
 
-        if (!input || !sendBtn) return;
+        // 优先从 PHP 写入的隐藏 input 读取（最可靠）
+        // 兜底：JS CSS 选择器（主题自定义结构时）
+        var ctxInput = el.querySelector('input.ai-article-context-val');
+        var articleContext = ctxInput ? (ctxInput.value || '') : (getArticleContext() || '');
 
-        function send() {
-            var msg = input.value.trim();
-            if (!msg) return;
+        var inputEl = el.querySelector('.ai-plus-chat-input');
+        var sendBtn = el.querySelector('.ai-plus-chat-send');
+        var msgsEl = el.querySelector('.ai-plus-chat-messages');
+        var loadingEl = el.querySelector('.ai-plus-chat-loading');
 
-            var model = modelSel ? modelSel.value : chat.dataset.model;
-            var el = document.createElement('div');
-            el.className = 'ai-chat-msg user';
-            el.textContent = msg;
-            container.appendChild(el);
-            history.push({ role: 'user', content: msg });
-            input.value = '';
+        if (!inputEl || !sendBtn) return;
 
-            var loading = document.createElement('div');
-            loading.className = 'ai-chat-msg assistant';
-            loading.innerHTML = '<em>思考中...</em>';
-            container.appendChild(loading);
-            container.scrollTop = container.scrollHeight;
+        function sendMessage() {
+            var text = inputEl.value.trim();
+            if (!text) return;
+            messages.push({ role: 'user', content: text });
+            renderMessages();
+            inputEl.value = '';
+            showLoading();
 
-            fetch(aiPlusChat.apiUrl + 'chat', {
+            var config = window.aiPlusConfig || window.aiPlusChat || {};
+            var apiUrl = config.apiUrl;
+            var nonce = config.nonce;
+            if (!apiUrl || !nonce) {
+                hideLoading();
+                renderMessages();
+                return;
+            }
+
+            var fetchBody = { model: model, messages: messages, max_tokens: 2048 };
+            if (articleContext) fetchBody.context = articleContext;
+
+            fetch(apiUrl + 'chat', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': aiPlusChat.nonce },
-                body: JSON.stringify({ model: model, messages: history, session_id: 'embed_' + Date.now() })
+                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': nonce },
+                body: JSON.stringify(fetchBody)
             })
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                loading.remove();
                 var reply = data.choices?.[0]?.message?.content || data.content || data.error || '无响应';
-                addMessage(reply, 'assistant', container);
-                history.push({ role: 'assistant', content: reply });
+                messages.push({ role: 'assistant', content: reply });
+                hideLoading();
+                renderMessages();
             })
             .catch(function () {
-                loading.remove();
-                addMessage('网络错误，请重试', 'assistant', container);
+                messages.push({ role: 'assistant', content: '请求失败，请重试' });
+                hideLoading();
+                renderMessages();
             });
         }
 
-        sendBtn.addEventListener('click', send);
-        input.addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') send();
+        sendBtn.addEventListener('click', sendMessage);
+        inputEl.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
         });
+
+        function renderMessages() {
+            if (!msgsEl) return;
+            msgsEl.innerHTML = '';
+            messages.forEach(function (m) {
+                var div = document.createElement('div');
+                div.style.cssText = 'margin-bottom:8px;padding:8px 12px;border-radius:8px;font-size:14px;line-height:1.6;';
+                if (m.role === 'user') {
+                    div.style.background = '#e7f3ff';
+                    div.style.border = '1px solid #b3d7ff';
+                    div.style.textAlign = 'right';
+                } else {
+                    div.style.background = '#f5f5f5';
+                    div.style.border = '1px solid #e0e0e0';
+                }
+                if (m.role === 'assistant') {
+                    try { div.innerHTML = parseMarkdown(m.content); } catch(e) { div.textContent = m.content; }
+                } else {
+                    div.textContent = m.content;
+                }
+                msgsEl.appendChild(div);
+            });
+            msgsEl.scrollTop = msgsEl.scrollHeight;
+        }
+
+        function showLoading() {
+            if (loadingEl) loadingEl.style.display = 'inline';
+            sendBtn.disabled = true;
+        }
+
+        function hideLoading() {
+            if (loadingEl) loadingEl.style.display = 'none';
+            sendBtn.disabled = false;
+        }
     }
 
-    function addMessage(text, role, container) {
+    // ── 通用消息渲染 ──────────────────────────────────────────────────────────
+    function addMessageEl(container, text, role) {
+        if (!container) return;
         var el = document.createElement('div');
         el.className = 'ai-chat-msg ' + role;
-        el.textContent = text;
+        // AI 回复（assistant）才渲染 Markdown；用户输入始终纯文本
+        if (role === 'assistant') {
+            try { el.innerHTML = parseMarkdown(text); } catch(e) { el.textContent = text; }
+        } else {
+            el.textContent = text;
+        }
         container.appendChild(el);
         container.scrollTop = container.scrollHeight;
     }
 
-    // 初始化所有嵌入聊天
-    document.querySelectorAll('.ai-plus-embed-chat').forEach(initEmbedChat);
+    /**
+     * Markdown → HTML（安全渲染浮窗/嵌入聊天消息）
+     * 使用 marked.js CDN，渲染后清理危险标签
+     */
+    function parseMarkdown(text) {
+        // 1. 先把危险字符转义（防止 XSS）
+        var escaped = text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        // 2. 用 marked 渲染 Markdown
+        var html;
+        if (typeof marked !== 'undefined' && typeof marked.parse === 'function') {
+            try { html = marked.parse(escaped); } catch(e) { html = escaped; }
+        } else {
+            // marked 未加载时，直接把换行替换为 <br>
+            return escaped.replace(/\n/g, '<br>');
+        }
+
+        // 3. 清理危险标签（只保留安全标签白名单）
+        // 安全标签：strong, em, b, i, code, pre, br, p, ul, ol, li, a, blockquote, hr, h1-h6
+        var safeTags = ['strong','em','b','i','code','pre','br','p','ul','ol','li','a','blockquote','hr',
+                        'h1','h2','h3','h4','h5','h6','span','div','table','thead','tbody','tr','th','td'];
+        // 把所有 <tag ...> 逐个检查，非白名单标签名转为 &lt;tag ...&gt;
+        html = html.replace(/<([a-z][a-z0-9]*)([^>]*)>/gi, function(match, tag, attrs) {
+            tag = tag.toLowerCase();
+            if (safeTags.indexOf(tag) === -1) {
+                return '&lt;' + tag + attrs + '&gt;';
+            }
+            // a 标签补充安全属性
+            if (tag === 'a') {
+                if (attrs.indexOf('rel=') === -1) attrs += ' rel="noopener noreferrer"';
+                if (attrs.indexOf('target=') === -1) attrs += ' target="_blank"';
+            }
+            return '<' + tag + attrs + '>';
+        });
+
+        return html;
+    }
+
+    // ── 初始化 ────────────────────────────────────────────────────────────────
+    function initAll() {
+        // 浮窗聊天
+        document.querySelectorAll('.ai-plus-embed-chat').forEach(initEmbedChat);
+        // 文章嵌入聊天区块
+        document.querySelectorAll('.ai-plus-chat-rendered').forEach(initBlockChat);
+    }
+
+    // DOMReady 后初始化所有聊天
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initAll);
+    } else {
+        initAll();
+    }
+
+    // MutationObserver：支持 Ajax 动态加载后的聊天区块
+    if (typeof MutationObserver !== 'undefined') {
+        var obs = new MutationObserver(function (records) {
+            var needsInitEmbed = false;
+            var needsInitBlock = false;
+            records.forEach(function (r) {
+                [].slice.call(r.addedNodes).forEach(function (node) {
+                    if (node.nodeType !== 1) return;
+                    if (node.classList) {
+                        if (node.classList.contains('ai-plus-embed-chat')) needsInitEmbed = true;
+                        if (node.classList.contains('ai-plus-chat-rendered')) needsInitBlock = true;
+                    }
+                    if (node.querySelectorAll) {
+                        if (node.querySelectorAll('.ai-plus-embed-chat').length) needsInitEmbed = true;
+                        if (node.querySelectorAll('.ai-plus-chat-rendered').length) needsInitBlock = true;
+                    }
+                });
+            });
+            if (needsInitEmbed) {
+                document.querySelectorAll('.ai-plus-embed-chat:not([data-initialized])').forEach(function (el) {
+                    el.setAttribute('data-initialized', '1');
+                    initEmbedChat(el);
+                });
+            }
+            if (needsInitBlock) {
+                document.querySelectorAll('.ai-plus-chat-rendered:not([data-initialized])').forEach(function (el) {
+                    el.setAttribute('data-initialized', '1');
+                    initBlockChat(el);
+                });
+            }
+        });
+        obs.observe(document.body, { childList: true, subtree: true });
+    }
 
 })();

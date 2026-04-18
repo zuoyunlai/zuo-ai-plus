@@ -22,7 +22,7 @@
         category: 'widgets',
         apiVersion: 3,
         attributes: {
-            model: { type: 'string', default: 'zhipu' },
+            model: { type: 'string', default: 'minimax' },
             title: { type: 'string', default: 'AI 助手' },
             messages: { type: 'array', default: [] },
             chatInput: { type: 'string', default: '' },
@@ -30,7 +30,7 @@
             postContext: { type: 'string', default: '' },
         },
         edit: function (props) {
-            var model = props.attributes.model;
+            var model = props.attributes.model || 'minimax';
             // 自动获取当前文章内容作为上下文
             if (!props.attributes.postContext) {
                 var postContent = '';
@@ -48,6 +48,13 @@
             var messages = props.attributes.messages || [];
             var input = props.attributes.chatInput || '';
             var loading = props.attributes.chatLoading || false;
+            
+            function deleteBlock() {
+                var clientId = props.clientId;
+                if (clientId && wp.data && wp.data.dispatch && wp.data.dispatch('core/block-editor')) {
+                    wp.data.dispatch('core/block-editor').removeBlock(clientId);
+                }
+            }
 
             function sendMessage() {
                 if (!input.trim() || loading) return;
@@ -87,15 +94,15 @@
                             onChange: function (e) { props.setAttributes({ model: e.target.value }); },
                             style: { width: '100%', marginTop: '8px' }
                         },
-                            el('option', { value: 'zhipu' }, '智谱 GLM'),
-                            el('option', { value: 'tongyi' }, '通义千问'),
                             el('option', { value: 'minimax' }, 'MiniMax'),
+                            el('option', { value: 'tongyi' }, '通义千问'),
+                            el('option', { value: 'zhipu' }, '智谱 GLM'),
                             el('option', { value: 'kimi' }, 'Kimi'),
                             el('option', { value: 'deepseek' }, 'DeepSeek')
                         )
                     )
                 ),
-                el('div', { className: 'ai-plus-chat-block', style: { border: '1px solid #dcdcde', borderRadius: '4px', padding: '16px', background: '#fff' } },
+                el('div', { className: 'ai-plus-chat-block wp-block', style: { border: '1px solid #dcdcde', borderRadius: '4px', padding: '20px', background: '#fff', maxWidth: '840px', margin: '16px auto' } },
                     title ? el('div', { style: { fontWeight: 'bold', marginBottom: '12px', fontSize: '15px' } }, title) : null,
                     el('div', { style: { maxHeight: '300px', overflowY: 'auto', marginBottom: '12px' } },
                         messages.length === 0
@@ -130,7 +137,8 @@
                             },
                             style: { resize: 'none', fontSize: '14px', padding: '8px' }
                         }),
-                        el(Button, { onClick: sendMessage, isPrimary: true, disabled: loading }, '发送')
+                        el(Button, { onClick: sendMessage, isPrimary: true, disabled: loading }, '发送'),
+                        el(Button, { onClick: deleteBlock, isDestructive: true, isSmall: true, style: { marginLeft: '8px' } }, '🗑️ 删除')
                     )
                 )
             );

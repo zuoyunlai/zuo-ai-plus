@@ -54,6 +54,7 @@ class ContentController extends BaseController
         $userModel   = sanitize_text_field($request->get_param('model') ?: $this->getDefaultModel());
         $content     = sanitize_textarea_field($request->get_param('content') ?: '');
         $extraPrompt = sanitize_textarea_field($request->get_param('extra_prompt') ?: '');
+        $postId      = $request->get_param('post_id') ?: null; // 获取文章ID
 
         if (in_array($action, ['featured_image', 'image'])) {
             if ($err = $this->checkLicense()) {
@@ -74,7 +75,15 @@ class ContentController extends BaseController
         $maxTokens = $this->getMaxTokens($action);
 
         try {
-            $result = $model->completion($prompt, ['max_tokens' => $maxTokens]);
+            // 传递文章ID和内容哈希，优化缓存策略
+            $cacheOpts = ['post_id' => $postId];
+            if ($postId) {
+                // 如果有文章ID，生成内容哈希作为缓存键的一部分
+                $contentHash = md5($content);
+                $cacheOpts['content_hash'] = $contentHash;
+            }
+            
+            $result = $model->completion($prompt, array_merge(['max_tokens' => $maxTokens], $cacheOpts));
             $text   = trim($result['content'] ?? $result['text'] ?? (is_string($result) ? $result : ''));
 
             // Markdown → HTML 转换
@@ -92,6 +101,69 @@ class ContentController extends BaseController
                 $result['content'] = $text;
             }
 
+            // title_optimize 后验：确保返回干净的中文标题，拒绝思考内容
+            if ($action === 'title_optimize') {
+                $text = trim($text);
+                // 预检：拒绝含思考/prompt 内容
+                if (preg_match('/then the|wait:|output format says|we should not|just output|should not include/i', $text)) {
+                    return $this->error('标题生成失败（模型输出了内部思考内容），请重试或切换模型', 422);
+                }
+                // 必须含中文
+                if (!preg_match('/[\x{4e00}-\x{9fa5}]/u', $text)) {
+                    return $this->error('标题生成失败（未检测到中文），请重试', 422);
+                }
+                // 清理残余格式词（如"新标题："前缀）
+                $text = preg_replace('/^(?:新)?标题[：:]\s*/u', '', $text);
+                $text = trim($text);
+                // 清理"（X字）"等字数提示
+                $text = preg_replace('/[（（][^）]*?[字个篇条][）)]/u', '', $text);
+                $text = trim($text);
+                // 最终检查：长度 6-30 字
+                $len = mb_strlen($text, 'utf-8');
+                if ($len < 6 || $len > 30) {
+                    return $this->error("标题长度不符（{$len}字），请重试", 422);
+                }
+                $result['content'] = $text;
+            }
+
+            // keyword（标签提取）后验：过滤无意义标签，只保留完整独立词汇
+            if ($action === 'keyword') {
+                $tags_raw = array_map('trim', preg_split('/[,，、\n]+/u', trim($text)));
+                $valid = [];
+                foreach ($tags_raw as $tag) {
+                    // 移除所有标点、空格
+                    $tag = preg_replace('/[[:punct:]]/u', '', $tag);
+                    $tag = preg_replace('/\s+/', '', $tag);
+                    $tag = trim($tag);
+                    $len = mb_strlen($tag, 'utf-8');
+                    // 太短不要
+                    if ($len < 3) continue;
+                    // 太长不要（超过12字基本不是独立词）
+                    if ($len > 12) continue;
+                    // 必须含中文
+                    if (!preg_match('/[\x{4e00}-\x{9fa5}]/u', $tag)) continue;
+                    // 排除纯英文/数字
+                    if (preg_match('/^[a-zA-Z0-9\s]+$/', $tag)) continue;
+                    // 排除含英文+数字混合的乱码标签（如 "412Good"）
+                    if (preg_match('/[a-zA-Z]{3,}[0-9]|[0-9][a-zA-Z]{2,}/', $tag)) continue;
+                    // 排除以句子结构词开头/结尾的碎片
+                    if (preg_match('/^[的了在和与为于把被从到上下前后里中外之所能以而且或但如果因为所以虽然以及通过进行能够应该]/u', $tag)) continue;
+                    if (preg_match('/[的了在和与为于把被从到上下前后里中外之所能以而且或但如果因为所以虽然以及通过进行能够应该句]$/u', $tag)) continue;
+                    // 排除标题型/说明型碎片词
+                    if (preg_match('/^(内容|文章|主题|要点|特点|优势|劣势|方法|原因|结果|问题|方案)/u', $tag)) continue;
+                    // 排除思考/prompt残留
+                    if (preg_match('/then the|wait:|output format|we should|should not|just output|newtitle|标签/i', $tag)) continue;
+                    // 跳过包含明确句子结构的
+                    if (preg_match('/作为|诞生|属于|用于|称为|由于|因此|然而|并且|以及|虽然|但是|可是/u', $tag)) continue;
+                    // 排除"的"在中间的长标签（如"年的服务器端"）：名词+的+名词=碎片
+                    if (mb_strlen($tag, 'utf-8') > 4 && mb_strpos($tag, '的') !== false && mb_strpos($tag, '的') > 0) continue;
+                    $valid[] = $tag;
+                }
+                if (empty($valid)) {
+                    return $this->error('标签生成失败（模型输出了无效内容），请重试', 422);
+                }
+                $result['content'] = implode('，', array_slice($valid, 0, 4));
+            }
             // 记录操作历史
             $this->logHistory($action, $userModel, $result);
 
@@ -126,99 +198,17 @@ class ContentController extends BaseController
             return $this->error('生成提示词失败：' . $e->getMessage(), 500);
         }
 
-        // 解析中文元数据（与 handleImageGeneration 相同）
-        $chineseDesc   = '';
-        $chineseAlt    = '';
-        $englishPrompt = $rawText;
+        // 统一解析中文图片元数据
+        $meta = $this->parseChineseImageMetadata($rawText, $prompt);
+        $englishPrompt = $meta['english_prompt'];
+        $chineseDesc   = $meta['chinese_desc'];
+        $chineseAlt    = $meta['chinese_alt'];
 
-        // 尝试多种中文标记
-        $zhMarkers = ['【中文图片描述】', '中文图片描述', '图片描述', '图片说明'];
-        $posZh = false;
-        $foundMarker = '';
-        foreach ($zhMarkers as $marker) {
-            $pos = mb_strpos($rawText, $marker, 0, 'utf-8');
-            if ($pos !== false) {
-                $posZh = $pos;
-                $foundMarker = $marker;
-                break;
-            }
-        }
-
-        if ($posZh !== false) {
-            $englishPrompt = trim(mb_substr($rawText, 0, $posZh, 'utf-8'));
-            $metaBlock = mb_substr($rawText, $posZh + mb_strlen($foundMarker, 'utf-8'), null, 'utf-8');
-
-            // 尝试多种格式匹配图片说明
-            $descPatterns = [
-                '/图片说明[：:]\s*\[?([^\]\n]{2,40}?)\]?\s*(?:\n|替代文本|$)/u',
-                '/说明[：:]\s*\[?([^\]\n]{2,40}?)\]?\s*(?:\n|$)/u',
-                '/\[([^\]]{2,40})\]\s*(?:\n|替代文本|$)/u',
-            ];
-            foreach ($descPatterns as $pattern) {
-                if (preg_match($pattern, $metaBlock, $m)) {
-                    $chineseDesc = trim($m[1]);
-                    if (preg_match('/[\x{4e00}-\x{9fa5}]/u', $chineseDesc)) {
-                        break;
-                    }
-                }
-            }
-
-            // 尝试多种格式匹配替代文本
-            $altPatterns = [
-                '/替代文本[：:]\s*\[?([^\]\n]{2,25}?)\]?\s*(?:\n|$)/u',
-                '/替代[：:]\s*\[?([^\]\n]{2,25}?)\]?\s*(?:\n|$)/u',
-            ];
-            foreach ($altPatterns as $pattern) {
-                if (preg_match($pattern, $metaBlock, $m)) {
-                    $chineseAlt = trim($m[1]);
-                    if (preg_match('/[\x{4e00}-\x{9fa5}]/u', $chineseAlt)) {
-                        break;
-                    }
-                }
-            }
-        }
-
-        // 兜底：如果还没提取到中文描述，尝试从整个文本中提取（任何位置）
-        if (!$chineseDesc) {
-            if (preg_match('/图片说明[：:]\s*\[?([^\]\n\[]{2,40}?)\]?\s*(?:\n|$)/u', $rawText, $m)) {
-                $candidate = trim($m[1]);
-                if (preg_match('/[\x{4e00}-\x{9fa5}]/u', $candidate)) {
-                    $chineseDesc = $candidate;
-                }
-            }
-        }
-
-        // 兜底：如果还没提取到替代文本
-        if (!$chineseAlt) {
-            if (preg_match('/替代文本[：:]\s*\[?([^\]\n\[]{2,25}?)\]?\s*(?:\n|$)/u', $rawText, $m)) {
-                $candidate = trim($m[1]);
-                if (preg_match('/[\x{4e00}-\x{9fa5}]/u', $candidate)) {
-                    $chineseAlt = $candidate;
-                }
-            }
-        }
-
-        // 如果描述还没提取到，使用用户原始输入或自动生成
-        if (!$chineseDesc) {
-            if (preg_match('/[\x{4e00}-\x{9fa5}]/u', $prompt)) {
-                $chineseDesc = mb_substr($prompt, 0, 30, 'utf-8');
-            } else {
-                $autoMeta = $this->buildAutoChineseMetadata($rawText);
-                $chineseDesc = $autoMeta['desc'];
-            }
-        }
-
-        // 确保替代文本不为空
-        if (!$chineseAlt && $chineseDesc) {
-            $chineseAlt = mb_substr($chineseDesc, 0, 18, 'utf-8');
-        }
-        
         // DEBUG: 记录解析结果
         if (defined('WP_DEBUG') && WP_DEBUG) {
             error_log('[ZuoAI] handleImage rawText: ' . substr($rawText, 0, 500));
             error_log('[ZuoAI] handleImage parsed: desc=' . $chineseDesc . ', alt=' . $chineseAlt);
         }
-        $englishPrompt = trim(preg_replace('/^【[^】]+】\s*/um', '', $englishPrompt));
 
         // 再用英文提示词调用绘图模型
         try {
@@ -342,99 +332,11 @@ class ContentController extends BaseController
             return $this->error('图片模型未配置，请在后台设置里配置特色图片模型');
         }
 
-        // 解析中文图片元数据（来自 buildImagePrompt 的结构化输出）
-        $chineseDesc   = '';
-        $chineseAlt    = '';
-        $englishPrompt = $rawPrompt;
-
-        // 尝试多种中文标记
-        $zhMarkers = ['【中文图片描述】', '中文图片描述', '图片描述', '图片说明'];
-        $posZh = false;
-        $foundMarker = '';
-        foreach ($zhMarkers as $marker) {
-            $pos = mb_strpos($rawPrompt, $marker, 0, 'utf-8');
-            if ($pos !== false) {
-                $posZh = $pos;
-                $foundMarker = $marker;
-                break;
-            }
-        }
-
-        if ($posZh !== false) {
-            // 有结构化输出：英文提示词在前，中文元数据在标记之后
-            $englishPrompt = trim(mb_substr($rawPrompt, 0, $posZh, 'utf-8'));
-            $metaBlock = mb_substr($rawPrompt, $posZh + mb_strlen($foundMarker, 'utf-8'), null, 'utf-8');
-
-            // 尝试多种格式匹配图片说明
-            $descPatterns = [
-                '/图片说明[：:]\s*\[?([^\]\n]{2,40}?)\]?\s*(?:\n|替代文本|$)/u',
-                '/说明[：:]\s*\[?([^\]\n]{2,40}?)\]?\s*(?:\n|$)/u',
-                '/\[([^\]]{2,40})\]\s*(?:\n|替代文本|$)/u',
-            ];
-            foreach ($descPatterns as $pattern) {
-                if (preg_match($pattern, $metaBlock, $m)) {
-                    $chineseDesc = trim($m[1]);
-                    // 确保提取到的是中文（包含中文字符）
-                    if (preg_match('/[\x{4e00}-\x{9fa5}]/u', $chineseDesc)) {
-                        break;
-                    }
-                }
-            }
-
-            // 尝试多种格式匹配替代文本
-            $altPatterns = [
-                '/替代文本[：:]\s*\[?([^\]\n]{2,25}?)\]?\s*(?:\n|$)/u',
-                '/替代[：:]\s*\[?([^\]\n]{2,25}?)\]?\s*(?:\n|$)/u',
-                '/alt[：:]\s*\[?([^\]\n]{2,25}?)\]?\s*(?:\n|$)/ui',
-            ];
-            foreach ($altPatterns as $pattern) {
-                if (preg_match($pattern, $metaBlock, $m)) {
-                    $chineseAlt = trim($m[1]);
-                    if (preg_match('/[\x{4e00}-\x{9fa5}]/u', $chineseAlt)) {
-                        break;
-                    }
-                }
-            }
-        }
-
-        // 兜底：如果还没提取到中文描述，尝试从整个文本中提取（任何位置）
-        if (!$chineseDesc) {
-            // 尝试匹配 "图片说明：[...]" 格式
-            if (preg_match('/图片说明[：:]\s*\[?([^\]\n\[]{2,40}?)\]?\s*(?:\n|$)/u', $rawPrompt, $m)) {
-                $candidate = trim($m[1]);
-                // 确保是中文
-                if (preg_match('/[\x{4e00}-\x{9fa5}]/u', $candidate)) {
-                    $chineseDesc = $candidate;
-                }
-            }
-        }
-
-        // 兜底：如果还没提取到替代文本，尝试从整个文本中提取
-        if (!$chineseAlt) {
-            if (preg_match('/替代文本[：:]\s*\[?([^\]\n\[]{2,25}?)\]?\s*(?:\n|$)/u', $rawPrompt, $m)) {
-                $candidate = trim($m[1]);
-                if (preg_match('/[\x{4e00}-\x{9fa5}]/u', $candidate)) {
-                    $chineseAlt = $candidate;
-                }
-            }
-        }
-
-        // 如果描述还没提取到，使用用户原始输入或自动生成
-        if (!$chineseDesc) {
-            if (preg_match('/[\x{4e00}-\x{9fa5}]{4,}/u', $content, $m)) {
-                $chineseDesc = mb_substr($m[0], 0, 30, 'utf-8');
-            } else {
-                $autoMeta = $this->buildAutoChineseMetadata($rawPrompt);
-                $chineseDesc = $autoMeta['desc'];
-            }
-        }
-
-        // 确保替代文本不为空
-        if (!$chineseAlt && $chineseDesc) {
-            $chineseAlt = mb_substr($chineseDesc, 0, 18, 'utf-8');
-        }
-        // 清理英文提示词前的标记文字
-        $englishPrompt = trim(preg_replace('/^【[^】]+】\s*/um', '', $englishPrompt));
+        // 统一解析中文图片元数据
+        $meta = $this->parseChineseImageMetadata($rawPrompt);
+        $englishPrompt = $meta['english_prompt'];
+        $chineseDesc   = $meta['chinese_desc'];
+        $chineseAlt    = $meta['chinese_alt'];
 
         // DEBUG: 记录 AI 原始输出和解析结果（仅调试模式）
         if (defined('WP_DEBUG') && WP_DEBUG) {
@@ -464,15 +366,7 @@ class ContentController extends BaseController
                 ]);
             }
         } catch (\Throwable $imgErr) {
-            return $this->success([
-                'content'       => $chineseDesc ?: $englishPrompt,
-                'image_prompt' => $englishPrompt,
-                'chinese_desc' => $chineseDesc,
-                'chinese_alt'  => $chineseAlt,
-                'url'          => '',
-                'error'        => '图片生成失败：' . $imgErr->getMessage(),
-                'model'        => $imgModelId ?: $modelName,
-            ]);
+            return $this->error('图片生成失败：' . $imgErr->getMessage());
         }
 
         return $this->success([
@@ -481,6 +375,116 @@ class ContentController extends BaseController
             'chinese_alt'  => $chineseAlt,
             'url'          => '',
         ]);
+    }
+
+    /**
+     * 统一解析 AI 返回的图片元数据（中文图片描述 + 英文绘图提示词）
+     * 合并 handleImage() 和 handleImageGeneration() 中的两套重复解析逻辑。
+     *
+     * @param string $rawText  AI 返回的原始文本（含英文提示词 + 中文元数据标记）
+     * @param string $userPrompt 用户原始输入（兜底时使用）
+     * @return array { english_prompt, chinese_desc, chinese_alt }
+     */
+    private function parseChineseImageMetadata(string $rawText, string $userPrompt = ''): array
+    {
+        $chineseDesc   = '';
+        $chineseAlt    = '';
+        $englishPrompt = $rawText;
+
+        // 尝试多种中文标记定位元数据区块
+        $zhMarkers = ['【中文图片描述】', '中文图片描述', '图片描述', '图片说明'];
+        $posZh = false;
+        $foundMarker = '';
+        foreach ($zhMarkers as $marker) {
+            $pos = mb_strpos($rawText, $marker, 0, 'utf-8');
+            if ($pos !== false) {
+                $posZh = $pos;
+                $foundMarker = $marker;
+                break;
+            }
+        }
+
+        if ($posZh !== false) {
+            // 有结构化输出：英文提示词在前，中文元数据在标记之后
+            $englishPrompt = trim(mb_substr($rawText, 0, $posZh, 'utf-8'));
+            $metaBlock = mb_substr($rawText, $posZh + mb_strlen($foundMarker, 'utf-8'), null, 'utf-8');
+
+            // 提取图片说明（多种格式兜底）
+            $descPatterns = [
+                '/图片说明[：:]\s*\[?([^\]\n]{2,40}?)\]?\s*(?:\n|替代文本|$)/u',
+                '/说明[：:]\s*\[?([^\]\n]{2,40}?)\]?\s*(?:\n|$)/u',
+                '/\[([^\]]{2,40})\]\s*(?:\n|替代文本|$)/u',
+            ];
+            foreach ($descPatterns as $pattern) {
+                if (preg_match($pattern, $metaBlock, $m)) {
+                    $candidate = trim($m[1]);
+                    if (preg_match('/[\x{4e00}-\x{9fa5}]/u', $candidate)) {
+                        $chineseDesc = $candidate;
+                        break;
+                    }
+                }
+            }
+
+            // 提取替代文本（多种格式兜底）
+            $altPatterns = [
+                '/替代文本[：:]\s*\[?([^\]\n]{2,25}?)\]?\s*(?:\n|$)/u',
+                '/替代[：:]\s*\[?([^\]\n]{2,25}?)\]?\s*(?:\n|$)/u',
+                '/alt[：:]\s*\[?([^\]\n]{2,25}?)\]?\s*(?:\n|$)/ui',
+            ];
+            foreach ($altPatterns as $pattern) {
+                if (preg_match($pattern, $metaBlock, $m)) {
+                    $candidate = trim($m[1]);
+                    if (preg_match('/[\x{4e00}-\x{9fa5}]/u', $candidate)) {
+                        $chineseAlt = $candidate;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 兜底：从全文中扫描图片说明（任意位置）
+        if (!$chineseDesc) {
+            if (preg_match('/图片说明[：:]\s*\[?([^\]\n\[]{2,40}?)\]?\s*(?:\n|$)/u', $rawText, $m)) {
+                $candidate = trim($m[1]);
+                if (preg_match('/[\x{4e00}-\x{9fa5}]/u', $candidate)) {
+                    $chineseDesc = $candidate;
+                }
+            }
+        }
+
+        // 兜底：从全文中扫描替代文本（任意位置）
+        if (!$chineseAlt) {
+            if (preg_match('/替代文本[：:]\s*\[?([^\]\n\[]{2,25}?)\]?\s*(?:\n|$)/u', $rawText, $m)) {
+                $candidate = trim($m[1]);
+                if (preg_match('/[\x{4e00}-\x{9fa5}]/u', $candidate)) {
+                    $chineseAlt = $candidate;
+                }
+            }
+        }
+
+        // 最终兜底：无法解析时使用用户原始输入
+        if (!$chineseDesc) {
+            if (preg_match('/[\x{4e00}-\x{9fa5}]{4,}/u', $userPrompt, $m)) {
+                $chineseDesc = mb_substr($m[0], 0, 30, 'utf-8');
+            } else {
+                $autoMeta = $this->buildAutoChineseMetadata($rawText);
+                $chineseDesc = $autoMeta['desc'];
+            }
+        }
+
+        // 确保替代文本不为空
+        if (!$chineseAlt && $chineseDesc) {
+            $chineseAlt = mb_substr($chineseDesc, 0, 18, 'utf-8');
+        }
+
+        // 清理英文提示词前的标记文字
+        $englishPrompt = trim(preg_replace('/^【[^】]+】\s*/um', '', $englishPrompt));
+
+        return [
+            'english_prompt' => $englishPrompt,
+            'chinese_desc'  => $chineseDesc,
+            'chinese_alt'   => $chineseAlt,
+        ];
     }
 
     private function buildPrompt(string $action, string $content, string $extraPrompt): string
@@ -526,11 +530,14 @@ class ContentController extends BaseController
     private function buildKeywordPrompt(string $content): string
     {
         return "你是一位SEO关键词专家。请为以下文章提取2-4个关键词标签。\n\n提取规则（必须严格遵守）：\n"
-            . "- 每个标签必须是2-6个汉字的完整词汇（如：智能家居、极简设计、衣柜收纳）\n"
-            . "- 必须是文章核心主题词或细分领域词，能准确反映文章讨论的具体内容\n"
-            . "- 不要单个汉字，不要太宽泛的词（如「技术」「方法」「产品」「设计」），不要完整句子\n"
-            . "- 不要品牌名、公司名、日期或无意义词\n"
-            . "- 只输出标签，用中文逗号「，」分隔，不要编号、不要任何前缀或解释\n\n文章内容：\n{$content}";
+            . "- 每个标签必须是含义完整的独立中文名词词组，不能是句子的一部分（如：PHP编程、Web开发、服务器端语言、跨平台特性、语法简洁），不能是主谓宾/偏正短语的一段\n"
+            . "- 禁止输出以下类型的碎片词：\n"
+            . "  * 以结构助词开头/结尾的：的、了、在、和、与、为、于、所、以、而\n"
+            . "  * 句子片段：内容要点、年的服务器端、作为一门诞生、一门编程语言\n"
+            . "  * 说明性标题：内容要点、特点总结、优势分析、方法介绍\n"
+            . "- 必须是文章的核心概念词或领域词（如：智能家居、极简设计、衣柜收纳、Web开发、PHP编程）\n"
+            . "- 不要品牌名、公司名、日期、无意义词、单个汉字\n"
+            . "- 只输出2-4个标签词汇，用中文逗号「，」分隔，不要编号、不要任何前缀或解释，直接输出词汇\n\n文章内容：\n{$content}";
     }
 
     private function buildTitleOptimizePrompt(string $content): string

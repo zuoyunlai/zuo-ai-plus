@@ -31,7 +31,7 @@ class KimiModel extends BaseModel
             $body['thinking'] = ['type' => 'off'];
         }
 
-        $response = $this->request('POST', "{$this->endpoint}/chat/completions", $body);
+        $response = $this->request('POST', "{$this->endpoint}/chat/completions", $body, [], false, $opts);
 
         // 标准 content
         $content = $response['choices'][0]['message']['content'] ?? '';

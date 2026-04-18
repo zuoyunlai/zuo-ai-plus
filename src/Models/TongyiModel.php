@@ -28,7 +28,7 @@ class TongyiModel extends BaseModel
             ],
         ];
 
-        $response = $this->request('POST', "{$this->endpoint}/services/aigc/text-generation/generation", $body);
+        $response = $this->request('POST', "{$this->endpoint}/services/aigc/text-generation/generation", $body, [], false, $opts);
 
         return [
             'content' => $response['output']['text'] ?? '',
@@ -71,7 +71,8 @@ class TongyiModel extends BaseModel
             '720*1280', '1080*1920', '9*16' => '720*1280',
             '1344*960', '3*2'              => '1344*960',
             '960*1344', '2*3'              => '960*1344',
-            '1216*832', '832*1216'         => '1280*720', // 1216/832≈1.46≈3:2，用 1280*720
+            '1216*832'                   => '1344*960', // 1216/832≈1.461，接近 3:2 → 1344*960
+            '832*1216'                  => '960*1344',
             default                         => '1280*720',
         };
     }
@@ -99,7 +100,7 @@ class TongyiModel extends BaseModel
                 'style' => $opts['style'] ?? '<auto>',
                 'quality' => 'high',
             ],
-        ]);
+        ], [], false, $opts);
 
         // 解析新格式: output.choices[0].message.content[0].image
         $imageUrl = $response['output']['choices'][0]['message']['content'][0]['image'] ?? '';

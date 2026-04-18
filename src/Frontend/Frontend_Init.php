@@ -17,17 +17,23 @@ class Frontend_Init
 
     public function enqueueFrontend(): void
     {
-        // 短代码页面也需要加载样式，所以只要不是明确关闭就加载
+        // 聊天功能开启时，加载样式和脚本（不限页面类型）
+        // 浮窗在所有页面渲染，短代码/文章嵌入块在各页面可能出现
         $enabled = \get_option('ai_plus_chat_enabled', '0');
         if ($enabled === '0') return;
 
         \wp_enqueue_style('ai-plus-frontend', AI_PLUS_PLUGIN_URL . 'Assets/css/frontend.css', [], AI_PLUS_VERSION);
-        \wp_enqueue_script('ai-plus-frontend', AI_PLUS_PLUGIN_URL . 'Assets/js/frontend.js', ['jquery'], AI_PLUS_VERSION, true);
+        // marked.js：Markdown → HTML 渲染（CDN，45KB，零依赖）
+        \wp_enqueue_script('marked', 'https://cdn.jsdelivr.net/npm/marked/marked.min.js', [], AI_PLUS_VERSION, true);
+        \wp_enqueue_script('ai-plus-frontend', AI_PLUS_PLUGIN_URL . 'Assets/js/frontend.js', ['jquery', 'marked'], AI_PLUS_VERSION, true);
 
+        $defaultModel = \get_option('ai_plus_default_model', 'minimax');
+        // 统一配置对象：浮窗、短代码、文章嵌入块共用 aiPlusChat
         \wp_localize_script('ai-plus-frontend', 'aiPlusChat', [
             'apiUrl' => \rest_url('ai-plus/v1/'),
-            'nonce' => \wp_create_nonce('wp_rest'),
+            'nonce'  => \wp_create_nonce('wp_rest'),
             'chatEnabled' => $enabled,
+            'defaultModel' => $defaultModel,
         ]);
     }
 
@@ -36,17 +42,24 @@ class Frontend_Init
         if (\get_option('ai_plus_chat_enabled', '0') !== '1') return;
         if (\is_admin()) return;
 
-        $defaultModel = \get_option('ai_plus_default_model', 'zhipu');
-        $models = [
-            'zhipu' => '智谱 GLM',
-            'tongyi' => '阿里通义千问',
-            'minimax' => 'MiniMax',
-            'kimi' => 'Kimi',
-        ];
+        $defaultModel = \get_option('ai_plus_default_model', 'minimax');
+
+        // 文章上下文：浮窗客服需要知道当前在哪个文章页面
+        $articleText = '';
+        if (\is_singular()) {
+            global $post;
+            if ($post) {
+                $articleText = \wp_strip_all_tags($post->post_content ?: '');
+                if (mb_strlen($articleText, 'utf-8') > 8000) {
+                    $articleText = mb_substr($articleText, 0, 8000, 'utf-8') . '...[内容截断]';
+                }
+            }
+        }
         ?>
         <div id="ai-plus-chat-btn" onclick="toggleAiChat()">💬</div>
 
         <div id="ai-plus-chat-window" style="display:none;">
+            <input type="hidden" id="ai-chat-article-context" value="<?php echo \esc_attr($articleText); ?>">
             <div class="ai-chat-header">
                 <span>AI 客服</span>
                 <button onclick="toggleAiChat()" style="margin-left:auto;background:none;border:none;color:#fff;cursor:pointer;font-size:16px;">✕</button>
@@ -62,7 +75,7 @@ class Frontend_Init
 
     public function shortcodeChat($atts): string
     {
-        $defaultModel = \get_option('ai_plus_default_model', 'zhipu');
+        $defaultModel = \get_option('ai_plus_default_model', 'minimax');
         $atts = \shortcode_atts(['model' => $defaultModel], $atts);
         $model = \sanitize_text_field($atts['model']);
 

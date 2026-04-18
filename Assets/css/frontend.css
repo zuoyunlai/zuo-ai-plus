@@ -112,3 +112,36 @@
 .ai-plus-embed-chat .ai-chat-messages {
     min-height: 300px;
 }
+
+/* Markdown 渲染样式（浮窗 + 嵌入聊天） */
+.ai-chat-msg.assistant strong { font-weight: 600; }
+.ai-chat-msg.assistant code {
+    background: rgba(0,0,0,0.08);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.9em;
+}
+.ai-chat-msg.assistant pre {
+    background: rgba(0,0,0,0.08);
+    padding: 10px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 13px;
+    margin: 6px 0;
+}
+.ai-chat-msg.assistant a {
+    color: #2271b1;
+    text-decoration: underline;
+}
+.ai-chat-msg.assistant ul, .ai-chat-msg.assistant ol {
+    margin: 6px 0 6px 20px;
+    padding-left: 4px;
+}
+.ai-chat-msg.assistant li { margin-bottom: 3px; }
+.ai-chat-msg.assistant blockquote {
+    border-left: 3px solid #ccc;
+    margin: 6px 0;
+    padding-left: 10px;
+    color: #666;
+}

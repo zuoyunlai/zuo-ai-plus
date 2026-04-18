@@ -94,21 +94,31 @@ add_filter('the_content', function ($content) {
     $blocks = parse_blocks($post->post_content);
     $chat_html = '';
 
+    // 文章正文（WordPress 已应用 the_content 过滤器，HTML 已处理）
+    // 剥去所有 HTML 标签保留纯文本，限制长度防超限
+    $articleText = wp_strip_all_tags($content);
+    // esc_attr() 对超长字符串有内部缓冲区限制，截断到 4000 字符确保安全
+    if (mb_strlen($articleText, 'utf-8') > 4000) {
+        $articleText = mb_substr($articleText, 0, 4000, 'utf-8') . '...[内容截断]';
+    }
+
     foreach ($blocks as $block) {
         if (($block['blockName'] ?? '') !== 'ai-plus/chat') {
             continue;
         }
 
         $title    = esc_html($block['attrs']['title'] ?? 'AI 助手');
-        $model    = esc_attr($block['attrs']['model'] ?? 'zhipu');
+        $model    = esc_attr($block['attrs']['model'] ?? 'minimax');
         $messages = $block['attrs']['messages'] ?? [];
 
-        $chat_html .= '<div class="ai-plus-chat-rendered" data-model="' . $model . '" style="border:1px solid #dcdcde;border-radius:4px;padding:16px;margin:16px 0;background:#fff;max-width:700px;">';
-        $chat_html .= '<div style="font-weight:bold;margin-bottom:12px;font-size:15px;">' . $title . '</div>';
-        $chat_html .= '<div class="ai-plus-chat-messages" style="max-height:300px;overflow-y:auto;margin-bottom:12px;">';
+        $chat_html .= '<div class="ai-plus-chat-rendered" data-model="' . $model . '" style="border:1px solid #e5e7eb;border-radius:12px;padding:24px;margin:24px auto;background:#fff;max-width:700px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">';
+        // 用隐藏 input 而非 data 属性：避免 HTML 转义破坏文章内容
+        $chat_html .= '<input type="hidden" class="ai-article-context-val" value="' . esc_attr($articleText) . '">';
+        $chat_html .= '<div style="font-weight:600;margin-bottom:16px;font-size:16px;color:#1a1a1a;border-bottom:2px solid #f0f0f0;padding-bottom:12px;">' . $title . '</div>';
+        $chat_html .= '<div class="ai-plus-chat-messages" style="max-height:400px;overflow-y:auto;margin-bottom:16px;padding:12px;background:#f9fafb;border-radius:8px;">';
 
         if (empty($messages)) {
-            $chat_html .= '<p style="color:#999;font-size:13px;">开始对话吧...</p>';
+            $chat_html .= '<p style="color:#9ca3af;font-size:14px;text-align:center;padding:40px 0;">开始对话吧...</p>';
         } else {
             foreach ($messages as $m) {
                 $role   = ($m['role'] ?? '') === 'user' ? 'user' : 'assistant';
@@ -116,14 +126,14 @@ add_filter('the_content', function ($content) {
                 $bg     = $role === 'user' ? '#e7f3ff' : '#f5f5f5';
                 $border = $role === 'user' ? '#b3d7ff' : '#e0e0e0';
                 $align  = $role === 'user' ? 'right' : 'left';
-                $chat_html .= '<div style="margin-bottom:8px;padding:8px 12px;border-radius:8px;background:' . $bg . ';border:1px solid ' . $border . ';font-size:14px;line-height:1.6;text-align:' . $align . ';">' . nl2br($text) . '</div>';
+                $chat_html .= '<div style="margin-bottom:12px;padding:12px 16px;border-radius:12px;background:' . $bg . ';border:1px solid ' . $border . ';font-size:14px;line-height:1.6;box-shadow:0 1px 2px rgba(0,0,0,0.05);">' . nl2br($text) . '</div>';
             }
         }
 
         $chat_html .= '</div>';
         $chat_html .= '<div style="display:flex;gap:8px;align-items:flex-end;">';
-        $chat_html .= '<textarea class="ai-plus-chat-input" rows="2" placeholder="输入消息... (Enter发送，Shift+Enter换行)" style="flex:1;resize:none;font-size:14px;padding:8px;border:1px solid #dcdcde;border-radius:4px;"></textarea>';
-        $chat_html .= '<button class="ai-plus-chat-send" style="padding:8px 16px;background:#2271b1;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:14px;white-space:nowrap;">发送</button>';
+        $chat_html .= '<textarea class="ai-plus-chat-input" rows="2" placeholder="输入消息... (Enter发送，Shift+Enter换行)" style="flex:1;resize:none;font-size:14px;padding:12px 16px;border:1px solid #dcdcde;border-radius:8px;box-shadow:inset 0 1px 2px rgba(0,0,0,0.05);transition:border-color 0.2s;"></textarea>';
+        $chat_html .= '<button class="ai-plus-chat-send" style="padding:12px 20px;background:#2271b1;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;white-space:nowrap;font-weight:500;box-shadow:0 2px 4px rgba(0,0,0,0.1);transition:all 0.2s;">发送</button>';
         $chat_html .= '<span class="ai-plus-chat-loading" style="display:none;color:#999;">⏳</span>';
         $chat_html .= '</div></div>';
     }
@@ -131,49 +141,23 @@ add_filter('the_content', function ($content) {
     return $content . $chat_html;
 });
 
-// ── 前端聊天交互脚本 ────────────────────────────────────────────────────────
-add_action('wp_enqueue_scripts', function () {
-    if (!is_singular()) {
-        return;
-    }
-    wp_enqueue_script(
-        'ai-plus-frontend-chat',
-        AI_PLUS_PLUGIN_URL . 'Assets/js/frontend-chat.js',
-        ['jquery'],
-        AI_PLUS_VERSION,
-        true
-    );
-    wp_localize_script('ai-plus-frontend-chat', 'aiPlusConfig', [
-        'apiUrl' => rest_url('ai-plus/v1/'),
-        'nonce'  => wp_create_nonce('wp_rest'),
-    ]);
-});
+// ── 前端聊天交互脚本（已迁移到 Frontend_Init 统一管理）────────────────────
+// 注意：浮窗和所有聊天功能现在统一由 src/Frontend/Frontend_Init.php 加载 frontend.js
+// 这里不再重复注册，避免脚本重复加载或条件不一致
 
 // ── 定时清理过期缓存 ─────────────────────────────────────────────────────────
 add_action('ai_plus_cleanup_cache', function () {
     global $wpdb;
-    
-    // 清理过期的 transient（WordPress 的 set_transient 会在过期后自动删除，
-    // 但这里定期清理可以优化数据库空间）
-    $time = time();
-    $prefix = $wpdb->esc_like('_transient_ai_cache_') . '%';
-    $timeout_prefix = $wpdb->esc_like('_transient_timeout_ai_cache_') . '%';
-    
-    // 删除已过期的 transient timeout 记录
-    $wpdb->query($wpdb->prepare(
-        "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s AND option_value < %d",
-        $timeout_prefix,
-        $time
-    ));
-    
-    // 删除孤立的 transient 值（没有对应 timeout 的记录）
-    $wpdb->query($wpdb->prepare(
-        "DELETE o FROM {$wpdb->options} o 
-         LEFT JOIN {$wpdb->options} t ON t.option_name = CONCAT('_transient_timeout_', SUBSTRING(o.option_name, 12))
-         WHERE o.option_name LIKE %s AND t.option_id IS NULL",
-        $prefix
-    ));
-    
+
+    // 直接删除所有 AI 缓存 transient（不依赖 timeout 比对，
+    // WordPress 会自动清理已过期的 transient，这里主动清释放数据库空间）
+    $prefix = $wpdb->esc_like('_transient_ai_cache_');
+    // 使用 $wpdb::esc_like 已处理，直接拼接入 SQL（prefix 无用户输入）
+    // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- LIKE pattern is safe (no user input)
+    $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '{$prefix}%'");
+    // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+    $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_timeout_{$prefix}%'");
+
     // 清理 alloptions 缓存
     wp_cache_delete('alloptions', 'options');
     

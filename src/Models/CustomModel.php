@@ -75,10 +75,19 @@ class CustomModel extends BaseModel
 
     public function chat(array $messages, array $opts = []): array
     {
-        return $this->request('POST', '/chat/completions', [
+        $response = $this->request('POST', '/chat/completions', [
             'model'    => $this->modelId,
             'messages' => $messages,
-        ]);
+        ], [], false, $opts);
+
+        // 兼容 OpenAI 格式：choices[0].message.content
+        $content = $response['choices'][0]['message']['content'] ?? '';
+        // 部分代理（如 SiliconFlow）使用 data[0].text
+        if (!$content) {
+            $content = $response['data'][0]['text'] ?? '';
+        }
+
+        return ['content' => $content];
     }
 
     public function completion(string $prompt, array $opts = []): array
@@ -131,7 +140,7 @@ class CustomModel extends BaseModel
             'size' => $normalized,
         ];
 
-        $response = $this->request('POST', '/images/generations', $body);
+        $response = $this->request('POST', '/images/generations', $body, [], false, $opts);
 
         // OpenAI 格式: data[0].url
         $url = $response['data'][0]['url'] ?? '';

@@ -118,11 +118,14 @@ function require_login(): void {
 
 // 保存文章内容 - 需要编辑权限
 add_action('wp_ajax_ai_plus_save_content', function () {
-    if (!\is_user_logged_in()) {
-        $nonce = isset($_POST['nonce']) ? sanitize_text_field(wp_unslash($_POST['nonce'])) : (isset($_POST['rest_nonce']) ? sanitize_text_field(wp_unslash($_POST['rest_nonce'])) : '');
+    // nonce 验证：有 nonce 时必须验证，未提供 nonce 且已登录时放行（WordPress 负责登录验证）
+    $nonce = isset($_POST['nonce']) ? sanitize_text_field(wp_unslash($_POST['nonce'])) : (isset($_POST['rest_nonce']) ? sanitize_text_field(wp_unslash($_POST['rest_nonce'])) : '');
+    if ($nonce !== '') {
         if (!\wp_verify_nonce($nonce, 'wp_rest') && !\wp_verify_nonce($nonce, 'ai_plus_nonce')) {
             \wp_send_json_error(['message' => 'Unauthorized'], 401);
         }
+    } elseif (!\is_user_logged_in()) {
+        \wp_send_json_error(['message' => 'Unauthorized'], 401);
     }
     // 检查编辑权限
     $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
@@ -320,7 +323,10 @@ add_action('wp_ajax_ai_plus_save_license_key', function () {
     }
     global $wpdb;
     $prefix = '_transient_ai_cache_';
-    $deleted = $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '" . esc_sql($wpdb->esc_like($prefix)) . "%'");
+    $deleted = $wpdb->query($wpdb->prepare(
+        "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
+        $wpdb->esc_like($prefix) . '%'
+    ));
     wp_cache_delete('alloptions', 'options');
     \wp_send_json_success(['message' => '已清除 ' . intval($deleted) . ' 条缓存记录']);
 });

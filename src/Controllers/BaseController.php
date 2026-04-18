@@ -100,11 +100,14 @@ abstract class BaseController
         global $wpdb;
         $table = $wpdb->prefix . 'ai_plus_history';
 
-        // 检查表是否存在
-        $tableExists = $wpdb->get_var($wpdb->prepare(
-            "SHOW TABLES LIKE %s",
-            $table
-        )) === $table;
+        // 检查表是否存在（static 缓存，避免每次操作都查 SHOW TABLES）
+        static $tableExists = null;
+        if ($tableExists === null) {
+            $tableExists = (bool) $wpdb->get_var($wpdb->prepare(
+                "SHOW TABLES LIKE %s",
+                $table
+            ));
+        }
 
         if (!$tableExists) {
             return; // 表不存在时静默返回

@@ -128,7 +128,7 @@ class UtilityController extends BaseController
 
         $text = $title ?: mb_substr($content, 0, 100);
         $slug = $this->generateSlug($text);
-        $slug = $this->sanitizeSlug($slug, '');
+        $slug = $this->sanitizeSlug($slug);
 
         return $this->success(['slug' => $slug]);
     }
@@ -202,22 +202,38 @@ class UtilityController extends BaseController
 
     public function handleTagsSave(\WP_REST_Request $request): \WP_REST_Response
     {
-        $post_id = intval($request->get_param('post_id') ?: 0);
+        $post_id  = intval($request->get_param('post_id') ?: 0);
+        $tags_raw = $request->get_param('tags') ?: '';
+        error_log('[ZuoAI] handleTagsSave post_id=' . $post_id . ' tags_len=' . mb_strlen($tags_raw, 'utf-8'));
+
         if (!$post_id) {
             return $this->error('无法获取文章ID');
         }
 
         $term_ids = $this->resolveTagIds($request);
-        wp_set_object_terms($post_id, $term_ids, 'post_tag');
+        error_log('[ZuoAI] resolveTagIds result: ' . json_encode($term_ids));
 
-        // 取回实际写入的标签名（用于前端一致性显示）
+        $post = get_post($post_id);
+        if (!$post) {
+            return $this->error('文章不存在 (ID=' . $post_id . ')');
+        }
+
+        if (empty($term_ids)) {
+            return $this->error('标签解析结果为空（AI 生成的长标签被后端过滤）。已保留原标签，未做任何修改。');
+        }
+
+        $result = wp_set_object_terms($post_id, $term_ids, 'post_tag');
+        if (is_wp_error($result)) {
+            return $this->error('标签保存失败：' . $result->get_error_message());
+        }
+
         $saved_tags = wp_get_post_terms($post_id, 'post_tag', ['fields' => 'names']);
-        $saved_tags = is_array($saved_tags) ? array_slice($saved_tags, 0, 4) : [];
+        $saved_tags  = is_array($saved_tags) ? array_slice($saved_tags, 0, 4) : [];
 
         return $this->success([
-            'success'    => true,
-            'tag_ids'    => $term_ids,
-            'tag_names'  => $saved_tags,
+            'success'   => true,
+            'tag_ids'   => $term_ids,
+            'tag_names' => $saved_tags,
         ]);
     }
 
@@ -495,14 +511,22 @@ class UtilityController extends BaseController
 
     private function parseTags(string $text): array
     {
-        // 使用 mb_split 正确处理中英混合字符串
-        $text = trim($text, "，。、\n");
+        // 直接用 mb_split 分割定界符，trim/preg_replace 均会破坏某些 UTF-8 字符
         $parts = mb_split('[,，、]', $text);
+        if (!is_array($parts) || $parts === ['']) {
+            return [];
+        }
         $tags = array_filter(
             array_map('trim', $parts),
-            fn($tag) => !empty($tag) && mb_strlen($tag, 'utf-8') >= 2 && mb_strlen($tag, 'utf-8') <= 6
+            function ($tag) {
+                $len = mb_strlen($tag, 'utf-8');
+                return !empty($tag)
+                    && $len >= 3
+                    && $len <= 12
+                    && preg_match('/[\x{4e00}-\x{9fa5}]/u', $tag)
+                    && !preg_match('/^[a-zA-Z0-9]+$/', $tag);
+            }
         );
-        // 最多4个标签，每个2-6字
         return array_slice(array_values(array_unique($tags)), 0, 4);
     }
 
@@ -512,41 +536,47 @@ class UtilityController extends BaseController
         $tag_names = $request->get_param('tag_names');
         $tags_raw  = $request->get_param('tags');
 
-        // 处理逗号分隔的字符串，并应用标签过滤标准（2-6字，最多4个）
-        if (empty($tag_names) && !empty($tags_raw)) {
-            if (is_string($tags_raw)) {
-                $tag_names = $this->parseTags($tags_raw);  // 使用 parseTags 过滤
-            } elseif (is_array($tags_raw)) {
-                $tag_names = $this->parseTags(implode(',', $tags_raw));  // 数组转字符串后过滤
+        // 统一转换为待处理名称数组
+        if (!empty($tag_names) && is_array($tag_names)) {
+            // tag_names 数组：逐个过滤再合并
+            $parts = [];
+            foreach ($tag_names as $raw) {
+                $filtered = $this->parseTags(is_string($raw) ? $raw : '');
+                $parts = array_merge($parts, $filtered);
             }
-        } elseif (!empty($tag_names) && is_array($tag_names)) {
-            // 如果已经有 tag_names 数组，也需要过滤
-            $tag_names = $this->parseTags(implode(',', $tag_names));
+            $tag_names = array_slice(array_unique(array_filter($parts)), 0, 4);
+        } elseif (!empty($tags_raw)) {
+            // tags_raw：字符串走 parseTags，数组展平后逐个过滤
+            if (is_string($tags_raw)) {
+                $tag_names = array_slice(array_unique(array_filter($this->parseTags($tags_raw))), 0, 4);
+            } else {
+                $parts = [];
+                foreach (array_filter((array) $tags_raw) as $raw) {
+                    $filtered = $this->parseTags(is_string($raw) ? $raw : '');
+                    $parts = array_merge($parts, $filtered);
+                }
+                $tag_names = array_slice(array_unique(array_filter($parts)), 0, 4);
+            }
         } else {
             $tag_names = [];
         }
 
         $term_ids = [];
+        foreach ($tag_names as $name) {
+            $name = sanitize_text_field(trim($name));
+            if (empty($name)) continue;
 
-        // 处理名称数组
-        if (!empty($tag_names) && is_array($tag_names)) {
-            foreach ($tag_names as $name) {
-                $name = sanitize_text_field(trim($name));
-                if (empty($name)) continue;
-
-                $term = get_term_by('name', $name, 'post_tag');
-                if ($term) {
-                    $term_ids[] = intval($term->term_id);
-                } else {
-                    $new = wp_insert_term($name, 'post_tag');
-                    if (!is_wp_error($new)) {
-                        $term_ids[] = intval($new['term_id']);
-                    }
+            $term = get_term_by('name', $name, 'post_tag');
+            if ($term) {
+                $term_ids[] = intval($term->term_id);
+            } else {
+                $new = wp_insert_term($name, 'post_tag');
+                if (!is_wp_error($new)) {
+                    $term_ids[] = intval($new['term_id']);
                 }
             }
         }
 
-        // 处理ID数组
         if (!empty($tag_ids) && is_array($tag_ids)) {
             $term_ids = array_merge($term_ids, array_map('intval', $tag_ids));
         }

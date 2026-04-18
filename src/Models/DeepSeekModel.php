@@ -21,7 +21,7 @@ class DeepSeekModel extends BaseModel
         $response = $this->request('POST', '/chat/completions', [
             'model'    => $this->modelId,
             'messages' => $messages,
-        ]);
+        ], [], false, $opts);
         return [
             'content' => $response['choices'][0]['message']['content'] ?? '',
             'usage'   => $response['usage'] ?? [],

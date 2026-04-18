@@ -26,7 +26,7 @@ class ZhipuModel extends BaseModel
             'max_tokens' => $opts['max_tokens'] ?? 2048,
         ];
 
-        $response = $this->request('POST', "{$this->endpoint}/chat/completions", $body);
+        $response = $this->request('POST', "{$this->endpoint}/chat/completions", $body, [], false, $opts);
 
         // 推理模型（glm-5 等）：内容在 reasoning_content
         $content = $response['choices'][0]['message']['content'] ?? '';
@@ -92,7 +92,7 @@ class ZhipuModel extends BaseModel
             }
         }
 
-        $response = $this->request('POST', "{$this->endpoint}/images/generations", $body);
+        $response = $this->request('POST', "{$this->endpoint}/images/generations", $body, [], false, $opts);
 
         return [
             'url' => $response['data'][0]['url'] ?? '',

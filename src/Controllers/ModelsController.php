@@ -38,6 +38,13 @@ class ModelsController extends BaseController
             'callback'            => [$this, 'getModelsConfig'],
             'permission_callback' => function () { return $this->canEdit(); },
         ]);
+
+        // 健康检查接口
+        register_rest_route('ai-plus/v1', '/health', [
+            'methods'             => 'GET',
+            'callback'            => [$this, 'healthCheck'],
+            'permission_callback' => '__return_true',
+        ]);
     }
 
     /**
@@ -106,5 +113,51 @@ class ModelsController extends BaseController
     public static function getImageModelId(string $modelId): string
     {
         return self::IMAGE_MODELS[$modelId] ?? '';
+    }
+
+    /**
+     * 健康检查 - 验证 API 连接状态
+     */
+    public function healthCheck(): \WP_REST_Response
+    {
+        $apiKeys = (array) get_option('ai_plus_api_keys', []);
+        $results = [];
+        $allHealthy = true;
+
+        foreach (self::MODELS_CONFIG as $id => $config) {
+            $cfg = $apiKeys[$id] ?? [];
+            $apiKey = is_array($cfg) ? ($cfg['api_key'] ?? '') : ($cfg ?? '');
+            $hasKey = !empty($apiKey);
+
+            $results[$id] = [
+                'name'     => $config['name'],
+                'enabled'  => $hasKey,
+                'status'   => $hasKey ? 'configured' : 'not_configured',
+            ];
+
+            if (!$hasKey) {
+                $allHealthy = false;
+            }
+        }
+
+        // 检查数据库连接
+        global $wpdb;
+        $dbOk = true;
+        try {
+            $wpdb->get_var('SELECT 1');
+        } catch (\Exception $e) {
+            $dbOk = false;
+            $allHealthy = false;
+        }
+
+        $status = [
+            'status'    => $allHealthy ? 'healthy' : 'degraded',
+            'timestamp' => current_time('mysql'),
+            'models'    => $results,
+            'database'  => $dbOk ? 'ok' : 'error',
+            'version'   => AI_PLUS_VERSION,
+        ];
+
+        return $this->success($status);
     }
 }

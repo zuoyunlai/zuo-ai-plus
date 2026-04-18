@@ -26,7 +26,7 @@ class MiniMaxModel extends BaseModel
             'max_tokens' => $opts['max_tokens'] ?? 2048,
         ];
 
-        $response = $this->request('POST', "{$this->endpoint}/text/chatcompletion_v2", $body);
+        $response = $this->request('POST', "{$this->endpoint}/text/chatcompletion_v2", $body, [], false, $opts);
 
         // 优先取 content
         $text = $response['content'] ?? '';
@@ -87,26 +87,11 @@ class MiniMaxModel extends BaseModel
             'prompt_optimizer' => true,
         ];
 
-        $headers = [
+        // 图片生成结果不应缓存（prompt 相同也会因时间戳等因素不同），直接请求
+        $body_resp = $this->request('POST', "{$this->endpoint}/text2image/imagegeneration", $body, [
             'Content-Type'  => 'application/json',
             'Authorization' => 'Bearer ' . $this->apiKey,
-        ];
-
-        $args = [
-            'method'  => 'POST',
-            'headers' => $headers,
-            'body'    => json_encode($body),
-            'timeout' => 120,
-        ];
-
-        $response = wp_remote_request("{$this->endpoint}/text2imageimagegeneration", $args);
-        $code = wp_remote_retrieve_response_code($response);
-        $body_resp = json_decode(wp_remote_retrieve_body($response), true);
-
-        if ($code !== 200) {
-            $msg = $body_resp['base_resp']['status_msg'] ?? $body_resp['error']['message'] ?? ('HTTP ' . $code);
-            throw new \Exception('API错误 (' . $code . '): ' . $msg);
-        }
+        ], true, $opts);
 
         // 解析图片 URL：优先取 data[0].url，若返回 AIGC 合规元数据（含 AIGC 节点）则取 data[0].AIGC.url
         $data0 = $body_resp['data'][0] ?? [];

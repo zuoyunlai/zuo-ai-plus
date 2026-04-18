@@ -10,7 +10,7 @@
         el.textContent = text;
         container.appendChild(el);
         container.scrollTop = container.scrollHeight;
-        // assistant 消息加辅助按钮（Playground 环境）
+        // assistant 消息加辅助按钮(Playground 环境)
         if (role === 'assistant' && text) {
             var btnRow = document.createElement('div');
             btnRow.style.cssText = 'margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;';
@@ -38,7 +38,7 @@
             };
             btnRow.appendChild(copyBtn);
 
-            // 保存到文章草稿按钮（自动 markdown→HTML）
+            // 保存到文章草稿按钮(自动 markdown→HTML)
             var draftBtn = document.createElement('button');
             draftBtn.className = 'button button-small button-primary';
             draftBtn.style.cssText = 'font-size:12px;padding:2px 8px;height:auto;';
@@ -171,7 +171,7 @@
 
             imgBtn.disabled = true;
             imgBtn.textContent = '生成中...';
-            imgResult.innerHTML = '<div class="ai-msg loading">正在生成图片，请稍候（通常10-30秒）...</div>';
+            imgResult.innerHTML = '<div class="ai-msg loading">正在生成图片,请稍候(通常10-30秒)...</div>';
 
             fetch(aiPlusAdmin.apiUrl + 'generate', {
                 method: 'POST',
@@ -193,7 +193,7 @@
                     if (data.chinese_alt) addMsg(imgResult, '替代文本: ' + data.chinese_alt, 'assistant');
                     addImage(imgResult, data.url);
 
-                    // 保存到媒体库按钮（admin.js 用原生 DOM，aiPlusAdmin.nonce 来自 wp_localize_script）
+                    // 保存到媒体库按钮(admin.js 用原生 DOM,aiPlusAdmin.nonce 来自 wp_localize_script)
                     var saveBtn = document.createElement('button');
                     saveBtn.className = 'button';
                     saveBtn.style.cssText = 'font-size:12px;padding:4px 12px;height:auto;';
@@ -208,16 +208,16 @@
                                 var filename = 'ai-plus-' + Date.now() + '.png';
                                 var fd = new FormData();
                                 fd.append('file', blob, filename);
-                                // 标题：取中文图片说明的前80字符
+                                // 标题:取中文图片说明的前80字符
                                 var titleVal = (data.chinese_desc || data.content || prompt || filename).slice(0, 80);
                                 fd.append('title', titleVal);
-                                // 替代文本（alt）：中文 alt，不再使用英文 prompt
+                                // 替代文本(alt):中文 alt,不再使用英文 prompt
                                 var altText = (data.chinese_alt || data.chinese_desc || '').slice(0, 100);
                                 if (altText) fd.append('alt_text', altText);
-                                // 说明文字（description → post_content）：中文描述
+                                // 说明文字(description → post_content):中文描述
                                 var descText = (data.chinese_desc || data.content || '');
                                 if (descText) fd.append('description', descText);
-                                // 摘要（caption → post_excerpt）：中文 alt 摘要
+                                // 摘要(caption → post_excerpt):中文 alt 摘要
                                 if (altText) fd.append('caption', altText);
                                 return fetch('/wp-json/wp/v2/media', {
                                     method: 'POST',
@@ -231,7 +231,7 @@
                                 btn.disabled = true;
                                 var src = media.source_url || (media.guid && media.guid.rendered) || '';
                                 var openUrl = media.link || src;
-                                addMsg(imgResult, '已保存到媒体库: ' + (openUrl ? '“ + openUrl + ”' : src), 'assistant');
+                                addMsg(imgResult, '已保存到媒体库: "' + openUrl + '"', 'assistant');
                             })
                             .catch(function(err) {
                                 btn.textContent = '保存失败';
@@ -249,7 +249,7 @@
                 } else if (data.error) {
                     addMsg(imgResult, '错误: ' + data.error, 'assistant');
                 } else {
-                    addMsg(imgResult, '未返回图片，请检查模型是否支持图像生成', 'assistant');
+                    addMsg(imgResult, '未返回图片,请检查模型是否支持图像生成', 'assistant');
                 }
             })
             .catch(function (err) {

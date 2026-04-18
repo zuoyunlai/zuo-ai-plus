@@ -30,58 +30,69 @@ abstract class BaseModel
     /**
      * 根据请求内容智能判断缓存TTL
      * 不同操作类型使用不同的缓存时间
+     *
+     * @param array $opts  调用方传入的选项（含 post_id、content_hash 等元数据）
+     * @param array $body  调用方实际发给 API 的请求体（用于提取 prompt 等信息）
      */
-    protected function getCacheTtl(array $body): int
+    protected function getCacheTtl(array $opts, array $body = []): int
     {
+        // 优先从 opts（调用方元数据）取 post_id
+        $postId = $opts['post_id'] ?? null;
+
         // 从请求体中检测操作类型
         $model = $body['model'] ?? '';
         $messages = $body['messages'] ?? [];
         $prompt = '';
-        
+
         // 提取提示词内容用于判断操作类型
         if (!empty($messages) && is_array($messages)) {
             $lastMessage = end($messages);
             $prompt = $lastMessage['content'] ?? '';
         }
-        
+
         // 根据模型和提示词判断操作类型
         // 图片生成：缓存7天（结果稳定，重复请求多）
-        if (strpos($model, 'image') !== false || 
+        if (strpos($model, 'image') !== false ||
             strpos($model, 'cogview') !== false ||
             strpos($prompt, '图片') !== false) {
             return 604800; // 7天
         }
-        
+
         // Slug/别名生成：不缓存（每篇文章不同）
-        if (strpos($prompt, 'slug') !== false || 
+        if (strpos($prompt, 'slug') !== false ||
             strpos($prompt, '别名') !== false) {
             return 0; // 不缓存
         }
-        
+
         // 关键词提取：缓存1小时
-        if (strpos($prompt, '关键词') !== false || 
+        if (strpos($prompt, '关键词') !== false ||
             strpos($prompt, '标签') !== false) {
             return 3600; // 1小时
         }
-        
+
         // 摘要生成：缓存24小时
-        if (strpos($prompt, '摘要') !== false || 
+        if (strpos($prompt, '摘要') !== false ||
             strpos($prompt, 'summarize') !== false) {
             return 86400; // 24小时
         }
-        
+
         // SEO优化：缓存12小时
-        if (strpos($prompt, 'SEO') !== false || 
+        if (strpos($prompt, 'SEO') !== false ||
             strpos($prompt, '优化') !== false) {
             return 43200; // 12小时
         }
-        
+
         // 文章生成：缓存24小时
-        if (strpos($prompt, '撰写') !== false || 
+        if (strpos($prompt, '撰写') !== false ||
             strpos($prompt, '文章') !== false) {
             return 86400; // 24小时
         }
-        
+
+        // SEO 优化请求缓存更长时间（通过 post_id 判断）
+        if (!empty($postId)) {
+            return 43200; // 12小时
+        }
+
         // 默认使用用户设置或1小时
         $defaultTtl = intval(get_option('ai_plus_cache_ttl', 3600));
         return $defaultTtl > 0 ? $defaultTtl : 3600;
@@ -128,7 +139,7 @@ abstract class BaseModel
         return $prompt;
     }
 
-    protected function request(string $method, string $url, array $body = [], array $headers = [], bool $skipCache = false): array
+    protected function request(string $method, string $url, array $body = [], array $headers = [], bool $skipCache = false, array $opts = []): array
     {
         // 如果传入完整URL（https://开头）直接使用；否则拼接待用 baseUrl 或 endpoint
         if (strpos($url, 'http') !== 0) {
@@ -152,13 +163,28 @@ abstract class BaseModel
             $bodyJson = json_encode($body);
         }
 
+        // ── 从 opts 提取缓存元数据（models 通过第六参数传入）─────────────────
+        // 这些信息不会出现在发给 API 的 body 中，但用于本地缓存管理
+        $postId     = $opts['post_id']     ?? $body['post_id']     ?? null;
+        $contentHash = $opts['content_hash'] ?? $body['content_hash'] ?? null;
+        // ─────────────────────────────────────────────────────────────────────
+
         // ── 缓存逻辑（仅缓存成功请求）───────────────────────
         $cacheKey = null;
         if (!$skipCache && $bodyJson && get_option('ai_plus_cache_enabled', true)) {
-            // 改进缓存键：加入模型名、用户ID、URL、请求体，避免冲突
             $modelInBody = is_array($body) ? ($body['model'] ?? $this->modelId) : $this->modelId;
             $userId = get_current_user_id() ?: 0;
-            $cacheKey = 'ai_cache_' . md5($this->name . '|' . $userId . '|' . $modelInBody . '|' . $url . '|' . $bodyJson);
+
+            // 如果有文章ID，使用文章ID+prompt哈希作为缓存键（确保相同文章+相同prompt命中缓存）
+            if ($postId) {
+                $promptHash = md5($bodyJson);
+                $cacheKey = 'ai_cache_' . md5($this->name . '|' . $userId . '|' . $modelInBody . '|' . 'post_' . $postId . '|' . $promptHash);
+            } elseif ($contentHash) {
+                $cacheKey = 'ai_cache_' . md5($this->name . '|' . $userId . '|' . $modelInBody . '|' . 'content_' . $contentHash);
+            } else {
+                $cacheKey = 'ai_cache_' . md5($this->name . '|' . $userId . '|' . $modelInBody . '|' . $url . '|' . $bodyJson);
+            }
+
             $cached = get_transient($cacheKey);
             if ($cached !== false) {
                 $this->logDebug("Cache HIT [{$this->name}] key: " . substr($cacheKey, 0, 20) . '...');
@@ -167,16 +193,17 @@ abstract class BaseModel
         }
         // ─────────────────────────────────────────────────────
 
-        // 请求重试机制（最多2次）
-        $maxRetries = 2;
-        $retryDelay = 1; // 秒
+        // 请求重试机制（指数退避策略）
+        $maxRetries = 3;
+        $baseDelay = 2; // 基础等待时间（秒）
+        $maxDelay = 30; // 最大等待时间
         $lastError = null;
         
         // 记录请求开始时间
         $startTime = microtime(true);
         
         for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
-            $this->logDebug("API Request [{$this->name}] Attempt {$attempt}: {$url}");
+            $this->logDebug("API Request [{$this->name}] Attempt {$attempt}/{$maxRetries}: {$url}");
             
             $response = wp_remote_request($url, $args);
             
@@ -188,17 +215,24 @@ abstract class BaseModel
             
             $lastError = $response->get_error_message();
             // 错误日志始终记录（重要）
-            error_log("AI Plus API Request Failed [{$this->name}] Attempt {$attempt}: {$lastError}");
-            $isTimeout = stripos($lastError, 'timeout') !== false || stripos($lastError, 'timed out') !== false;
+            error_log("AI Plus API Request Failed [{$this->name}] Attempt {$attempt}/{$maxRetries}: {$lastError}");
             
-            // 如果是超时错误且还有重试次数，等待后重试
-            if ($isTimeout && $attempt < $maxRetries) {
-                $this->logDebug("API Request Retrying [{$this->name}] after {$retryDelay}s...");
-                sleep($retryDelay);
+            // 判断是否可重试的错误类型
+            $isRetryable = $this->isRetryableError($lastError);
+            
+            // 如果是可重试错误且还有重试次数，使用指数退避等待
+            if ($isRetryable && $attempt < $maxRetries) {
+                // 指数退避: 2, 4, 8 秒（最多30秒）
+                $delay = min($baseDelay * pow(2, $attempt - 1), $maxDelay);
+                $jitter = rand(0, 1000) / 1000; // 添加随机抖动
+                $waitTime = $delay + $jitter;
+                
+                $this->logDebug("API Request Retrying [{$this->name}] after {$waitTime}s (exponential backoff)...");
+                usleep((int)($waitTime * 1000000));
                 continue;
             }
             
-            // 非超时错误或已用完重试次数
+            // 不可重试错误或已用完重试次数
             break;
         }
 
@@ -227,8 +261,10 @@ abstract class BaseModel
         }
 
         // 缓存成功响应
+        // 从请求体（含 prompt）判断 TTL，不用 API 响应体
         if ($cacheKey) {
-            $ttl = $this->getCacheTtl($body);
+            $reqBody = !empty($args['body']) ? json_decode($args['body'], true) : [];
+            $ttl = $this->getCacheTtl($opts, $reqBody);
             if ($ttl > 0) {
                 set_transient($cacheKey, $body, $ttl);
                 $this->logDebug("Cache SET [{$this->name}] key: " . substr($cacheKey, 0, 20) . "..., TTL: {$ttl}s");
@@ -267,5 +303,54 @@ abstract class BaseModel
     public function getModelId(): string
     {
         return $this->modelId;
+    }
+
+    /**
+     * 清除特定文章的缓存（使用文章ID）
+     */
+    public function flushPostCache(int $postId, ?string $modelId = null): void
+    {
+        global $wpdb;
+        $modelId = $modelId ?? $this->modelId;
+        $userId = get_current_user_id() ?: 0;
+
+        // 方案A：清除该文章所有变体的缓存键（精确 key + 前缀扫描）
+        // 1. 精确 key（无 promptHash 的旧缓存）
+        $exactKey = 'ai_cache_' . md5($this->name . '|' . $userId . '|' . $modelId . '|' . 'post_' . $postId);
+        delete_transient($exactKey);
+        $this->logDebug("Cache FLUSH [{$this->name}] exact key: " . substr($exactKey, 0, 30) . '...');
+
+        // 2. 批量扫描：删除所有含 "post_{$postId}" 的缓存键
+        // 注意：缓存 key 结构为 ai_cache_{md5串}，post ID 藏在 md5 哈希里，
+        //       所以此处只能按前缀扫描 WordPress options 表中含 _transient_ai_cache_ 的记录
+        $prefix = '_transient_ai_cache_';
+        $like = $wpdb->esc_like($prefix) . '%';
+        $deleted = $wpdb->query($wpdb->prepare(
+            "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
+            $like
+        ));
+        $this->logDebug("Cache FLUSH [{$this->name}] post_{$postId} variants: {$deleted} rows deleted");
+    }
+
+    protected function isRetryableError(string $error): bool
+    {
+        $retryablePatterns = [
+            'timeout', 'timed out', '超时',
+            'connection', '连接',
+            'network', '网络',
+            'temporarily unavailable', '暂时不可用',
+            '429', 'rate limit',
+            '500', '502', '503', '504',
+            'cURL error 28', 'cURL error 7',
+        ];
+        
+        $errorLower = strtolower($error);
+        foreach ($retryablePatterns as $pattern) {
+            if (stripos($errorLower, $pattern) !== false) {
+                return true;
+            }
+        }
+        
+        return false;
     }
 }
