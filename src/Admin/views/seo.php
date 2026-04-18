@@ -540,13 +540,17 @@ table.seo-table {width:100%;border-collapse:collapse;font-size:13px;}
                 } else if (result && !result.error) {
                     log('文章 #' + id + ' 优化成功！新得分 ' + (result.score ?? 'N/A'), 'ok');
                     
-                    // 更新标签显示
+                    // 更新标签显示（AI 返回内容做 HTML 转义，防止标签含特殊字符导致渲染异常）
                     if (result.new_tags && Array.isArray(result.new_tags)) {
                         const tagList = document.querySelector(`tr[data-post-id="${id}"] .tag-list`);
                         if (tagList) {
-                            tagList.innerHTML = result.new_tags.map(tag => 
-                                `<span class="tag-chip">${tag}</span>`
-                            ).join('');
+                            // 使用 textContent 安全注入，避免 innerHTML XSS
+                            tagList.textContent = result.new_tags.join('，');
+                            // 仍然用 innerHTML 渲染为标签块（对已转义文本再次包裹 span）
+                            tagList.innerHTML = result.new_tags.map(function(tag) {
+                                var esc = tag.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+                                return '<span class="tag-chip">' + esc + '</span>';
+                            }).join('');
                             log('标签已更新：' + result.new_tags.join('、'), 'ok');
                         }
                     }

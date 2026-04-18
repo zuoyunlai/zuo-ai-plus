@@ -293,9 +293,11 @@ abstract class BaseModel
      */
     public function flushCache(): void
     {
+        if (!get_option('ai_plus_cache_enabled', true)) {
+            return; // 缓存已禁用，无需清理
+        }
         global $wpdb;
         $prefix = '_transient_ai_cache_';
-        // 使用 esc_like 防止 SQL 注入（虽然 prefix 来自常量，但仍遵循 WPDB 安全规范）
         $like    = $wpdb->esc_like($prefix) . '%';
         $wpdb->query(
             $wpdb->prepare(

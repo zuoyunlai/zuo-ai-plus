@@ -108,7 +108,7 @@ class Admin_Init
         if ($old && !\get_option('ai_plus_image_model', '')) {
             \update_option('ai_plus_image_model', $old);
         }
-        \register_setting('ai_plus_settings', 'ai_plus_knowledge_base', ['sanitize_callback' => [$this, 'sanitizeLicenseKey']]);
+        \register_setting('ai_plus_settings', 'ai_plus_knowledge_base', ['sanitize_callback' => function($v){ return sanitize_textarea_field($v); }]);
     \register_setting('ai_plus_settings', 'ai_plus_license_key', ['sanitize_callback' => [$this, 'sanitizeLicenseKey']]);
         \register_setting('ai_plus_settings', 'ai_plus_license_server_url', ['sanitize_callback' => [$this, 'sanitizeLicenseUrl']]);
         \register_setting('ai_plus_settings', 'ai_plus_chat_enabled', ['sanitize_callback' => function($v) { return (bool)$v; }]);

@@ -120,6 +120,7 @@ class MiniMaxModel extends BaseModel
 
     public function countTokens(string $text): int
     {
-        return (int) (mb_strlen($text) / 2);
+        // 估算值：中英文混合文本按字符数/2估算，不精确（1个汉字≈2token，英文≈0.75token）
+        return (int) ceil(mb_strlen($text) / 2);
     }
 }
