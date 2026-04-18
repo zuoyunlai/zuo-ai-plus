@@ -607,7 +607,7 @@ table.seo-table {width:100%;border-collapse:collapse;font-size:13px;}
         loading('正在批量优化 ' + checked.length + ' 篇文章...');
         log('开始批量优化 ' + checked.length + ' 篇文章，使用模型：' + model, 'info');
         try {
-            const result = await api('POST', 'seo-optimize-batch', { post_ids: checked, model_name: model });
+            const result = await api('POST', 'seo-optimize-batch', { post_ids: checked, model: model });
             unloaded();
             let ok = 0, fail = 0;
             for (const id of checked) {

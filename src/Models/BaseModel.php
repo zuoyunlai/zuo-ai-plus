@@ -326,6 +326,7 @@ abstract class BaseModel
      */
     public function flushPostCache(int $postId, ?string $modelId = null): void
     {
+        if (!get_option('ai_plus_cache_enabled', true)) { return; }
         global $wpdb;
         // 新缓存 key 结构：ai_cache_post_{$postId}_{hash}
         // post_id 在 key 名中而非哈希里，SQL 可精确匹配

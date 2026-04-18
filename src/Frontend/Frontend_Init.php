@@ -104,7 +104,7 @@ class Frontend_Init
             $options .= '<option value="' . \esc_attr($id) . '"' . $sel . '>' . \esc_html($label) . '</option>';
         }
 
-        $htmlId = 'ai-embed-' . \wp_generate_uuid4();
+        $htmlId = 'ai-embed-' . (function_exists('wp_generate_uuid4') ? \wp_generate_uuid4() : substr(md5(uniqid(rand(), true)), 0, 13));
         return \sprintf(
             '<div class="ai-plus-embed-chat" id="%s" data-model="%s">' .
             '<div class="ai-chat-header"><span>AI 对话</span><select class="embed-model-sel" style="margin-left:auto;font-size:12px;">%s</select></div>' .

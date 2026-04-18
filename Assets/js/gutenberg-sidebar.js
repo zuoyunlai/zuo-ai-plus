@@ -126,8 +126,9 @@
         // replaceMode=true：丢弃原文，直接替换；false（默认）：追加到末尾
         console.log('=== insertContent START ===');
 
-        // 去掉 AI 内容中可能混入的标题
-        newContent = stripTitleFromContent(newContent);
+        // 去掉 AI 内容中可能混入的标题（只在 replaceMode=false 时需要；
+        // replaceMode=true 时先不处理，等判断完再决定，防止误删正文）
+        var strippedContent = newContent;
 
         var realPostId = 0;
         try { realPostId = wp.data.select('core/editor').getEditedPostAttribute('id') || 0; } catch(e) {
@@ -139,10 +140,17 @@
         console.log('insertContent called, postId:', postId, 'realPostId:', realPostId, 'replaceMode:', replaceMode);
 
         // replaceMode=true：直接用新内容（rewrite/expand）；false：追加到现有内容后面
-        var merged;
+        // 对于 replaceMode，stripTitleFromContent 可能把整个内容清空，先处理再判断
         if (replaceMode) {
-            merged = newContent;
-        } else {
+            strippedContent = stripTitleFromContent(strippedContent);
+            merged = strippedContent;
+            // strip 后内容为空时，fallback 到追加模式，防止正文被意外清空
+            if (!merged || !merged.trim()) {
+                replaceMode = false;
+                merged = newContent; // 用原始未 strip 的内容追加
+            }
+        }
+        if (!replaceMode) {
             var current = getCurrentContent();
             merged = current.trim() ? (current + '\n\n' + newContent) : newContent;
         }
