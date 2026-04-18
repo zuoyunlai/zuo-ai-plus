@@ -109,6 +109,7 @@ abstract class BaseModel
     protected function logDebug(string $message): void
     {
         if ($this->isDebugLoggingEnabled()) {
+            // @phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
             error_log("AI Plus: {$message}");
         }
     }
