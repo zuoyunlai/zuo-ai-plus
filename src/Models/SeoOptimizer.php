@@ -78,7 +78,10 @@ class SeoOptimizer
     // ── 诊断单篇文章 ──
     public function auditPost($post, $args = [])
     {
-        $post_id   = $post->ID;
+        if (!is_object($post) || !isset($post->ID)) {
+            return new \WP_Error('invalid_post', '无效的文章对象');
+        }
+        $post_id   = (int) $post->ID;
         $title     = $post->post_title;
         $content   = wp_strip_all_tags($post->post_content);
         $excerpt   = $post->post_excerpt ?: mb_substr($content, 0, 150, 'utf-8');
@@ -751,11 +754,13 @@ class SeoOptimizer
             "SELECT COUNT(pm.post_id) FROM {$wpdb->postmeta} pm JOIN {$wpdb->posts} p ON pm.post_id=p.ID WHERE pm.meta_key=%s AND pm.meta_value='1' AND p.post_status='publish' AND p.post_type='post'",
             self::META_OPTIMIZED
         ));
-        // 清理孤立的 meta 记录（已删除文章的残留数据）
-        $wpdb->query($wpdb->prepare(
-            "DELETE pm FROM {$wpdb->postmeta} pm LEFT JOIN {$wpdb->posts} p ON pm.post_id=p.ID WHERE p.ID IS NULL AND pm.meta_key IN (%s,%s,%s)",
-            self::META_OPTIMIZED, self::META_OPTIMIZED_AT, self::META_SCORE
-        ));
+        // 清理孤立的 meta 记录（已删除文章的残留数据，分批避免长时间锁表）
+        do {
+            $deleted = $wpdb->query($wpdb->prepare(
+                "DELETE pm FROM {$wpdb->postmeta} pm LEFT JOIN {$wpdb->posts} p ON pm.post_id=p.ID WHERE p.ID IS NULL AND pm.meta_key IN (%s,%s,%s) LIMIT 500",
+                self::META_OPTIMIZED, self::META_OPTIMIZED_AT, self::META_SCORE
+            ));
+        } while ($deleted === 500);
         $avg_score = (int) $wpdb->get_var(
             $wpdb->prepare(
                 "SELECT AVG(CAST(meta_value AS SIGNED)) FROM {$wpdb->postmeta} WHERE meta_key=%s",
@@ -802,8 +807,12 @@ class SeoOptimizer
                 ? ['error' => $result->get_error_message()]
                 : $result;
 
-            // 避免 AI 限流
-            usleep(300000); // 300ms
+            // 避免 AI 限流（根据剩余时间动态调整，等待时间过半时减少延迟）
+            $elapsedAfter = microtime(true) - $batchStart;
+            $remaining = max(0, $maxBatchSeconds - $elapsedAfter);
+            // 如果剩余时间不足1/3，减少等待时间（优先完成已开始的请求）
+            $sleep = ($remaining < $maxBatchSeconds / 3) ? 100000 : 300000;
+            usleep((int) $sleep);
         }
 
         return $results;

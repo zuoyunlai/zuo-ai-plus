@@ -211,7 +211,6 @@ class UtilityController extends BaseController
         }
 
         $term_ids = $this->resolveTagIds($request);
-        error_log('[ZuoAI] resolveTagIds result: ' . json_encode($term_ids));
 
         $post = get_post($post_id);
         if (!$post) {
@@ -544,31 +543,10 @@ class UtilityController extends BaseController
         $tag_names = $request->get_param('tag_names');
         $tags_raw  = $request->get_param('tags');
 
-        // 统一转换为待处理名称数组
-        if (!empty($tag_names) && is_array($tag_names)) {
-            // tag_names 数组：逐个过滤再合并
-            $parts = [];
-            foreach ($tag_names as $raw) {
-                $filtered = $this->parseTags(is_string($raw) ? $raw : '');
-                $parts = array_merge($parts, $filtered);
-            }
-            $tag_names = array_slice(array_unique(array_filter($parts)), 0, 4);
-        } elseif (!empty($tags_raw)) {
-            // tags_raw：字符串走 parseTags，数组展平后逐个过滤
-            if (is_string($tags_raw)) {
-                $tag_names = array_slice(array_unique(array_filter($this->parseTags($tags_raw))), 0, 4);
-            } else {
-                $parts = [];
-                foreach (array_filter((array) $tags_raw) as $raw) {
-                    $filtered = $this->parseTags(is_string($raw) ? $raw : '');
-                    $parts = array_merge($parts, $filtered);
-                }
-                $tag_names = array_slice(array_unique(array_filter($parts)), 0, 4);
-            }
-        } else {
-            $tag_names = [];
-        }
+        // 统一转换为标签名称数组（去重，最多4个）
+        $tag_names = $this->normalizeTagNames($tag_names, $tags_raw);
 
+        // 名称 → term_id 转换
         $term_ids = [];
         foreach ($tag_names as $name) {
             $name = sanitize_text_field(trim($name));
@@ -590,5 +568,34 @@ class UtilityController extends BaseController
         }
 
         return array_unique(array_filter($term_ids));
+    }
+
+    /**
+     * 将 tag_names 和 tags_raw 统一规范化为标签名称数组
+     */
+    private function normalizeTagNames($tag_names, $tags_raw): array
+    {
+        if (!empty($tag_names) && is_array($tag_names)) {
+            $parts = [];
+            foreach ($tag_names as $raw) {
+                $filtered = $this->parseTags(is_string($raw) ? $raw : '');
+                $parts = array_merge($parts, $filtered);
+            }
+            return array_slice(array_unique(array_filter($parts)), 0, 4);
+        }
+
+        if (!empty($tags_raw)) {
+            if (is_string($tags_raw)) {
+                return array_slice(array_unique(array_filter($this->parseTags($tags_raw))), 0, 4);
+            }
+            $parts = [];
+            foreach (array_filter((array) $tags_raw) as $raw) {
+                $filtered = $this->parseTags(is_string($raw) ? $raw : '');
+                $parts = array_merge($parts, $filtered);
+            }
+            return array_slice(array_unique(array_filter($parts)), 0, 4);
+        }
+
+        return [];
     }
 }

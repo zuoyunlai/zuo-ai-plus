@@ -74,7 +74,9 @@ class ChatController extends BaseController
             'user_id'    => get_current_user_id(),
             'role'       => 'assistant',
             'message'    => maybe_serialize($messages),
-            'response'   => is_array($result) ? \ZuoAIPlus\Models\Model_Init::extractContent($result) : ($result['content'] ?? $result),
+            'response'   => is_array($result)
+                ? wp_strip_all_tags(\ZuoAIPlus\Models\Model_Init::extractContent($result))
+                : wp_strip_all_tags($result['content'] ?? $result),
             'model'      => $modelName,
             'tokens'     => $result['usage']['total_tokens'] ?? 0,
         ]);
