@@ -232,7 +232,7 @@ abstract class BaseModel
             if ($isRetryable && $attempt < $maxRetries) {
                 // 指数退避: 2, 4, 8 秒（最多30秒）
                 $delay = min($baseDelay * pow(2, $attempt - 1), $maxDelay);
-                $jitter = rand(0, 1000) / 1000; // 添加随机抖动
+                $jitter = wp_rand(0, 1000) / 1000; // 添加随机抖动
                 $waitTime = $delay + $jitter;
                 
                 $this->logDebug("API Request Retrying [{$this->name}] after {$waitTime}s (exponential backoff)...");
@@ -268,7 +268,7 @@ abstract class BaseModel
             // 完整错误记入日志（仅key名，用于排查），对外显示通用提示
             error_log("AI Plus API Error [{$this->name}] HTTP {$code}: " . json_encode(array_keys($body)) . " | msg: " . mb_substr((string)($body['error']['message'] ?? $body['error'] ?? $body['message'] ?? ''), 0, 200));
             $userMsg = !empty($error) && is_string($error)
-                ? ("AI服务返回错误 (" . intval($code) . "): " . esc_html(mb_substr(strip_tags($error), 0, 200)))
+                ? ("AI服务返回错误 (" . intval($code) . "): " . esc_html(mb_substr(wp_strip_all_tags($error), 0, 200)))
                 : ("AI服务返回异常 (" . intval($code) . ")，请稍后重试");
             throw new \Exception($userMsg);
         }

@@ -39,16 +39,22 @@ $optimized_flags = [];
 if ($post_ids) {
     $ids_placeholder = implode(',', array_map('intval', $post_ids));
     $score_rows = $wpdb->get_results(
-        "SELECT post_id, meta_value FROM {$wpdb->postmeta}
-         WHERE post_id IN ($ids_placeholder) AND meta_key='" . SeoOptimizer::META_SCORE . "'",
+        $wpdb->prepare(
+            "SELECT post_id, meta_value FROM {$wpdb->postmeta} WHERE post_id IN ({$ids_placeholder}) AND meta_key = %s",
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- intval-prepared list
+            SeoOptimizer::META_SCORE
+        ),
         ARRAY_A
     );
     foreach ($score_rows as $row) {
         $scores[$row['post_id']] = (int) $row['meta_value'];
     }
     $opt_rows = $wpdb->get_results(
-        "SELECT post_id FROM {$wpdb->postmeta}
-         WHERE post_id IN ($ids_placeholder) AND meta_key='" . SeoOptimizer::META_OPTIMIZED . "' AND meta_value='1'",
+        $wpdb->prepare(
+            "SELECT post_id FROM {$wpdb->postmeta} WHERE post_id IN ({$ids_placeholder}) AND meta_key = %s AND meta_value = '1'",
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- intval-prepared list
+            SeoOptimizer::META_OPTIMIZED
+        ),
         ARRAY_A
     );
     foreach ($opt_rows as $row) {
