@@ -31,6 +31,39 @@ $results     = $wpdb->get_results(
     ARRAY_A
 );
 $total_pages = ceil($total / $per_page);
+
+/**
+ * 从消息字段中解析出可显示的用户消息文本
+ * 兼容：单层serialize数组、双层serialize、原始字符串
+ */
+function extract_user_message($msg_raw) {
+    // 尝试最多解两次（兼容双重序列化）
+    $msg = $msg_raw;
+    for ($i = 0; $i < 2; $i++) {
+        $unserialized = maybe_unserialize($msg);
+        if (!is_array($unserialized)) break;
+        $msg = $unserialized;
+    }
+
+    // 现在 $msg 应该是最终数组
+    if (is_array($msg)) {
+        // 结构1: [{role:'user',content:'xxx'}, ...] — 标准对话格式
+        foreach ($msg as $m) {
+            if (is_array($m) && ($m['role'] ?? '') === 'user') {
+                return $m['content'] ?? '';
+            }
+        }
+        // 结构2: {content: 'xxx'} 或 [['content'=>'xxx']]
+        $first = $msg[0] ?? $msg;
+        if (is_array($first)) {
+            return $first['content'] ?? ($first[0]['content'] ?? '');
+        }
+        return $msg['content'] ?? reset($msg);
+    }
+
+    // 不是数组，直接返回原文
+    return is_string($msg) ? $msg : print_r($msg, true);
+}
 ?>
 
 <div class="wrap">
@@ -54,13 +87,14 @@ $total_pages = ceil($total / $per_page);
             <?php if (empty($results)): ?>
                 <tr><td colspan="7">暂无记录</td></tr>
             <?php else: foreach ($results as $row): ?>
-                <?php $msg = maybe_unserialize($row['message']); ?>
+                <?php $user_msg = extract_user_message($row['message']); ?>
                 <tr>
                     <td><?php echo (int) $row['id']; ?></td>
                     <td><?php echo esc_html(substr($row['session_id'], 0, 16)); ?>…</td>
                     <td><?php echo esc_html($row['model']); ?></td>
-                    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-                        <?php echo esc_html(mb_substr(is_array($msg) ? ($msg['content'] ?? $row['message']) : $row['message'], 0, 50)); ?>
+                    <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                        title="<?php echo esc_attr($user_msg); ?>">
+                        <?php echo esc_html(mb_substr($user_msg, 0, 50)); ?>
                     </td>
                     <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
                         <?php echo esc_html(mb_substr($row['response'] ?? '', 0, 80)); ?>
