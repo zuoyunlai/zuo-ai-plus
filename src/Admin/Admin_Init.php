@@ -62,13 +62,24 @@ class Admin_Init
         );
         $defModel   = \get_option('ai_plus_default_model', 'zhipu');
         // 只传配置状态（是否有 key、是否有 custom 自定义模型），不传实际 key 值
+        // 兼容新旧存储格式：新格式数组 / 旧格式字符串
         $apiKeysRaw = \get_option('ai_plus_api_keys', []);
         $apiKeysConfigured = [];
         foreach ($this->models as $k => $m) {
-            $saved = $apiKeysRaw[$k] ?? [];
+            $saved = $apiKeysRaw[$k] ?? null;
+            // 新格式：数组 ['api_key' => '...', 'model' => '...']
+            if (is_array($saved)) {
+                $hasKey = !empty($saved['api_key']);
+            }
+            // 旧格式：直接是 API key 字符串
+            elseif (is_string($saved)) {
+                $hasKey = !empty($saved);
+            } else {
+                $hasKey = false;
+            }
             $apiKeysConfigured[$k] = [
-                'configured' => !empty($saved['api_key']),
-                'customModel' => !empty($saved['api_key']) ? ($saved['model'] ?? '') : '',
+                'configured' => $hasKey,
+                'customModel' => is_array($saved) ? ($saved['model'] ?? '') : '',
             ];
         }
         \wp_localize_script('ai-plus-gutenberg-sidebar', 'aiPlusConfig', [
@@ -99,7 +110,25 @@ class Admin_Init
 
     public function registerSettings(): void
     {
-        \register_setting('ai_plus_settings', 'ai_plus_api_keys', ['sanitize_callback' => function($v) { return is_array($v) ? $v : []; }]);
+        \register_setting('ai_plus_settings', 'ai_plus_api_keys', ['sanitize_callback' => function($v) {
+            // 兼容新旧存储格式：新格式数组 / 旧格式字符串
+            if (!is_array($v)) return [];
+            $out = [];
+            foreach ($v as $k => $item) {
+                if (is_array($item)) {
+                    $out[$k] = [
+                        'api_key'  => isset($item['api_key']) && is_string($item['api_key']) ? sanitize_text_field($item['api_key']) : '',
+                        'model'    => isset($item['model']) && is_string($item['model']) ? sanitize_text_field($item['model']) : '',
+                        'base_url' => isset($item['base_url']) && is_string($item['base_url']) ? esc_url_raw($item['base_url']) : '',
+                        'image_model' => isset($item['image_model']) && is_string($item['image_model']) ? sanitize_text_field($item['image_model']) : '',
+                    ];
+                } elseif (is_string($item)) {
+                    // 旧格式：直接是 API key 字符串
+                    $out[$k] = sanitize_text_field($item);
+                }
+            }
+            return $out;
+        }]);
         \register_setting('ai_plus_settings', 'ai_plus_default_model', ['sanitize_callback' => function($v) { return sanitize_text_field($v); }]);
         \register_setting('ai_plus_settings', 'ai_plus_image_model', ['sanitize_callback' => function($v) { return sanitize_text_field($v); }]);
         \register_setting('ai_plus_settings', 'ai_plus_image_size', ['sanitize_callback' => function($v) { return sanitize_text_field($v); }]);
