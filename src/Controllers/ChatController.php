@@ -65,6 +65,7 @@ class ChatController extends BaseController
         )) === $table;
 
         if (!$tableExists) {
+            error_log('[ZuoAI] saveChatHistory: table ' . $table . ' does not exist, skipping');
             return; // 表不存在时静默返回，不影响主流程
         }
 

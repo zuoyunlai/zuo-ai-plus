@@ -110,6 +110,7 @@ abstract class BaseController
         }
 
         if (!$tableExists) {
+            error_log('[ZuoAI] logHistory: table ' . $table . ' does not exist, skipping');
             return; // 表不存在时静默返回
         }
 

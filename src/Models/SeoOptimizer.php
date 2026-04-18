@@ -36,9 +36,29 @@ class SeoOptimizer
             'order'         => 'DESC',
         ]);
 
+        // 优化：批量预取所有文章的标签和分类，消除 N+1 查询
+        // 从 2*N 次查询（每篇2次）降为 2 次批量查询
+        $post_ids = array_column($query->posts, 'ID');
+        $allTags = [];
+        $allCats = [];
+        if ($post_ids) {
+            $terms = wp_get_object_terms($post_ids, ['post_tag', 'category'], ['fields' => 'all_with_object_id']);
+            foreach ($terms as $t) {
+                if ($t->taxonomy === 'post_tag') {
+                    $allTags[$t->object_id][] = $t->name;
+                } else {
+                    $allCats[$t->object_id][] = $t->name;
+                }
+            }
+        }
+
         $results = [];
         foreach ($query->posts as $post) {
-            $result = $this->auditPost($post);
+            $terms = [
+                'tags' => $allTags[$post->ID] ?? [],
+                'categories' => $allCats[$post->ID] ?? [],
+            ];
+            $result = $this->auditPost($post, $terms);
             if ($skip_done && get_post_meta($post->ID, self::META_OPTIMIZED, true)) {
                 $result['skipped'] = true;
                 $result['skip_reason'] = '已优化过';
@@ -55,14 +75,15 @@ class SeoOptimizer
     }
 
     // ── 诊断单篇文章 ──
-    public function auditPost($post)
+    public function auditPost($post, $args = [])
     {
         $post_id   = $post->ID;
         $title     = $post->post_title;
         $content   = wp_strip_all_tags($post->post_content);
         $excerpt   = $post->post_excerpt ?: mb_substr($content, 0, 150, 'utf-8');
-        $tags      = wp_get_post_tags($post_id, ['fields' => 'names']);
-        $categories = wp_get_post_terms($post_id, 'category', ['fields' => 'names']);
+        // 优先使用 auditAll 预取的数据，避免 N+1 查询；无预取时按需查询（单个文章时无影响）
+        $tags      = $args['tags'] ?? wp_get_post_tags($post_id, ['fields' => 'names']);
+        $categories = $args['categories'] ?? wp_get_post_terms($post_id, 'category', ['fields' => 'names']);
 
         $title_len = mb_strlen($title, 'utf-8');
         $issues    = [];
@@ -749,7 +770,7 @@ class SeoOptimizer
         ];
     }
 
-    // ── 批量 AI 优化（带进度） ──
+    // ── 批量 AI 优化（带超时保护） ──
     public function batchOptimize($post_ids, $model_name = '')
     {
         if (empty($model_name)) {
@@ -760,12 +781,26 @@ class SeoOptimizer
             return new \WP_Error('model_error', 'AI 模型未配置');
         }
 
+        $maxBatchSeconds = 300; // 整批超时5分钟
+        $batchStart = microtime(true);
         $results = [];
+
         foreach ($post_ids as $post_id) {
+            // 检查整批是否已超时
+            $elapsed = microtime(true) - $batchStart;
+            if ($elapsed >= $maxBatchSeconds) {
+                $results[$post_id] = [
+                    'error' => '整批处理超时（已运行' . round($elapsed) . '秒），剩余文章未处理',
+                    '_timeout' => true,
+                ];
+                break;
+            }
+
             $result = $this->optimizePost((int) $post_id, $model);
             $results[$post_id] = is_wp_error($result)
                 ? ['error' => $result->get_error_message()]
                 : $result;
+
             // 避免 AI 限流
             usleep(300000); // 300ms
         }

@@ -182,12 +182,14 @@ abstract class BaseModel
 
             // 如果有文章ID，使用「可查询」的缓存键结构：post_$postId 前缀在 key 名中（不在哈希里），
             // 这样 flushPostCache() 可以精确删除该文章的缓存而不影响其他文章
+            // 注意：userId 不进入 postId/contentHash 的哈希，因为同一篇文章的相同操作结果应共享缓存
             if ($postId) {
-                $promptHash = md5($this->name . '|' . $userId . '|' . $modelInBody . '|' . $bodyJson);
+                $promptHash = md5($this->name . '|' . $modelInBody . '|' . $bodyJson);
                 $cacheKey = 'ai_cache_post_' . $postId . '_' . $promptHash;
             } elseif ($contentHash) {
-                $cacheKey = 'ai_cache_' . md5($this->name . '|' . $userId . '|' . $modelInBody . '|' . 'content_' . $contentHash);
+                $cacheKey = 'ai_cache_' . md5($this->name . '|' . $modelInBody . '|' . 'content_' . $contentHash);
             } else {
+                // 通用请求缓存（含 userId，避免同一用户内不同 prompt 的请求互相覆盖）
                 $cacheKey = 'ai_cache_' . md5($this->name . '|' . $userId . '|' . $modelInBody . '|' . $url . '|' . $bodyJson);
             }
 
