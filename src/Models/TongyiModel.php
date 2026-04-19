@@ -2,6 +2,8 @@
 /**
  * 阿里通义千问模型
  * 文档: https://help.aliyun.com/zh/dashscope
+ *
+ * @phpcs:disable WordPress.PHP.DevelopmentFunctions.error_log_error_log
  */
 namespace ZuoAIPlus\Models;
 

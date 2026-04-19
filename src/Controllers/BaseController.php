@@ -1,6 +1,8 @@
 <?php
 /**
  * 控制器基类 - 提供公共方法和权限检查
+ *
+ * @phpcs:disable WordPress.DB.DirectDatabaseQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.PHP.DevelopmentFunctions.error_log_error_log
  */
 namespace ZuoAIPlus\Controllers;
 

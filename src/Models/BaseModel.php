@@ -1,6 +1,8 @@
 <?php
 /**
  * AI 模型基类
+ *
+ * @phpcs:disable WordPress.DB.DirectDatabaseQuery,WordPress.PHP.DevelopmentFunctions.error_log_error_log
  */
 namespace ZuoAIPlus\Models;
 

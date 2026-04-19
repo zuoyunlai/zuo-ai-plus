@@ -39,12 +39,10 @@ $post_ids = array_column($posts, 'ID');
 $scores = [];
 $optimized_flags = [];
 if ($post_ids) {
-    $ids_placeholder = implode(',', array_map('intval', $post_ids));
     $score_rows = $wpdb->get_results(
         $wpdb->prepare(
-            "SELECT post_id, meta_value FROM {$wpdb->postmeta} WHERE post_id IN ({$ids_placeholder}) AND meta_key = %s",
-            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- intval-prepared list
-            SeoOptimizer::META_SCORE
+            "SELECT post_id, meta_value FROM {$wpdb->postmeta} WHERE post_id IN (" . implode(',', array_fill(0, count($post_ids), '%d')) . ") AND meta_key = %s",
+            ...array_merge(array_map('intval', $post_ids), [SeoOptimizer::META_SCORE])
         ),
         ARRAY_A
     );
@@ -53,9 +51,8 @@ if ($post_ids) {
     }
     $opt_rows = $wpdb->get_results(
         $wpdb->prepare(
-            "SELECT post_id FROM {$wpdb->postmeta} WHERE post_id IN ({$ids_placeholder}) AND meta_key = %s AND meta_value = '1'",
-            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- intval-prepared list
-            SeoOptimizer::META_OPTIMIZED
+            "SELECT post_id FROM {$wpdb->postmeta} WHERE post_id IN (" . implode(',', array_fill(0, count($post_ids), '%d')) . ") AND meta_key = %s AND meta_value = '1'",
+            ...array_merge(array_map('intval', $post_ids), [SeoOptimizer::META_OPTIMIZED])
         ),
         ARRAY_A
     );

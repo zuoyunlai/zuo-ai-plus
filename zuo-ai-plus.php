@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Zuo AI Plus
  * Description: 集成智谱GLM、阿里通义、MiniMax、Kimi等国内大模型,支持文章生成、摘要摘要、图文生成、翻译、SEO优化、客服聊天等功能。
- * Version: 1.3.1
+ * Version: 1.3.2
  * Author: 左运来
  * Author URI: https://www.yily.top?from=wp-plugin
  * License: GPLv2 or later
@@ -15,7 +15,7 @@ if (!defined('ABSPATH')) exit;
 
 // ── 常量(插件常量检查防止重复加载)─────────────────────────────────────────
 if (!defined('AI_PLUS_VERSION')) {
-    define('AI_PLUS_VERSION', '1.3.0');
+    define('AI_PLUS_VERSION', '1.3.2');
 }
 if (!defined('AI_PLUS_PLUGIN_DIR')) {
     define('AI_PLUS_PLUGIN_DIR', plugin_dir_path(__FILE__));
@@ -41,9 +41,8 @@ add_action('rest_api_init', function () {
 }, 5);
 
 // ── 加载翻译文件 ───────────────────────────────────────────────────────────
-add_action('plugins_loaded', function () {
-    load_plugin_textdomain('zuo-ai-plus', false, dirname(AI_PLUS_PLUGIN_BASENAME) . '/languages/');
-});
+// WordPress 4.6+ 会自动从插件根目录的 /languages/ 加载翻译，无需手动调用 load_plugin_textdomain()
+// （保留此注释以说明为何此处没有 load_plugin_textdomain 调用）
 
 // ── Admin / Frontend 初始化 ───────────────────────────────────────────────
 add_action('plugins_loaded', function () {
@@ -152,24 +151,18 @@ add_action('ai_plus_cleanup_cache', function () {
     // 直接删除所有 AI 缓存 transient(不依赖 timeout 比对,
     // WordPress 会自动清理已过期的 transient,这里主动清释放数据库空间)
     $prefix = $wpdb->esc_like('_transient_ai_cache_');
-    // 使用 $wpdb::esc_like 已处理,直接拼接入 SQL(prefix 无用户输入)
-    // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- LIKE pattern is safe (no user input)
-    $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '{$prefix}%'");
-    // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-    $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_timeout_{$prefix}%'");
+    $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $prefix . '%')); // @phpcs:ignore WordPress.DB.DirectDatabaseQuery
+    $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", '_transient_timeout_' . $prefix . '%')); // @phpcs:ignore WordPress.DB.DirectDatabaseQuery
 
     // 清理 alloptions 缓存
     wp_cache_delete('alloptions', 'options');
 
     // 清理旧对话历史（超过30天的记录）
-    $chat_table = $wpdb->prefix . 'ai_plus_chat';
-    $wpdb->query($wpdb->prepare(
-        "DELETE FROM {$chat_table} WHERE created_at < %s",
-        gmdate('Y-m-d H:i:s', strtotime('-30 days'))
-    ));
+    $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->prefix}ai_plus_chat WHERE created_at < %s", gmdate('Y-m-d H:i:s', strtotime('-30 days')))); // @phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter
+
     // DEBUG: 缓存清理完成（仅在调试模式记录）
     if (defined('WP_DEBUG') && WP_DEBUG) {
-        error_log('AI Plus: Cache cleanup completed');
+        error_log('AI Plus: Cache cleanup completed'); // @phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
     }
 });
 
@@ -182,9 +175,8 @@ register_deactivation_hook(__FILE__, function () {
     global $wpdb;
     $prefix = $wpdb->esc_like('_transient_ai_cache_') . '%';
     $timeout_prefix = $wpdb->esc_like('_transient_timeout_ai_cache_') . '%';
-
-    $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $prefix));
-    $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $timeout_prefix));
+    $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $prefix)); // @phpcs:ignore WordPress.DB.DirectDatabaseQuery
+    $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $timeout_prefix)); // @phpcs:ignore WordPress.DB.DirectDatabaseQuery
 
     wp_cache_delete('alloptions', 'options');
 });

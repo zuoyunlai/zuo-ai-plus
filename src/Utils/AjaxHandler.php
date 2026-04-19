@@ -245,15 +245,14 @@ add_action('wp_ajax_ai_plus_save_license_key', function () {
     if (!current_user_can('manage_options')) {
         \wp_send_json_error(['message' => '没有权限'], 403);
     }
-    $nonce = isset($_POST['nonce']) ? sanitize_key($_POST['nonce']) : '';
-    if (!wp_verify_nonce($nonce, 'wp_rest')) {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_key($_POST['nonce']), 'ai_plus_admin')) {
         \wp_send_json_error(['message' => 'Unauthorized'], 401);
     }
 
-    $modelId   = isset($_POST['model_id'])   ? sanitize_text_field($_POST['model_id'])   : '';
-    $apiKey    = isset($_POST['api_key'])     ? sanitize_text_field($_POST['api_key'])   : '';
-    $baseUrl   = isset($_POST['base_url'])    ? sanitize_text_field($_POST['base_url'])   : '';
-    $modelName = isset($_POST['model_name'])  ? sanitize_text_field($_POST['model_name']) : '';
+    $modelId   = sanitize_text_field(wp_unslash($_POST['model_id'] ?? ''));
+    $apiKey    = sanitize_text_field(wp_unslash($_POST['api_key'] ?? ''));
+    $baseUrl   = sanitize_text_field(wp_unslash($_POST['base_url'] ?? ''));
+    $modelName = sanitize_text_field(wp_unslash($_POST['model_name'] ?? ''));
 
     if (!$modelId || !$apiKey) {
         \wp_send_json_error(['message' => '缺少必要参数']);
@@ -317,16 +316,17 @@ add_action('wp_ajax_ai_plus_save_license_key', function () {
     if (!current_user_can('manage_options')) {
         \wp_send_json_error(['message' => '没有权限'], 403);
     }
-    $nonce = isset($_POST['nonce']) ? sanitize_key($_POST['nonce']) : '';
-    if (!wp_verify_nonce($nonce, 'wp_rest')) {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_key($_POST['nonce']), 'ai_plus_admin')) {
         \wp_send_json_error(['message' => 'Unauthorized'], 401);
     }
+    /* @phpcs:disable WordPress.DB.DirectDatabaseQuery */
     global $wpdb;
     $prefix = '_transient_ai_cache_';
     $deleted = $wpdb->query($wpdb->prepare(
         "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
         $wpdb->esc_like($prefix) . '%'
     ));
+    /* @phpcs:enable WordPress.DB.DirectDatabaseQuery */
     wp_cache_delete('alloptions', 'options');
     \wp_send_json_success(['message' => '已清除 ' . intval($deleted) . ' 条缓存记录']);
 });

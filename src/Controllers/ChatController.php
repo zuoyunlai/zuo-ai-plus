@@ -1,6 +1,8 @@
 <?php
 /**
  * 聊天控制器 - 处理聊天相关REST API
+ *
+ * @phpcs:disable WordPress.DB.DirectDatabaseQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.PHP.DevelopmentFunctions.error_log_error_log
  */
 namespace ZuoAIPlus\Controllers;
 

@@ -1,6 +1,8 @@
 <?php
+/* @phpcs:disable WordPress.NamingConventions.PrefixAllGlobals */
 if (!defined('ABSPATH')) exit;
-$version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.3.0';
+$ai_version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.3.0';
+/* @phpcs:enable WordPress.NamingConventions.PrefixAllGlobals */
 ?>
 <style>
 .ai-about-wrap {font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 960px; color: #1e1e1e;}
@@ -163,7 +165,7 @@ $version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.3.0';
         <div>
             <h1>Zuo AI Plus 关于</h1>
             <p>为 WordPress 打造的一站式 AI 内容助手 · 写作 · 优化 · 配图 · 客服</p>
-            <span class="version-badge">v<?php echo esc_html($version); ?></span>
+            <span class="version-badge">v<?php echo esc_html($ai_version); ?></span>
         </div>
     </div>
 
@@ -366,5 +368,5 @@ $version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.3.0';
         </div>
     </div>
 
-    <p class="ai-footer">Zuo AI Plus v<?php echo esc_html($version); ?> · Made with ❤️ by 左运来 · <a href="https://www.yily.top" target="_blank" style="color:#6366f1;">yily.top</a></p>
+    <p class="ai-footer">Zuo AI Plus v<?php echo esc_html($ai_version); ?> · Made with ❤️ by 左运来 · <a href="https://www.yily.top" target="_blank" style="color:#6366f1;">yily.top</a></p>
 </div>

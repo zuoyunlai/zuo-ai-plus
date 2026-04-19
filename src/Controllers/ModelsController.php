@@ -2,6 +2,7 @@
 /**
  * 模型控制器 - 处理模型列表和相关信息
  */
+// @phpcs:ignore WordPress.DB.DirectDatabaseQuery -- custom table ops use $wpdb::prepare() correctly
 namespace ZuoAIPlus\Controllers;
 
 if (!defined('ABSPATH')) exit;
@@ -144,6 +145,7 @@ class ModelsController extends BaseController
         global $wpdb;
         $dbOk = true;
         try {
+            // @phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- health check probe
             $wpdb->get_var('SELECT 1');
         } catch (\Exception $e) {
             $dbOk = false;

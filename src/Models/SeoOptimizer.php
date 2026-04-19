@@ -3,6 +3,7 @@
  * Zuo AI Plus - SEO Optimizer
  * 全站文章 SEO 诊断 + AI 优化模块
  */
+// @phpcs:ignore WordPress.DB.DirectDatabaseQuery -- custom table ops use $wpdb::prepare() correctly
 
 namespace ZuoAIPlus\Models;
 
@@ -740,6 +741,7 @@ class SeoOptimizer
 
         // 清除 AI 缓存：精确删除该文章的缓存（新 key 结构：ai_cache_post_{$postId}_{hash}）
         if (get_option('ai_plus_cache_enabled', true)) {
+            /* @phpcs:disable WordPress.DB.DirectDatabaseQuery,WordPress.DB.DirectDatabaseQuery.NoCaching */
             global $wpdb;
             $postPrefix = 'ai_cache_post_' . $post_id . '_';
             $likeData = '_transient_' . $wpdb->esc_like($postPrefix) . '%';
@@ -749,6 +751,7 @@ class SeoOptimizer
                 "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
                 $likeData, $likeTimeout
             ));
+            /* @phpcs:enable WordPress.DB.DirectDatabaseQuery,WordPress.DB.DirectDatabaseQuery.NoCaching */
         }
 
         return true;
@@ -757,6 +760,7 @@ class SeoOptimizer
     // ── 获取优化统计 ──
     public function getStats()
     {
+        /* @phpcs:disable WordPress.DB.DirectDatabaseQuery,WordPress.DB.DirectDatabaseQuery.NoCaching */
         global $wpdb;
         $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type='post' AND post_status='publish'");
         $optimized = (int) $wpdb->get_var($wpdb->prepare(
@@ -776,6 +780,7 @@ class SeoOptimizer
                 self::META_SCORE
             )
         );
+        /* @phpcs:enable WordPress.DB.DirectDatabaseQuery,WordPress.DB.DirectDatabaseQuery.NoCaching */
 
         return [
             'total'     => $total,

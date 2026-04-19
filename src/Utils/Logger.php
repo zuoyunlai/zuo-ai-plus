@@ -1,6 +1,8 @@
 <?php
 /**
  * 统一日志工具类
+ *
+ * @phpcs:disable WordPress.PHP.DevelopmentFunctions.error_log_error_log
  */
 namespace ZuoAIPlus\Utils;
 

@@ -99,9 +99,9 @@ class Admin_Init
         \add_submenu_page('ai_plus', 'Zuo AI Plus 模型设置', '模型设置', 'manage_options', 'ai_plus', [$this, 'renderPage']);
         \add_submenu_page('ai_plus', '文生图', '文生图', 'manage_options', 'ai_plus_image', [$this, 'renderPage']);
         \add_submenu_page('ai_plus', '文生文', '文生文', 'manage_options', 'ai_plus_playground', [$this, 'renderPage']);
+        \add_submenu_page('ai_plus', '🔍 SEO 诊断', 'SEO 诊断', 'manage_options', 'ai_plus_seo', [$this, 'renderPage']);
         \add_submenu_page('ai_plus', '📊 统计', '统计', 'manage_options', 'ai_plus_stats', [$this, 'renderPage']);
         \add_submenu_page('ai_plus', '💬 对话历史', '对话历史', 'manage_options', 'ai_plus_chat_history', [$this, 'renderPage']);
-        \add_submenu_page('ai_plus', '🔍 SEO 诊断', 'SEO 诊断', 'manage_options', 'ai_plus_seo', [$this, 'renderPage']);
         \add_submenu_page('ai_plus', '授权管理', '授权管理', 'manage_options', 'ai_plus_license', [$this, 'renderPage']);
         \add_submenu_page('ai_plus', '关于', '关于', 'manage_options', 'ai_plus_about', [$this, 'renderPage']);
         // 移除重复的顶层菜单项
@@ -184,9 +184,9 @@ class Admin_Init
                 <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus', 'ai_plus_admin')); ?>"        class="nav-tab <?php echo  $tab==='ai_plus'        ? 'nav-tab-active' : '' ?>">模型设置</a>
                 <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_image', 'ai_plus_admin')); ?>"  class="nav-tab <?php echo  $tab==='ai_plus_image'  ? 'nav-tab-active' : '' ?>">文生图</a>
                 <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_playground', 'ai_plus_admin')); ?>" class="nav-tab <?php echo  $tab==='ai_plus_playground' ? 'nav-tab-active' : '' ?>">文生文</a>
+                <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_seo', 'ai_plus_admin')); ?>" class="nav-tab <?php echo  $tab==='ai_plus_seo' ? 'nav-tab-active' : '' ?>">🔍 SEO 诊断</a>
                 <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_stats', 'ai_plus_admin')); ?>"   class="nav-tab <?php echo  $tab==='ai_plus_stats'   ? 'nav-tab-active' : '' ?>">📊 统计</a>
                 <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_chat_history', 'ai_plus_admin')); ?>" class="nav-tab <?php echo  $tab==='ai_plus_chat_history' ? 'nav-tab-active' : '' ?>">💬 对话历史</a>
-                <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_seo', 'ai_plus_admin')); ?>" class="nav-tab <?php echo  $tab==='ai_plus_seo' ? 'nav-tab-active' : '' ?>">🔍 SEO 诊断</a>
                 <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_license', 'ai_plus_admin')); ?>" class="nav-tab <?php echo  $tab==='ai_plus_license' ? 'nav-tab-active' : '' ?>">授权管理</a>
                 <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_about', 'ai_plus_admin')); ?>"  class="nav-tab <?php echo  $tab==='ai_plus_about'  ? 'nav-tab-active' : '' ?>">关于</a>
             </h2>

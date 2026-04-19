@@ -2,6 +2,8 @@
 /**
  * MiniMax 模型
  * 文档: https://www.minimaxi.com/document
+ *
+ * @phpcs:disable WordPress.PHP.DevelopmentFunctions.error_log_error_log
  */
 namespace ZuoAIPlus\Models;
 

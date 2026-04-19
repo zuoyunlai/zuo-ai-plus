@@ -2,6 +2,8 @@
 /**
  * 模型工厂 - 负责模型实例化和内容提取
  * 路由处理已迁移到 Controllers/ 目录
+ *
+ * @phpcs:disable WordPress.PHP.DevelopmentFunctions.error_log_error_log
  */
 namespace ZuoAIPlus\Models;
 

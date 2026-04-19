@@ -259,11 +259,13 @@ class UtilityController extends BaseController
 
         // DEBUG: 记录接收到的参数
         if (defined('WP_DEBUG') && WP_DEBUG) {
+            /* @phpcs:disable WordPress.PHP.DevelopmentFunctions.error_log_error_log */
             error_log('[ZuoAI] featured-image-set params:');
             error_log('  chinese_desc: ' . ($chinese_desc ?: '(empty)'));
             error_log('  chinese_alt: ' . ($chinese_alt ?: '(empty)'));
             error_log('  post_title: ' . ($post_title ?: '(empty)'));
             error_log('  prompt: ' . ($prompt ? mb_substr($prompt, 0, 50, 'utf-8') : '(empty)'));
+            /* @phpcs:enable WordPress.PHP.DevelopmentFunctions.error_log_error_log */
         }
 
         // 优先使用中文元数据

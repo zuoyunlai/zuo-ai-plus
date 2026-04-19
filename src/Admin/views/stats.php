@@ -2,126 +2,139 @@
 /**
  * Usage Statistics View
  * @phpcs:disable WordPress.DB.DirectDatabaseQuery
+ * @phpcs:disable WordPress.NamingConventions.PrefixAllGlobals
+ * @phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+ * @phpcs:disable PluginCheck.Security.DirectDB.UnescapedDBParameter
  */
 if (!defined('ABSPATH')) exit;
 
 global $wpdb;
-$table_chat = $wpdb->prefix . 'ai_plus_chat';
-$table_history = $wpdb->prefix . 'ai_plus_history';
+$ai_table_chat     = $wpdb->prefix . 'ai_plus_chat';
+$ai_table_history  = $wpdb->prefix . 'ai_plus_history';
 
 // 获取WordPress时区设置
-$wp_timezone = wp_timezone();
-$today = wp_date('Y-m-d', null, $wp_timezone);
+$ai_wp_timezone = wp_timezone();
+$ai_today = wp_date('Y-m-d', null, $ai_wp_timezone);
 
 // 总对话数（聊天+其他操作）
-$total_chats = wp_cache_get('ai_plus_stats_total_chats_v2');
-if (false === $total_chats) {
-    $chat_count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_chat}");
-    $history_count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_history}");
-    $total_chats = $chat_count + $history_count;
-    wp_cache_set('ai_plus_stats_total_chats_v2', $total_chats, '', HOUR_IN_SECONDS);
+$ai_total_chats = wp_cache_get('ai_plus_stats_total_chats_v2');
+if (false === $ai_total_chats) {
+    // @phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from $wpdb->prefix
+    $ai_chat_count     = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$ai_table_chat}"));
+    // @phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from $wpdb->prefix
+    $ai_history_count  = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$ai_table_history}"));
+    $ai_total_chats = $ai_chat_count + $ai_history_count;
+    wp_cache_set('ai_plus_stats_total_chats_v2', $ai_total_chats, '', HOUR_IN_SECONDS);
 }
 
 // 总 Token
-$total_tokens = wp_cache_get('ai_plus_stats_total_tokens_v2');
-if (false === $total_tokens) {
-    $chat_tokens = (int) $wpdb->get_var("SELECT COALESCE(SUM(tokens),0) FROM {$table_chat}");
-    $history_tokens = (int) $wpdb->get_var("SELECT COALESCE(SUM(tokens),0) FROM {$table_history}");
-    $total_tokens = $chat_tokens + $history_tokens;
-    wp_cache_set('ai_plus_stats_total_tokens_v2', $total_tokens, '', HOUR_IN_SECONDS);
+$ai_total_tokens = wp_cache_get('ai_plus_stats_total_tokens_v2');
+if (false === $ai_total_tokens) {
+    // @phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from $wpdb->prefix
+    $ai_chat_tokens     = (int) $wpdb->get_var($wpdb->prepare("SELECT COALESCE(SUM(tokens),0) FROM {$ai_table_chat}"));
+    // @phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from $wpdb->prefix
+    $ai_history_tokens  = (int) $wpdb->get_var($wpdb->prepare("SELECT COALESCE(SUM(tokens),0) FROM {$ai_table_history}"));
+    $ai_total_tokens = $ai_chat_tokens + $ai_history_tokens;
+    wp_cache_set('ai_plus_stats_total_tokens_v2', $ai_total_tokens, '', HOUR_IN_SECONDS);
 }
 
 // 各模型使用分布
-$model_usage = wp_cache_get('ai_plus_stats_model_usage_v2');
-if (false === $model_usage) {
-    // 合并聊天和历史记录的模型使用数据
-    $chat_models = $wpdb->get_results(
-        "SELECT model, COUNT(*) as cnt, SUM(COALESCE(tokens,0)) as tokens FROM {$table_chat} GROUP BY model",
+$ai_model_usage = wp_cache_get('ai_plus_stats_model_usage_v2');
+if (false === $ai_model_usage) {
+    // @phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from $wpdb->prefix
+    $ai_chat_models = $wpdb->get_results(
+        $wpdb->prepare("SELECT model, COUNT(*) as cnt, SUM(COALESCE(tokens,0)) as tokens FROM {$ai_table_chat} GROUP BY model"),
         ARRAY_A
     );
-    $history_models = $wpdb->get_results(
-        "SELECT model, COUNT(*) as cnt, SUM(COALESCE(tokens,0)) as tokens FROM {$table_history} GROUP BY model",
+    // @phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from $wpdb->prefix
+    $ai_history_models = $wpdb->get_results(
+        $wpdb->prepare("SELECT model, COUNT(*) as cnt, SUM(COALESCE(tokens,0)) as tokens FROM {$ai_table_history} GROUP BY model"),
         ARRAY_A
     );
-    
+
     // 合并数据
-    $merged = [];
-    foreach ($chat_models as $row) {
-        $model = $row['model'];
-        $merged[$model] = [
-            'model' => $model,
-            'cnt' => ($merged[$model]['cnt'] ?? 0) + $row['cnt'],
-            'tokens' => ($merged[$model]['tokens'] ?? 0) + $row['tokens'],
+    $ai_merged = [];
+    foreach ($ai_chat_models as $ai_row) {
+        $ai_model = $ai_row['model'];
+        $ai_merged[$ai_model] = [
+            'model'  => $ai_model,
+            'cnt'    => ($ai_merged[$ai_model]['cnt'] ?? 0) + $ai_row['cnt'],
+            'tokens' => ($ai_merged[$ai_model]['tokens'] ?? 0) + $ai_row['tokens'],
         ];
     }
-    foreach ($history_models as $row) {
-        $model = $row['model'];
-        $merged[$model] = [
-            'model' => $model,
-            'cnt' => ($merged[$model]['cnt'] ?? 0) + $row['cnt'],
-            'tokens' => ($merged[$model]['tokens'] ?? 0) + $row['tokens'],
+    foreach ($ai_history_models as $ai_row) {
+        $ai_model = $ai_row['model'];
+        $ai_merged[$ai_model] = [
+            'model'  => $ai_model,
+            'cnt'    => ($ai_merged[$ai_model]['cnt'] ?? 0) + $ai_row['cnt'],
+            'tokens' => ($ai_merged[$ai_model]['tokens'] ?? 0) + $ai_row['tokens'],
         ];
     }
-    $model_usage = array_values($merged);
-    wp_cache_set('ai_plus_stats_model_usage_v2', $model_usage, '', HOUR_IN_SECONDS);
+    $ai_model_usage = array_values($ai_merged);
+    wp_cache_set('ai_plus_stats_model_usage_v2', $ai_model_usage, '', HOUR_IN_SECONDS);
 }
 
 // 今日操作数（聊天+历史记录）
-$today_chats = wp_cache_get('ai_plus_stats_today_chats_' . $today);
-if (false === $today_chats) {
-    $today_chat = (int) $wpdb->get_var(
-        $wpdb->prepare("SELECT COUNT(*) FROM {$table_chat} WHERE DATE(created_at) = %s", $today)
+$ai_today_chats = wp_cache_get('ai_plus_stats_today_chats_' . $ai_today);
+if (false === $ai_today_chats) {
+    // @phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from $wpdb->prefix
+    $ai_today_chat     = (int) $wpdb->get_var(
+        $wpdb->prepare("SELECT COUNT(*) FROM {$ai_table_chat} WHERE DATE(created_at) = %s", $ai_today)
     );
-    $today_history = (int) $wpdb->get_var(
-        $wpdb->prepare("SELECT COUNT(*) FROM {$table_history} WHERE DATE(created_at) = %s", $today)
+    // @phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from $wpdb->prefix
+    $ai_today_history  = (int) $wpdb->get_var(
+        $wpdb->prepare("SELECT COUNT(*) FROM {$ai_table_history} WHERE DATE(created_at) = %s", $ai_today)
     );
-    $today_chats = $today_chat + $today_history;
-    wp_cache_set('ai_plus_stats_today_chats_' . $today, $today_chats, '', MINUTE_IN_SECONDS);
+    $ai_today_chats = $ai_today_chat + $ai_today_history;
+    wp_cache_set('ai_plus_stats_today_chats_' . $ai_today, $ai_today_chats, '', MINUTE_IN_SECONDS);
 }
 
 // 今日 Token
-$today_tokens = wp_cache_get('ai_plus_stats_today_tokens_' . $today);
-if (false === $today_tokens) {
-    $today_chat_tokens = (int) ($wpdb->get_var(
-        $wpdb->prepare("SELECT COALESCE(SUM(tokens),0) FROM {$table_chat} WHERE DATE(created_at) = %s", $today)
+$ai_today_tokens = wp_cache_get('ai_plus_stats_today_tokens_' . $ai_today);
+if (false === $ai_today_tokens) {
+    // @phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from $wpdb->prefix
+    $ai_today_chat_tokens    = (int) ($wpdb->get_var(
+        $wpdb->prepare("SELECT COALESCE(SUM(tokens),0) FROM {$ai_table_chat} WHERE DATE(created_at) = %s", $ai_today)
     ) ?: 0);
-    $today_history_tokens = (int) ($wpdb->get_var(
-        $wpdb->prepare("SELECT COALESCE(SUM(tokens),0) FROM {$table_history} WHERE DATE(created_at) = %s", $today)
+    // @phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from $wpdb->prefix
+    $ai_today_history_tokens = (int) ($wpdb->get_var(
+        $wpdb->prepare("SELECT COALESCE(SUM(tokens),0) FROM {$ai_table_history} WHERE DATE(created_at) = %s", $ai_today)
     ) ?: 0);
-    $today_tokens = $today_chat_tokens + $today_history_tokens;
-    wp_cache_set('ai_plus_stats_today_tokens_' . $today, $today_tokens, '', MINUTE_IN_SECONDS);
+    $ai_today_tokens = $ai_today_chat_tokens + $ai_today_history_tokens;
+    wp_cache_set('ai_plus_stats_today_tokens_' . $ai_today, $ai_today_tokens, '', MINUTE_IN_SECONDS);
 }
 
 // 今日各类型操作统计
-$today_breakdown = wp_cache_get('ai_plus_stats_today_breakdown_' . $today);
-if (false === $today_breakdown) {
-    $today_breakdown = $wpdb->get_results(
+$ai_today_breakdown = wp_cache_get('ai_plus_stats_today_breakdown_' . $ai_today);
+if (false === $ai_today_breakdown) {
+    // @phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from $wpdb->prefix
+    $ai_today_breakdown = $wpdb->get_results(
         $wpdb->prepare(
-            "SELECT action_type, COUNT(*) as cnt, SUM(COALESCE(tokens,0)) as tokens 
-             FROM {$table_history} 
-             WHERE DATE(created_at) = %s 
-             GROUP BY action_type 
+            "SELECT action_type, COUNT(*) as cnt, SUM(COALESCE(tokens,0)) as tokens
+             FROM {$ai_table_history}
+             WHERE DATE(created_at) = %s
+             GROUP BY action_type
              ORDER BY cnt DESC",
-            $today
+            $ai_today
         ),
         ARRAY_A
     );
-    wp_cache_set('ai_plus_stats_today_breakdown_' . $today, $today_breakdown, '', MINUTE_IN_SECONDS);
+    wp_cache_set('ai_plus_stats_today_breakdown_' . $ai_today, $ai_today_breakdown, '', MINUTE_IN_SECONDS);
 }
 
 // 操作类型中文映射
-$action_labels = [
-    'chat' => 'AI对话',
-    'generate' => '文章生成',
-    'expand' => '文章扩写',
-    'rewrite' => '文章改写',
-    'summarize' => '摘要提取',
-    'keyword' => '关键词提取',
-    'slug' => '别名生成',
-    'featured_image' => '特色图生成',
-    'image' => '文生图',
-    'seo_optimize' => 'SEO优化',
-    'translate' => '翻译',
+$ai_action_labels = [
+    'chat'             => 'AI对话',
+    'generate'         => '文章生成',
+    'expand'           => '文章扩写',
+    'rewrite'          => '文章改写',
+    'summarize'        => '摘要提取',
+    'keyword'          => '关键词提取',
+    'slug'             => '别名生成',
+    'featured_image'   => '特色图生成',
+    'image'            => '文生图',
+    'seo_optimize'     => 'SEO优化',
+    'translate'        => '翻译',
 ];
 ?>
 
@@ -130,19 +143,19 @@ $action_labels = [
 
     <div class="ai-stats-grid">
         <div class="ai-stat-card">
-            <div class="ai-stat-num"><?php echo number_format($total_chats); ?></div>
+            <div class="ai-stat-num"><?php echo number_format($ai_total_chats); ?></div>
             <div class="ai-stat-label">总操作数</div>
         </div>
         <div class="ai-stat-card">
-            <div class="ai-stat-num"><?php echo number_format($total_tokens); ?></div>
+            <div class="ai-stat-num"><?php echo number_format($ai_total_tokens); ?></div>
             <div class="ai-stat-label">总 Token</div>
         </div>
         <div class="ai-stat-card">
-            <div class="ai-stat-num"><?php echo number_format($today_chats); ?></div>
+            <div class="ai-stat-num"><?php echo number_format($ai_today_chats); ?></div>
             <div class="ai-stat-label">今日操作</div>
         </div>
         <div class="ai-stat-card">
-            <div class="ai-stat-num"><?php echo number_format($today_tokens); ?></div>
+            <div class="ai-stat-num"><?php echo number_format($ai_today_tokens); ?></div>
             <div class="ai-stat-label">今日 Token</div>
         </div>
     </div>
@@ -151,13 +164,13 @@ $action_labels = [
     <table class="widefat">
         <thead><tr><th>操作类型</th><th>次数</th><th>Token</th></tr></thead>
         <tbody>
-            <?php if (empty($today_breakdown)): ?>
+            <?php if (empty($ai_today_breakdown)): ?>
                 <tr><td colspan="3">今日暂无数据</td></tr>
-            <?php else: foreach ($today_breakdown as $row): ?>
+            <?php else: foreach ($ai_today_breakdown as $ai_row): ?>
                 <tr>
-                    <td><?php echo esc_html($action_labels[$row['action_type']] ?? $row['action_type']); ?></td>
-                    <td><?php echo (int) $row['cnt']; ?></td>
-                    <td><?php echo number_format((int) $row['tokens']); ?></td>
+                    <td><?php echo esc_html($ai_action_labels[$ai_row['action_type']] ?? $ai_row['action_type']); ?></td>
+                    <td><?php echo (int) $ai_row['cnt']; ?></td>
+                    <td><?php echo number_format((int) $ai_row['tokens']); ?></td>
                 </tr>
             <?php endforeach; endif; ?>
         </tbody>
@@ -167,13 +180,13 @@ $action_labels = [
     <table class="widefat">
         <thead><tr><th>模型</th><th>使用次数</th><th>Token</th></tr></thead>
         <tbody>
-            <?php if (empty($model_usage)): ?>
+            <?php if (empty($ai_model_usage)): ?>
                 <tr><td colspan="3">暂无数据</td></tr>
-            <?php else: foreach ($model_usage as $row): ?>
+            <?php else: foreach ($ai_model_usage as $ai_row): ?>
                 <tr>
-                    <td><?php echo esc_html($row['model']); ?></td>
-                    <td><?php echo (int) $row['cnt']; ?></td>
-                    <td><?php echo number_format((int) $row['tokens']); ?></td>
+                    <td><?php echo esc_html($ai_row['model']); ?></td>
+                    <td><?php echo (int) $ai_row['cnt']; ?></td>
+                    <td><?php echo number_format((int) $ai_row['tokens']); ?></td>
                 </tr>
             <?php endforeach; endif; ?>
         </tbody>
