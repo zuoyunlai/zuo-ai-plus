@@ -205,7 +205,7 @@ class SeoController extends BaseController
     public function handleBatchOptimizeCron(string $jobId): void
     {
         $job = get_transient('ai_plus_batch_job_' . $jobId);
-        if (!$job || $job['status !== 'pending' && $job['status'] !== 'running') {
+        if (!$job || !in_array($job['status'], ['pending', 'running'])) {
             return;
         }
 

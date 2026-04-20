@@ -19,7 +19,9 @@ $offset = ($paged - 1) * $per_page;
 
 global $wpdb;
 $total_posts = (int) $wpdb->get_var(
-    "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type='post' AND post_status='publish'"
+    $wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type='post' AND post_status='publish'"
+    )
 );
 $total_pages = ceil($total_posts / $per_page);
 
@@ -70,7 +72,7 @@ $platform_names = [
     'deepseek' => 'DeepSeek',
     'custom'   => '自定义',
 ];
-$apiKeys = get_option('ai_plus_api_keys', []);
+$apiKeys = \ZuoAIPlus\Utils\Crypto::decryptApiKeys((array)\get_option('ai_plus_api_keys', []));
 $model_options = [];
 foreach ($platform_names as $key => $label) {
     $cfg = $apiKeys[$key] ?? [];
@@ -608,25 +610,55 @@ table.seo-table {width:100%;border-collapse:collapse;font-size:13px;}
         const checked = Array.from(document.querySelectorAll('.chk-post:checked')).map(c => parseInt(c.value));
         if (!checked.length) return;
         const model = document.getElementById('sel-model').value;
-        loading('正在批量优化 ' + checked.length + ' 篇文章...');
+        loading('正在提交批量优化任务...');
         log('开始批量优化 ' + checked.length + ' 篇文章，使用模型：' + model, 'info');
         try {
-            const result = await api('POST', 'seo-optimize-batch', { post_ids: checked, model: model });
-            unloaded();
-            let ok = 0, fail = 0;
-            for (const id of checked) {
-                if (result && result[id]) {
-                    const r = result[id];
-                    if (r.error) {
-                        log('文章 #' + id + ' 失败：' + r.error, 'error');
-                        fail++;
-                    } else {
-                        updateRow(id, { score: r.score, issues: r.issues ? r.issues.length : 0, optimized: true });
-                        ok++;
-                    }
-                }
+            const job = await api('POST', 'seo-optimize-batch', { post_ids: checked, model: model });
+            if (!job || !job.job_id) {
+                unloaded();
+                log('任务提交失败', 'error');
+                return;
             }
-            log('批量优化完成！成功 ' + ok + ' 篇，失败 ' + fail + ' 篇', ok > 0 ? 'ok' : 'warn');
+            log('任务已提交 (ID: ' + job.job_id + ')，开始轮询进度...', 'info');
+            loading('批量优化进行中 (0%)...');
+
+            // 轮询进度
+            let pollCount = 0;
+            const maxPolls = 600; // 最多等30分钟
+            const pollInterval = setInterval(async () => {
+                pollCount++;
+                try {
+                    const status = await api('GET', 'seo-batch-status?job_id=' + job.job_id);
+                    if (!status || status.status === 'not_found') {
+                        clearInterval(pollInterval);
+                        unloaded();
+                        log('任务丢失或已过期，请重新提交', 'error');
+                        return;
+                    }
+                    loading('批量优化进行中 (' + status.progress + '%)... ' + (status.message || ''));
+
+                    if (status.status === 'done' || status.status === 'error') {
+                        clearInterval(pollInterval);
+                        unloaded();
+                        if (status.status === 'error') {
+                            log('批量优化出错：' + (status.message || ''), 'error');
+                        } else {
+                            log('批量优化完成！成功 ' + (status.success || 0) + ' 篇，失败 ' + (status.failed || 0) + ' 篇',
+                                (status.success > 0) ? 'ok' : 'warn');
+                        }
+                        return;
+                    }
+
+                    if (pollCount >= maxPolls) {
+                        clearInterval(pollInterval);
+                        unloaded();
+                        log('任务超时（30分钟），请稍后查看结果', 'warn');
+                    }
+                } catch(e) {
+                    console.warn('轮询网络错误:', e.message);
+                }
+            }, 3000);
+
         } catch(e) {
             unloaded();
             log('批量优化网络错误：' + e.message, 'error');
