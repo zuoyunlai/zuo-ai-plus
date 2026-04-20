@@ -23,10 +23,14 @@ class Frontend_Init
         if ($enabled === '0') return;
 
         \wp_enqueue_style('ai-plus-frontend', AI_PLUS_PLUGIN_URL . 'Assets/css/frontend.css', [], AI_PLUS_VERSION);
-        // marked.js：Markdown → HTML 渲染（CDN，45KB，零依赖）
-        \wp_register_script('marked', AI_PLUS_PLUGIN_URL . 'Assets/js/marked.min.js', [], AI_PLUS_VERSION, true);
-        \wp_enqueue_script("marked");
-        \wp_enqueue_script('ai-plus-frontend', AI_PLUS_PLUGIN_URL . 'Assets/js/frontend.js', ['jquery', 'marked'], AI_PLUS_VERSION, true);
+        // marked.js 懒加载：首次打开浮窗时才加载（45KB），不影响首屏性能
+        // 前端动态加载，无需列为 frontend.js 的正式依赖
+        \wp_enqueue_script('ai-plus-frontend', AI_PLUS_PLUGIN_URL . 'Assets/js/frontend.js', ['jquery'], AI_PLUS_VERSION, true);
+
+        // 注入 marked.js 的懒加载脚本（inline，避免额外请求）
+        $markedUrl = AI_PLUS_PLUGIN_URL . 'Assets/js/marked.min.js';
+        $inline = "window.__loadMarked=function(cb){if(window.marked)return cb();var s=document.createElement('script');s.src='" . esc_url($markedUrl) . "';s.onload=function(){cb()};document.head.appendChild(s);};"];
+        \wp_add_inline_script('ai-plus-frontend', $inline, 'before');
 
         $defaultModel = \get_option('ai_plus_default_model', 'minimax');
         // 统一配置对象：浮窗、短代码、文章嵌入块共用 aiPlusChat
@@ -94,7 +98,7 @@ class Frontend_Init
             'deepseek'=> ['name' => 'DeepSeek',    'default' => 'deepseek-chat'],
             'custom'  => ['name' => '自定义',     'default' => ''],
         ];
-        $apiKeys = \get_option('ai_plus_api_keys', []);
+        $apiKeys = \ZuoAIPlus\Utils\Crypto::decryptApiKeys((array)\get_option('ai_plus_api_keys', []));
         $options = '';
         foreach ($platforms as $id => $p) {
             $cfg = $apiKeys[$id] ?? [];
