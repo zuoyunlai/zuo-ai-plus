@@ -13,6 +13,8 @@ class SeoController extends BaseController
     public function __construct()
     {
         $this->seo = new \ZuoAIPlus\Models\SeoOptimizer();
+        // 注册批量优化 cron 钩子
+        \add_action('ai_plus_batch_optimize_cron', [$this, 'handleBatchOptimizeCron']);
     }
 
     public function registerRoutes(): void
@@ -42,6 +44,13 @@ class SeoController extends BaseController
         register_rest_route('ai-plus/v1', '/seo-optimize-batch', [
             'methods'             => 'POST',
             'callback'            => [$this, 'handleBatchOptimize'],
+            'permission_callback' => [$this, 'canManage'],
+        ]);
+
+        // 批量优化进度查询
+        register_rest_route('ai-plus/v1', '/seo-batch-status', [
+            'methods'             => 'GET',
+            'callback'            => [$this, 'handleBatchStatus'],
             'permission_callback' => [$this, 'canManage'],
         ]);
 
@@ -128,11 +137,126 @@ class SeoController extends BaseController
             return $this->error(__('缺少 post_ids 参数', 'zuo-ai-plus'));
         }
 
-        $ids    = array_map('intval', (array) $ids);
-        $model  = $request->get_param('model') ?: '';
-        $result = $this->seo->batchOptimize($ids, $model);
+        $ids   = array_map('intval', (array) $ids);
+        $model = $request->get_param('model') ?: '';
 
-        return $this->success($result);
+        // 生成唯一 job ID
+        $jobId = 'batch_' . uniqid() . '_' . time();
+        $job   = [
+            'id'          => $jobId,
+            'status'      => 'pending',
+            'total'       => count($ids),
+            'processed'   => 0,
+            'success'     => 0,
+            'failed'      => 0,
+            'current'     => 0,
+            'model'       => $model,
+            'post_ids'    => $ids,
+            'results'     => [],
+            'started_at'  => time(),
+            'updated_at'  => time(),
+        ];
+
+        set_transient('ai_plus_batch_job_' . $jobId, $job, HOUR_IN_SECONDS);
+
+        // 调度 cron 事件（异步处理）
+        wp_schedule_single_event(time() + 5, 'ai_plus_batch_optimize_cron', [$jobId]);
+
+        return $this->success([
+            'job_id'  => $jobId,
+            'status'  => 'pending',
+            'total'   => $job['total'],
+            'message' => '批量优化任务已提交，预计每5秒处理1篇',
+        ]);
+    }
+
+    public function handleBatchStatus(\WP_REST_Request $request): \WP_REST_Response
+    {
+        $jobId = sanitize_text_field($request->get_param('job_id') ?: '');
+        if (empty($jobId)) {
+            return $this->error('缺少 job_id 参数');
+        }
+
+        $job = get_transient('ai_plus_batch_job_' . $jobId);
+        if (!$job) {
+            return $this->success([
+                'status'    => 'not_found',
+                'message'   => '任务不存在或已过期（保留1小时）',
+            ]);
+        }
+
+        $pct = $job['total'] > 0 ? round($job['processed'] / $job['total'] * 100) : 0;
+
+        return $this->success([
+            'job_id'   => $jobId,
+            'status'   => $job['status'],
+            'total'    => $job['total'],
+            'processed'=> $job['processed'],
+            'success'  => $job['success'],
+            'failed'   => $job['failed'],
+            'progress' => $pct,
+            'current'  => $job['current'],
+            'message'  => $job['status'] === 'running'
+                ? "处理中（第{$job['processed']}/{$job['total']}篇）..."
+                : ($job['status'] === 'done' ? "完成（成功{$job['success']}篇，失败{$job['failed']}篇）" : '等待中'),
+        ]);
+    }
+
+    public function handleBatchOptimizeCron(string $jobId): void
+    {
+        $job = get_transient('ai_plus_batch_job_' . $jobId);
+        if (!$job || $job['status !== 'pending' && $job['status'] !== 'running') {
+            return;
+        }
+
+        $model = \ZuoAIPlus\Models\Model_Init::getModel($job['model'] ?: 'minimax');
+        if (!$model) {
+            $job['status'] = 'error';
+            $job['error']  = 'AI 模型未配置';
+            set_transient('ai_plus_batch_job_' . $jobId, $job, HOUR_IN_SECONDS);
+            return;
+        }
+
+        $postIds = $job['post_ids'];
+        $idx     = $job['current'];
+
+        if ($idx >= count($postIds)) {
+            $job['status']    = 'done';
+            $job['updated_at'] = time();
+            set_transient('ai_plus_batch_job_' . $jobId, $job, HOUR_IN_SECONDS);
+            return;
+        }
+
+        // 标记为运行中
+        $job['status']     = 'running';
+        $job['updated_at']  = time();
+        set_transient('ai_plus_batch_job_' . $jobId, $job, HOUR_IN_SECONDS);
+
+        $postId = (int) $postIds[$idx];
+        $result = $this->seo->optimizePost($postId, $model);
+
+        $job['processed']++;
+        $job['current']++;
+        $job['updated_at'] = time();
+
+        if (is_wp_error($result)) {
+            $job['failed']++;
+            $job['results'][$postId] = ['error' => $result->get_error_message()];
+        } else {
+            $job['success']++;
+            $job['results'][$postId] = $result;
+        }
+
+        set_transient('ai_plus_batch_job_' . $jobId, $job, HOUR_IN_SECONDS);
+
+        // 还有更多文章要处理，继续调度
+        if ($job['current'] < count($postIds)) {
+            wp_schedule_single_event(time() + 5, 'ai_plus_batch_optimize_cron', [$jobId]);
+        } else {
+            $job['status']    = 'done';
+            $job['updated_at'] = time();
+            set_transient('ai_plus_batch_job_' . $jobId, $job, HOUR_IN_SECONDS);
+        }
     }
 
     public function handleAuditPost(\WP_REST_Request $request): \WP_REST_Response
