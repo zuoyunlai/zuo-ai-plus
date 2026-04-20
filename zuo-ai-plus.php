@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Zuo AI Plus
  * Description: 集成智谱GLM、阿里通义、MiniMax、Kimi等国内大模型,支持文章生成、摘要摘要、图文生成、翻译、SEO优化、客服聊天等功能。
- * Version: 1.3.2
+ * Version: 1.4.0
  * Author: 左运来
  * Author URI: https://www.yily.top?from=wp-plugin
  * License: GPLv2 or later
@@ -15,7 +15,7 @@ if (!defined('ABSPATH')) exit;
 
 // ── 常量(插件常量检查防止重复加载)─────────────────────────────────────────
 if (!defined('AI_PLUS_VERSION')) {
-    define('AI_PLUS_VERSION', '1.3.2');
+    define('AI_PLUS_VERSION', '1.4.0');
 }
 if (!defined('AI_PLUS_PLUGIN_DIR')) {
     define('AI_PLUS_PLUGIN_DIR', plugin_dir_path(__FILE__));
