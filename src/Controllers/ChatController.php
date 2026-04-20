@@ -47,7 +47,8 @@ class ChatController extends BaseController
         $this->injectContext($chatMessages, $context);
 
         try {
-            $result = $model->chat($chatMessages);
+            // 将 session_id 传给 chat() 用于缓存 key 计算
+            $result = $model->chat($chatMessages, ['session_id' => $sessionId]);
             $this->saveChatHistory($sessionId, $messages, $result, $modelName);
             return $this->success($result);
         } catch (\Exception $e) {

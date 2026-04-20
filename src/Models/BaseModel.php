@@ -11,13 +11,55 @@ abstract class BaseModel
     protected string $name;
     protected string $apiKey;
     protected string $endpoint;
-    protected string $baseUrl;
+    protected string $baseUrl = '';
     protected string $modelId;
 
-    abstract public function chat(array $messages, array $opts = []): array;
-    abstract public function completion(string $prompt, array $opts = []): array;
+    /**
+     * OpenAI 兼容的 chat 默认实现
+     * 子类可覆盖此方法以实现不同的 API 格式（如通义、MiniMax）
+     */
+    public function chat(array $messages, array $opts = []): array
+    {
+        $body = [
+            'model'       => $this->modelId,
+            'messages'    => $messages,
+            'temperature' => $opts['temperature'] ?? 0.7,
+            'max_tokens'  => $opts['max_tokens'] ?? 2048,
+        ];
+        $chatPath = $this->chatPath ?? '/chat/completions';
+        $response = $this->request('POST', $chatPath, $body, [], false, $opts);
+
+        // 标准 content
+        $content = $response['choices'][0]['message']['content'] ?? '';
+        // 推理模型：备用 reasoning_content
+        if ($content === '') {
+            $content = $response['choices'][0]['message']['reasoning_content'] ?? '';
+        }
+
+        return [
+            'content' => $content,
+            'usage'   => $response['usage'] ?? [],
+            'raw'     => $response,
+        ];
+    }
+
+    /**
+     * 默认 completion 实现（基于 chat）
+     */
+    public function completion(string $prompt, array $opts = []): array
+    {
+        return $this->chat([['role' => 'user', 'content' => $prompt]], $opts);
+    }
+
+    /**
+     * 默认 token 估算（中文约2字符1token）
+     */
+    public function countTokens(string $text): int
+    {
+        return (int) ceil(mb_strlen($text) / 2);
+    }
+
     abstract public function image(string $prompt, array $opts = []): array;
-    abstract public function countTokens(string $text): int;
 
     /**
      * 检查是否启用调试日志
@@ -175,6 +217,7 @@ abstract class BaseModel
         // 这些信息不会出现在发给 API 的 body 中，但用于本地缓存管理
         $postId     = $opts['post_id']     ?? $body['post_id']     ?? null;
         $contentHash = $opts['content_hash'] ?? $body['content_hash'] ?? null;
+        $sessionId  = $opts['session_id']  ?? null;
         // ─────────────────────────────────────────────────────────────────────
 
         // ── 缓存逻辑（仅缓存成功请求）───────────────────────
@@ -187,13 +230,14 @@ abstract class BaseModel
             // 这样 flushPostCache() 可以精确删除该文章的缓存而不影响其他文章
             // 注意：userId 不进入 postId/contentHash 的哈希，因为同一篇文章的相同操作结果应共享缓存
             if ($postId) {
-                $promptHash = md5($this->name . '|' . $modelInBody . '|' . $bodyJson);
+                $promptHash = md5($this->name . '|' . $modelInBody . '|' . $sessionId . '|' . $bodyJson);
                 $cacheKey = 'ai_cache_post_' . $postId . '_' . $promptHash;
             } elseif ($contentHash) {
-                $cacheKey = 'ai_cache_' . md5($this->name . '|' . $modelInBody . '|' . 'content_' . $contentHash);
+                $cacheKey = 'ai_cache_' . md5($this->name . '|' . $modelInBody . '|' . $sessionId . '|' . 'content_' . $contentHash);
             } else {
-                // 通用请求缓存（含 userId，避免同一用户内不同 prompt 的请求互相覆盖）
-                $cacheKey = 'ai_cache_' . md5($this->name . '|' . $userId . '|' . $modelInBody . '|' . $url . '|' . $bodyJson);
+                // 通用请求缓存（含 userId 和 sessionId，避免同一用户内不同 prompt 的请求互相覆盖，
+                // 不同 session_id 的相同请求独立缓存，避免会话上下文污染）
+                $cacheKey = 'ai_cache_' . md5($this->name . '|' . $userId . '|' . $sessionId . '|' . $modelInBody . '|' . $url . '|' . $bodyJson);
             }
 
             $cached = get_transient($cacheKey);
