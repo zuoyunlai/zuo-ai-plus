@@ -33,7 +33,7 @@
 
     function apiRequest(endpoint, data) {
         // DEBUG
-        console.log('[ZuoAI] apiRequest:', endpoint, data);
+        
         // 添加超时控制（200秒 = 略小于PHP 300秒限制）
         var controller = new AbortController();
         var timeoutId = setTimeout(function() {
@@ -50,17 +50,17 @@
             signal: controller.signal
         }).then(function (r) { 
             clearTimeout(timeoutId);
-            console.log('[ZuoAI] apiResponse status:', r.status, 'ok:', r.ok);
+            
             if (!r.ok) {
                 return r.json().then(function(data) {
-                    console.log('[ZuoAI] apiResponse error data:', JSON.stringify(data));
+                    
                     throw new Error(data.error || data.message || 'HTTP ' + r.status);
                 }).catch(function() {
                     throw new Error('HTTP ' + r.status + ' ' + r.statusText);
                 });
             }
             return r.json().then(function(data) {
-                console.log('[ZuoAI] apiResponse success:', JSON.stringify(data).substring(0, 500));
+                
                 return data;
             }); 
         }).catch(function(e) {
@@ -131,7 +131,7 @@
 
     function insertContent(postId, newContent, replaceMode) {
         // replaceMode=true：丢弃原文，直接替换；false（默认）：追加到末尾
-        console.log('=== insertContent START ===');
+        
 
         // 去掉 AI 内容中可能混入的标题（只在 replaceMode=false 时需要；
         // replaceMode=true 时先不处理，等判断完再决定，防止误删正文）
@@ -145,7 +145,7 @@
             return;
         }
 
-        console.log('insertContent called, postId:', postId, 'realPostId:', realPostId, 'replaceMode:', replaceMode);
+        
 
         // replaceMode=true：直接用新内容（rewrite/expand）；false：追加到现有内容后面
         // 对于 replaceMode，stripTitleFromContent 可能把整个内容清空，先处理再判断
@@ -169,7 +169,7 @@
             return;
         }
 
-        console.log('merged content length:', merged.length);
+        
 
         // 只有纯文本（非HTML）才包裹为<p>段落；AI返回的HTML（以<开头）直接使用
         if (!merged.trim().match(/^</)) {
@@ -277,7 +277,7 @@
         if (!newBlocks && wp.blockEditor && wp.blockEditor.parse) {
             try {
                 newBlocks = wp.blockEditor.parse(merged);
-                console.log('[ZuoAI] wp.blockEditor.parse →', newBlocks ? newBlocks.length : 0, 'blocks');
+                
             } catch(e) {
                 parseErr = e;
             }
@@ -287,7 +287,7 @@
         if (!newBlocks && wp.blocks && wp.blocks.parse) {
             try {
                 newBlocks = wp.blocks.parse(merged);
-                console.log('[ZuoAI] wp.blocks.parse →', newBlocks ? newBlocks.length : 0, 'blocks');
+                
             } catch(e) {
                 parseErr = e;
             }
@@ -343,7 +343,7 @@
                         }
                     }
                 }
-                console.log('[ZuoAI] manual DOM →', newBlocks.length, 'blocks');
+                
             } catch(e) {
                 parseErr = e;
             }
@@ -353,7 +353,7 @@
             doInsert(store.sel, store.disp, newBlocks);
         } else {
             // 无法解析成块，最后回退到 editPost
-            console.error('[ZuoAI] All parse methods failed:', parseErr ? parseErr.message : 'unknown');
+            
             var ed = wp.data && wp.data.dispatch && wp.data.dispatch('core/editor');
             if (ed) {
                 ed.editPost({ content: merged });
@@ -726,12 +726,12 @@ var setGlobalResult = function(){};
 
         function handleGenerate() {
             doAction('generate', {}, function(r) {
-                console.log('[ZuoAI] handleGenerate callback, r:', JSON.stringify(r).substring(0, 300));
+                
                 if (r.content) {
-                    console.log('[ZuoAI] calling insertContent with content length:', r.content.length);
+                    
                     insertContent(0, r.content);
                 } else {
-                    console.log('[ZuoAI] r.content is empty, r:', JSON.stringify(r).substring(0, 300));
+                    
                     setGlobalResult({ type: 'warn', text: '⚠️ AI 未返回文章内容（content为空），请尝试切换模型' });
                 }
             });
@@ -796,13 +796,13 @@ function handleKeyword() {
                             try {
                                 // 步骤1：editPost 更新 editor store（同时更新 tags 属性）
                                 wp.data.dispatch('core/editor').editPost({ tags: resp.data.tag_ids });
-                                console.log('[ZuoAI] Tags updated in store:', resp.data.tag_ids);
+                                
 
                                 // 步骤2：立即保存（Tags 面板需要 post save 才能重新获取数据）
                                 setTimeout(function() {
                                     try {
                                         wp.data.dispatch('core/editor').savePost();
-                                        console.log('[ZuoAI] Post saved with new tags');
+                                        
 
                                         // 步骤3：invalidate entity cache 强制 Tags 面板重新获取数据
                                         // Gutenberg 5.8+ 的 Tags 面板监听 core/editor store，
@@ -815,17 +815,17 @@ function handleKeyword() {
                                                 if (typeof wp.data.dispatch('core/editor') !== 'undefined') {
                                                     wp.data.dispatch('core/editor').invalidateResolution('getEntityRecord', ['postType', 'post', postId]);
                                                 }
-                                                console.log('[ZuoAI] Entity cache invalidated, Tags panel should refresh');
+                                                
                                             } catch(e3) {
-                                                console.warn('[ZuoAI] invalidateResolution not available:', e3);
+                                                
                                             }
                                         }, 200);
                                     } catch(e2) {
-                                        console.error('[ZuoAI] savePost failed:', e2);
+                                        
                                     }
                                 }, 50);
                             } catch(e) {
-                                console.error('[ZuoAI] editPost tags failed:', e);
+                                
                             }
                         }
                         setGlobalResult({ type: 'ok', text: '✅ 标签已写入（' + resp.data.tag_ids.length + '个）：' + savedTagStr });
