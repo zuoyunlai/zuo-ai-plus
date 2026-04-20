@@ -250,43 +250,90 @@ abstract class BaseModel
 
         // 请求重试机制（指数退避策略）
         $maxRetries = 3;
-        $baseDelay = 2; // 基础等待时间（秒）
-        $maxDelay = 30; // 最大等待时间
+        $baseDelay = 2; // 基础退避时间（秒）
+        $maxDelay = 30; // 基础最大退避时间
         $lastError = null;
-        
+        $lastResponseCode = 0;
+
         // 记录请求开始时间
         $startTime = microtime(true);
-        
+
         for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
             $this->logDebug("API Request [{$this->name}] Attempt {$attempt}/{$maxRetries}: {$url}");
-            
+
             $response = wp_remote_request($url, $args);
-            
+
             if (!is_wp_error($response)) {
+                $responseCode = wp_remote_retrieve_response_code($response);
+                $lastResponseCode = $responseCode;
+
+                // 429 Rate Limit：优先读取 Retry-After header，再用更长退避
+                if ($responseCode === 429) {
+                    $retryAfter = wp_remote_retrieve_header($response, 'retry-after');
+                    $delay = 0;
+                    if ($retryAfter) {
+                        // Retry-After 可以是秒数或 HTTP 日期
+                        if (is_numeric($retryAfter)) {
+                            $delay = max(1, intval($retryAfter));
+                        } else {
+                            $delay = max(1, strtotime($retryAfter) - time());
+                        }
+                    }
+                    if ($delay < 10) {
+                        // 没有 Retry-After 或太短：使用 10s/30s/60s 退避
+                        $delay = match ($attempt) {
+                            1 => 10,
+                            2 => 30,
+                            default => 60,
+                        };
+                    }
+                    $jitter = wp_rand(0, 500) / 1000;
+                    $waitTime = $delay + $jitter;
+                    $this->logDebug("API Request Rate Limited [{$this->name}] 429 — waiting {$waitTime}s (Retry-After: {$retryAfter})");
+                    error_log("AI Plus Rate Limited [{$this->name}] 429 — retry {$attempt}/{$maxRetries} after {$waitTime}s");
+                    if ($attempt < $maxRetries) {
+                        usleep((int)($waitTime * 1000000));
+                        continue;
+                    }
+                }
+
+                // 5xx 服务器错误：2/4/8s 退避
+                if ($responseCode >= 500 && $responseCode < 600) {
+                    $delay = min($baseDelay * pow(2, $attempt - 1), $maxDelay);
+                    $jitter = wp_rand(0, 1000) / 1000;
+                    $waitTime = $delay + $jitter;
+                    $this->logDebug("API Request Server Error [{$this->name}] {$responseCode} — retry {$attempt}/{$maxRetries} after {$waitTime}s");
+                    error_log("AI Plus API Server Error [{$this->name}] {$responseCode} — retry {$attempt}/{$maxRetries} after {$waitTime}s");
+                    if ($attempt < $maxRetries) {
+                        usleep((int)($waitTime * 1000000));
+                        continue;
+                    }
+                }
+
                 $elapsed = round((microtime(true) - $startTime) * 1000);
                 $this->logDebug("API Request Success [{$this->name}] in {$elapsed}ms");
                 break; // 请求成功，跳出重试
             }
-            
+
             $lastError = $response->get_error_message();
             // 错误日志始终记录（重要）
             error_log("AI Plus API Request Failed [{$this->name}] Attempt {$attempt}/{$maxRetries}: {$lastError}");
-            
-            // 判断是否可重试的错误类型
+
+            // 判断是否可重试的错误类型（网络超时等）
             $isRetryable = $this->isRetryableError($lastError);
-            
+
             // 如果是可重试错误且还有重试次数，使用指数退避等待
             if ($isRetryable && $attempt < $maxRetries) {
                 // 指数退避: 2, 4, 8 秒（最多30秒）
                 $delay = min($baseDelay * pow(2, $attempt - 1), $maxDelay);
                 $jitter = wp_rand(0, 1000) / 1000; // 添加随机抖动
                 $waitTime = $delay + $jitter;
-                
+
                 $this->logDebug("API Request Retrying [{$this->name}] after {$waitTime}s (exponential backoff)...");
                 usleep((int)($waitTime * 1000000));
                 continue;
             }
-            
+
             // 不可重试错误或已用完重试次数
             break;
         }
