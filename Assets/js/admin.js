@@ -196,7 +196,11 @@
                 imgBtn.disabled = false;
                 imgBtn.textContent = '生成图片';
                 imgResult.innerHTML = '';
-                console.log('[DEBUG] Image gen response:', JSON.stringify(data).substring(0, 500));
+                // 调试：页面可见的诊断信息
+                var dbg = document.createElement('div');
+                dbg.style = 'background:#f0f0f0;border:1px solid #ccc;padding:8px;margin:8px 0;font-size:11px;word-break:break-all;max-height:200px;overflow-y:auto;';
+                dbg.textContent = '收到响应: ' + JSON.stringify(data).substring(0, 400);
+                imgResult.appendChild(dbg);
 
                 // API 可能返回两种格式：
                 // 1. 嵌套: {"code":"success","data":{"url":...}}
@@ -269,8 +273,7 @@
             .catch(function (err) {
                 imgBtn.disabled = false;
                 imgBtn.textContent = '生成图片';
-                imgResult.innerHTML = '';
-                console.log('[DEBUG] Image gen ERROR:', err.message);
+                imgResult.innerHTML = '<div style="background:#ffe0e0;border:1px solid #c00;padding:8px;margin:8px 0;">网络错误: ' + err.message + '</div>';
                 addMsg(imgResult, '网络错误: ' + err.message, 'assistant');
             });
         });
