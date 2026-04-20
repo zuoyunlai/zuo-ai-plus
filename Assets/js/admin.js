@@ -143,7 +143,9 @@
                 pgBtn.disabled = false;
                 pgBtn.textContent = '发送';
                 loadingEl.remove();
-                var reply = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || data.content || data.error || '无响应';
+                // API 返回 {"code":"success","data":{...}} 或 {"error":"..."}
+                var inner = data.code === 'success' ? (data.data || {}) : {};
+                var reply = inner.content || (inner.choices && inner.choices[0] && inner.choices[0].message && inner.choices[0].message.content) || data.error || '无响应';
                 addMsg(pgMsgs, reply, 'assistant');
                 pgPrompt.value = '';
             })
@@ -188,10 +190,13 @@
                 imgBtn.textContent = '生成图片';
                 imgResult.innerHTML = '';
 
-                if (data.url) {
-                    addMsg(imgResult, '中文说明: ' + (data.chinese_desc || data.image_prompt || prompt), 'assistant');
-                    if (data.chinese_alt) addMsg(imgResult, '替代文本: ' + data.chinese_alt, 'assistant');
-                    addImage(imgResult, data.url);
+                // API 返回 {"code":"success","data":{...}} 或 {"error":"..."}
+                var inner = data.code === 'success' ? (data.data || {}) : {};
+
+                if (inner.url) {
+                    addMsg(imgResult, '中文说明: ' + (inner.chinese_desc || inner.image_prompt || prompt), 'assistant');
+                    if (inner.chinese_alt) addMsg(imgResult, '替代文本: ' + inner.chinese_alt, 'assistant');
+                    addImage(imgResult, inner.url);
 
                     // 保存到媒体库按钮(admin.js 用原生 DOM,aiPlusAdmin.nonce 来自 wp_localize_script)
                     var saveBtn = document.createElement('button');
@@ -202,20 +207,20 @@
                         var btn = this;
                         btn.disabled = true;
                         btn.textContent = '上传中...';
-                        fetch(data.url)
+                        fetch(inner.url)
                             .then(function(r) { return r.blob(); })
                             .then(function(blob) {
                                 var filename = 'ai-plus-' + Date.now() + '.png';
                                 var fd = new FormData();
                                 fd.append('file', blob, filename);
                                 // 标题:取中文图片说明的前80字符
-                                var titleVal = (data.chinese_desc || data.content || prompt || filename).slice(0, 80);
+                                var titleVal = (inner.chinese_desc || inner.content || prompt || filename).slice(0, 80);
                                 fd.append('title', titleVal);
                                 // 替代文本(alt):中文 alt,不再使用英文 prompt
-                                var altText = (data.chinese_alt || data.chinese_desc || '').slice(0, 100);
+                                var altText = (inner.chinese_alt || inner.chinese_desc || '').slice(0, 100);
                                 if (altText) fd.append('alt_text', altText);
                                 // 说明文字(description → post_content):中文描述
-                                var descText = (data.chinese_desc || data.content || '');
+                                var descText = (inner.chinese_desc || inner.content || '');
                                 if (descText) fd.append('description', descText);
                                 // 摘要(caption → post_excerpt):中文 alt 摘要
                                 if (altText) fd.append('caption', altText);
@@ -246,10 +251,9 @@
                         actions.appendChild(saveBtn);
                         imgWrapper.parentNode.insertBefore(actions, imgWrapper.nextSibling);
                     }
-                } else if (data.error) {
-                    addMsg(imgResult, '错误: ' + data.error, 'assistant');
                 } else {
-                    addMsg(imgResult, '未返回图片,请检查模型是否支持图像生成', 'assistant');
+                    var errMsg = data.error || (data.data && data.data.error) || '未返回图片，请检查模型是否支持图像生成';
+                    addMsg(imgResult, '错误: ' + errMsg, 'assistant');
                 }
             })
             .catch(function (err) {
