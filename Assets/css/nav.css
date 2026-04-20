@@ -286,6 +286,13 @@
 /* =============================================================
    Dark Mode (theme attribute: [data-theme="dark"])
    ============================================================= */
+[data-theme="dark"] {
+  --nav-bg: #1e1e1e;
+  --nav-surface: #252525;
+  --nav-border: #333;
+  --nav-text: #e8e8e8;
+  --nav-text-muted: #888;
+}
 [data-theme="dark"] .nav-sidebar-section { background: #1e1e1e; border-color: #333; }
 [data-theme="dark"] .nav-sidebar-title { color: #e8e8e8; border-color: #333; }
 [data-theme="dark"] .nav-cat-list a { color: #c0c0c0; }
