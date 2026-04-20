@@ -762,7 +762,10 @@ class SeoOptimizer
     {
         /* @phpcs:disable WordPress.DB.DirectDatabaseQuery,WordPress.DB.DirectDatabaseQuery.NoCaching */
         global $wpdb;
-        $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type='post' AND post_status='publish'");
+        $total = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type=%s AND post_status=%s",
+            'post', 'publish'
+        ));
         $optimized = (int) $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(pm.post_id) FROM {$wpdb->postmeta} pm JOIN {$wpdb->posts} p ON pm.post_id=p.ID WHERE pm.meta_key=%s AND pm.meta_value='1' AND p.post_status='publish' AND p.post_type='post'",
             self::META_OPTIMIZED

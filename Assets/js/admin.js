@@ -143,12 +143,14 @@
                 pgBtn.disabled = false;
                 pgBtn.textContent = '发送';
                 loadingEl.remove();
-                // API 可能返回两种格式：
-                // 1. 嵌套: {"code":"success","data":{"content":...}}
-                // 2. 直接: {"content":...}
-                var inner = (data.code === 'success' && data.data) ? data.data : data;
-                var reply = inner.content || (inner.choices && inner.choices[0] && inner.choices[0].message && inner.choices[0].message.content) || data.error || '无响应';
-                addMsg(pgMsgs, reply, 'assistant');
+                var reply;
+                if (data.code === 'success' && data.data) {
+                    var d = data.data;
+                    reply = d.content || (d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || '';
+                } else {
+                    reply = data.message || data.error || '无响应';
+                }
+                addMsg(pgMsgs, reply || '无响应', 'assistant');
                 pgPrompt.value = '';
             })
             .catch(function (err) {
@@ -197,10 +199,7 @@
                 imgBtn.textContent = '生成图片';
                 imgResult.innerHTML = '';
 
-                // API 可能返回两种格式：
-                // 1. 嵌套: {"code":"success","data":{"url":...}}
-                // 2. 直接: {"url":...}
-                var inner = (data.code === 'success' && data.data) ? data.data : data;
+                var inner = (data.code === 'success' && data.data) ? data.data : null;
 
                 if (inner && inner.url) {
                     addMsg(imgResult, '中文说明: ' + (inner.chinese_desc || inner.image_prompt || prompt), 'assistant');
@@ -261,7 +260,7 @@
                         imgWrapper.parentNode.insertBefore(actions, imgWrapper.nextSibling);
                     }
                 } else {
-                    var errMsg = data.error || (data.data && data.data.error) || '未返回图片，请检查模型是否支持图像生成';
+                    var errMsg = data.message || data.error || '未返回图片，请检查模型是否支持图像生成';
                     addMsg(imgResult, '错误: ' + errMsg, 'assistant');
                 }
             })

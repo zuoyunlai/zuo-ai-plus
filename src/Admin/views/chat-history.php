@@ -134,7 +134,7 @@ function ai_plus_extract_user_message($msg_raw) {
         <div class="tablenav" style="margin-top:16px;">
             <?php for ($ai_i = 1; $ai_i <= $ai_total_pages; $ai_i++): ?>
                 <a class="button <?php echo $ai_i === $ai_page ? 'button-primary' : ''; ?>"
-                   href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_chat_history&paged=' . $ai_i, 'ai_plus_admin')); ?>">
+                   href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_chat_history&paged=' . intval($ai_i), 'ai_plus_admin')); ?>">
                     <?php echo (int) $ai_i; ?>
                 </a>
             <?php endfor; ?>

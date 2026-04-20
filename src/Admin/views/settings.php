@@ -55,6 +55,11 @@ if (!defined('ABSPATH')) exit;
                 <td>标题/描述/关键词建议、H标签结构分析</td>
                 <td><span class="ai-plus-badge ai-plus-on">可用</span></td>
             </tr>
+            <tr>
+                <td><strong>🧭 网址导航</strong></td>
+                <td>AI 自动抓取网站信息、分类管理、前端导航页</td>
+                <td><?php if (\get_option('ai_plus_nav_enabled', '1')): ?><span class="ai-plus-badge ai-plus-on">已开启</span><?php else: ?><span class="ai-plus-badge ai-plus-off">已关闭</span><?php endif; ?></td>
+            </tr>
         </tbody>
     </table>
 

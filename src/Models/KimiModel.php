@@ -1,6 +1,7 @@
 <?php
 /**
  * Kimi（月之暗面）模型
+ * 使用 BaseModel 默认的 OpenAI 兼容 chat/completion 实现
  * 文档: https://platform.moonshot.cn/docs
  */
 namespace ZuoAIPlus\Models;
@@ -9,6 +10,7 @@ class KimiModel extends BaseModel
 {
     protected string $name = 'Kimi';
     protected string $endpoint = 'https://api.moonshot.cn/v1';
+    protected string $chatPath = '/chat/completions';
 
     public function __construct(string $apiKey, string $modelId = 'moonshot-v1-8k', string $baseUrl = '')
     {
@@ -20,10 +22,10 @@ class KimiModel extends BaseModel
     public function chat(array $messages, array $opts = []): array
     {
         $body = [
-            'model' => $this->modelId,
-            'messages' => $messages,
+            'model'       => $this->modelId,
+            'messages'    => $messages,
             'temperature' => $opts['temperature'] ?? 1.0,
-            'max_tokens' => $opts['max_tokens'] ?? 8192,
+            'max_tokens'  => $opts['max_tokens'] ?? 8192,
         ];
 
         // 尝试关闭思考过程（Kimi k2.5 支持）
@@ -42,28 +44,17 @@ class KimiModel extends BaseModel
 
         return [
             'content' => $content,
-            'usage' => $response['usage'] ?? [],
-            'raw' => $response,
+            'usage'   => $response['usage'] ?? [],
+            'raw'     => $response,
         ];
-    }
-
-    public function completion(string $prompt, array $opts = []): array
-    {
-        return $this->chat([['role' => 'user', 'content' => $prompt]], $opts);
     }
 
     public function image(string $prompt, array $opts = []): array
     {
-        // Kimi 暂不直接提供图像生成，通过文生图提示词方式返回
         return [
-            'url' => '',
+            'url'            => '',
             'revised_prompt' => $prompt,
-            'note' => 'Kimi暂不支持图像生成，建议使用智谱或通义',
+            'note'           => 'Kimi暂不支持图像生成，建议使用智谱或通义',
         ];
-    }
-
-    public function countTokens(string $text): int
-    {
-        return (int) (mb_strlen($text) / 2);
     }
 }

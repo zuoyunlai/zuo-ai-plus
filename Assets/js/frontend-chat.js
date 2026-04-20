@@ -64,7 +64,8 @@
             })
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                var reply = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || data.content || data.error || '无响应';
+                var reply = (data.code === 'success' && data.data) ? (data.data.choices?.[0]?.message?.content || data.data.content || '') : '';
+                if (data.code !== 'success') { reply = data.message || data.error || '无响应'; }
                 messages.push({ role: 'assistant', content: reply });
                 hideLoading();
                 renderMessages();

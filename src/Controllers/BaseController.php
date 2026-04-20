@@ -34,7 +34,7 @@ abstract class BaseController
      */
     protected function success(array $data = [], int $status = 200): \WP_REST_Response
     {
-        return new \WP_REST_Response($data, $status);
+        return new \WP_REST_Response(['code' => 'success', 'data' => $data], $status);
     }
 
     /**
@@ -42,7 +42,7 @@ abstract class BaseController
      */
     protected function error(string $message, int $status = 400): \WP_REST_Response
     {
-        return new \WP_REST_Response(['error' => $message], $status);
+        return new \WP_REST_Response(['code' => 'error', 'message' => $message], $status);
     }
 
     /**

@@ -359,7 +359,7 @@ class UtilityController extends BaseController
      */
     private function generateSlug(string $title): string
     {
-        $apiKeys  = get_option('ai_plus_api_keys', []);
+        $apiKeys  = \ZuoAIPlus\Utils\Crypto::decryptApiKeys((array)\get_option('ai_plus_api_keys', []));
         $zhipuKey = is_array($apiKeys['zhipu'] ?? null) ? ($apiKeys['zhipu']['api_key'] ?? '') : ($apiKeys['zhipu'] ?? '');
 
         if (!$zhipuKey) {
@@ -504,7 +504,7 @@ class UtilityController extends BaseController
 
     private function tryFallbackSlug(string $prompt): string
     {
-        $apiKeys  = get_option('ai_plus_api_keys', []);
+        $apiKeys  = \ZuoAIPlus\Utils\Crypto::decryptApiKeys((array)\get_option('ai_plus_api_keys', []));
         $zhipuKey = $apiKeys['zhipu'] ?? '';
 
         if ($zhipuKey) {

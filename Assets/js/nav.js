@@ -279,7 +279,7 @@
         fetch(cfg.ratingUrl + encodeURIComponent(visitorId))
             .then(function (r) { return r.json(); })
             .then(function (res) {
-                if (!res.success) return;
+                if (res.code !== 'success') return;
                 var data = res.data;
                 var scoreEl = document.getElementById('rating-score');
                 var countEl = document.getElementById('rating-count');
@@ -316,7 +316,7 @@
         .then(function (res) {
             var msgEl = document.getElementById('rating-message');
             if (!msgEl) return;
-            if (res.success) {
+            if (res.code === 'success') {
                 msgEl.textContent = '感谢您的评分！';
                 msgEl.className = 'nav-rating-message success';
                 loadRating();
@@ -366,7 +366,7 @@
                 return r.json();
             })
             .then(function (res) {
-                if (!res.success) {
+                if (res.code !== 'success') {
                     box.innerHTML = '<span style="color:var(--zhuoer-color-text-muted, #5f6368);font-size:0.8125rem;">' + (res.message || '暂无数据') + '</span>';
                     return;
                 }

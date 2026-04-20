@@ -772,7 +772,7 @@ function handleKeyword() {
                     body: JSON.stringify({ post_id: postId, tags: tagStr })
                 }).then(function(resp){ return resp.json().then(function(d){ return { ok: resp.ok, data: d }; }); })
                 .then(function(resp) {
-                    if (resp.ok && resp.data.success) {
+                    if (resp.ok && resp.data.code === 'success') {
                         // 优先使用后端过滤后的标签名（与实际写入的一致）
                         var savedTagStr = (resp.data.tag_names && resp.data.tag_names.length > 0)
                             ? resp.data.tag_names.join('，')
@@ -816,7 +816,7 @@ function handleKeyword() {
                         }
                         setGlobalResult({ type: 'ok', text: '✅ 标签已写入（' + resp.data.tag_ids.length + '个）：' + savedTagStr });
                     } else {
-                        setGlobalResult({ type: 'warn', text: '标签已生成：' + tagStr + ' (保存失败：' + (resp.data.error || '未知原因') + ')' });
+                        setGlobalResult({ type: 'warn', text: '标签已生成：' + tagStr + ' (保存失败：' + (resp.data.message || resp.data.error || '未知原因') + ')' });
                     }
                 })
                 .catch(function() {
@@ -917,7 +917,7 @@ function handleKeyword() {
                 }).then(function(resp) { return resp.json(); })
                 .then(function(data) {
                     setLoading(false);
-                    if (data.error) {
+                    if (data.code !== 'success') {
                         setGlobalResult({ type: 'warn', text: '⚠️ 特色图设置失败\n\n提示词：' + prompt });
                     } else if (data.attachment_id) {
                         try { wp.data.dispatch('core/editor').editPost({ featured_media: parseInt(data.attachment_id) }); } catch(e) {}

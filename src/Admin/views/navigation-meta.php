@@ -163,16 +163,17 @@ $meta   = \ZuoAIPlus\Models\NavigationSite::getMeta($postId);
         .then(data => {
             btn.disabled = false;
             btn.textContent = '🤖 AI 获取';
-            if (!data.success) {
+            if (data.code !== 'success') {
                 resultBox.classList.add('error');
                 resultBox.innerHTML = '<em>❌ 抓取失败：' + (data.message || '未知错误') + '</em>';
                 return;
             }
-            if (data.name) document.getElementById('nav_name').value = data.name;
-            if (data.keywords) document.getElementById('nav_keywords').value = data.keywords;
-            if (data.description) document.getElementById('nav_description').value = data.description;
-            if (data.logo) document.getElementById('nav_logo').value = data.logo;
-            if (data.slug) document.getElementById('nav_slug').value = data.slug;
+            var d = data.data || {};
+            if (d.name) document.getElementById('nav_name').value = d.name;
+            if (d.keywords) document.getElementById('nav_keywords').value = d.keywords;
+            if (d.description) document.getElementById('nav_description').value = d.description;
+            if (d.logo) document.getElementById('nav_logo').value = d.logo;
+            if (d.slug) document.getElementById('nav_slug').value = d.slug;
 
             resultBox.classList.remove('error');
             resultBox.innerHTML = '<strong>✅ 抓取成功！</strong> 已自动填入名称、关键词、描述、Logo 和 Slug';
@@ -209,10 +210,10 @@ $meta   = \ZuoAIPlus\Models\NavigationSite::getMeta($postId);
             .then(data => {
                 btnSummary.disabled = false;
                 btnSummary.textContent = '✨ AI 生成简介';
-                if (data.success && data.content) {
-                    document.getElementById('nav_ai_summary').value = data.content;
+                if (data.code === 'success' && (data.data || {}).content) {
+                    document.getElementById('nav_ai_summary').value = data.data.content;
                 } else {
-                    alert('AI 简介生成失败，请重试');
+                    alert('AI 简介生成失败：' + (data.message || '未知错误'));
                 }
             })
             .catch(() => {

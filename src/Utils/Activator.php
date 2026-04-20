@@ -6,7 +6,43 @@ namespace ZuoAIPlus\Utils;
 
 class Activator
 {
+    private const DB_VERSION = '1.3.2';
+
     public static function activate(): void
+    {
+        self::migrate();
+    }
+
+    /**
+     * 版本迁移：对比 db_version 执行增量升级
+     */
+    public static function migrate(): void
+    {
+        $current = get_option('zuo_ai_plus_db_version', '0');
+
+        // 首次安装：创建所有表
+        if ($current === '0') {
+            self::createTables();
+            self::setDefaults();
+            update_option('zuo_ai_plus_db_version', self::DB_VERSION);
+            return;
+        }
+
+        // 增量迁移
+        if (version_compare($current, '1.3.0', '<')) {
+            // 1.3.0: 导航模块相关迁移（如需要）
+            self::createTables(); // 确保新表存在
+        }
+
+        if (version_compare($current, '1.3.2', '<')) {
+            // 1.3.2: 确保 ai_plus_cache 表存在
+            self::createTables();
+        }
+
+        update_option('zuo_ai_plus_db_version', self::DB_VERSION);
+    }
+
+    private static function createTables(): void
     {
         global $wpdb;
 
@@ -81,12 +117,13 @@ class Activator
         dbDelta($sql_templates);
         dbDelta($sql_history);
         dbDelta($sql_cache);
+    }
 
-        // SEO统计优化可选操作（如需优化 getStats AVG 查询性能，可手动执行）：
-        // ALTER TABLE {$wpdb->postmeta} ADD INDEX idx_meta_key (meta_key);
-        // 这对文章数量超过1000篇时的 AVG(_seo_score) 查询有显著加速
-
-        // 默认选项
+    /**
+     * 设置默认选项
+     */
+    private static function setDefaults(): void
+    {
         $defaults = [
             'ai_plus_enabled_models' => ['zhipu', 'tongyi', 'minimax', 'kimi'],
             'ai_plus_default_model' => 'zhipu',

@@ -262,7 +262,7 @@ class ContentController extends BaseController
         // 但如果智谱未配置，回退到用户选择的模型
         if (in_array($action, ['slug', 'keyword', 'rewrite'], true)) {
             $zhipuKey = '';
-            $apiKeys  = (array) get_option('ai_plus_api_keys', []);
+            $apiKeys  = \ZuoAIPlus\Utils\Crypto::decryptApiKeys((array)\get_option('ai_plus_api_keys', []));
             $zk = $apiKeys['zhipu'] ?? null;
             $zhipuKey = is_array($zk) ? ($zk['api_key'] ?? '') : (is_string($zk) ? $zk : '');
             if ($zhipuKey) {
@@ -286,7 +286,7 @@ class ContentController extends BaseController
             ];
         }
 
-        $imgApiKeys  = get_option('ai_plus_api_keys', []);
+        $imgApiKeys  = \ZuoAIPlus\Utils\Crypto::decryptApiKeys((array)\get_option('ai_plus_api_keys', []));
         $imgPlatform = $action === 'featured_image'
             ? (get_option('ai_plus_image_model') ?: 'tongyi')
             : (sanitize_text_field($request->get_param('model') ?: '') ?: (get_option('ai_plus_image_model') ?: 'tongyi'));

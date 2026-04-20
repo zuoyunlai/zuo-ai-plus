@@ -93,11 +93,15 @@ class NavigationController extends BaseController
     {
         $url = esc_url_raw($request->get_param('url'));
         if (!$url) {
-            return new \WP_REST_Response(['success' => false, 'message' => 'URL不能为空'], 400);
+            return $this->error('URL不能为空');
         }
 
         $result = $this->curlFetch($url);
-        return new \WP_REST_Response($result, $result['success'] ? 200 : 500);
+        if (!$result['success']) {
+            return $this->error($result['message'] ?? '抓取失败');
+        }
+        unset($result['success']);
+        return $this->success($result);
     }
 
     /**
@@ -113,7 +117,7 @@ class NavigationController extends BaseController
 
         // 使用新的长内容生成函数（300-500字）
         $content = $this->generateAiContent($name, $url, $description);
-        return new \WP_REST_Response(['success' => true, 'content' => $content]);
+        return $this->success(['content' => $content]);
     }
 
     private function curlFetch(string $url): array

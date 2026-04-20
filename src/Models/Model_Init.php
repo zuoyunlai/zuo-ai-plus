@@ -30,7 +30,7 @@ class Model_Init
             return self::$instances[$name];
         }
 
-        $apiKeys = \get_option('ai_plus_api_keys', []);
+        $apiKeys = \ZuoAIPlus\Utils\Crypto::decryptApiKeys((array)\get_option('ai_plus_api_keys', []));
         $cfg     = $apiKeys[$name] ?? [];
 
         // 兼容旧格式（字符串）和新格式（数组）

@@ -46,9 +46,98 @@ add_action('rest_api_init', function () {
 
 // ── Admin / Frontend 初始化 ───────────────────────────────────────────────
 add_action('plugins_loaded', function () {
+    // 版本迁移（每次加载检查，确保升级后自动迁移）
+    \ZuoAIPlus\Utils\Activator::migrate();
     new \ZuoAIPlus\Admin\Admin_Init();
+    // 导航模块：根据开关决定是否加载
+    if (get_option('ai_plus_nav_enabled', '1')) {
+        new \ZuoAIPlus\Admin\Navigation_Init();
+    }
     new \ZuoAIPlus\Frontend\Frontend_Init();
 });
+
+// ── 导航 CPT 注册（必须在 init 之后）──────────────────────────────────────
+if (get_option('ai_plus_nav_enabled', '1')) {
+    add_action('init', function () {
+        \ZuoAIPlus\Models\NavigationSite::register();
+        \ZuoAIPlus\Models\NavigationSite::registerMeta();
+    }, 5);
+
+    // 添加导航网站的 Meta Box（独立 action）
+    add_action('add_meta_boxes', function () {
+        if (get_post_type() === 'nav_site') {
+            add_meta_box(
+                'nav_site_meta',
+                '📂 网站信息',
+                function () { include AI_PLUS_PLUGIN_DIR . 'src/Admin/views/navigation-meta.php'; },
+                'nav_site',
+                'normal',
+                'high'
+            );
+        }
+    });
+
+    // ── 导航网站模板路径 ──────────────────────────────────────────────────────
+    add_filter('template_include', function ($template) {
+        $isNavTemplate = false;
+        if (is_post_type_archive('nav_site') || is_post_type_archive('nav-sites')) {
+            $t = AI_PLUS_PLUGIN_DIR . 'Templates/archive-nav_site.php';
+            if (file_exists($t)) { $template = $t; $isNavTemplate = true; }
+        }
+        if (is_singular('nav_site')) {
+            $t = AI_PLUS_PLUGIN_DIR . 'Templates/single-nav_site.php';
+            if (file_exists($t)) { $template = $t; $isNavTemplate = true; }
+        }
+        // 导航分类页
+        if (is_tax('nav_category')) {
+            $t = AI_PLUS_PLUGIN_DIR . 'Templates/taxonomy-nav_category.php';
+            if (file_exists($t)) { $template = $t; $isNavTemplate = true; }
+        }
+        // 导航标签页
+        if (is_tax('nav_tag')) {
+            $t = AI_PLUS_PLUGIN_DIR . 'Templates/taxonomy-nav_tag.php';
+            if (file_exists($t)) { $template = $t; $isNavTemplate = true; }
+        }
+        // 注册导航页面 CSS/JS 资源（外置文件，可浏览器缓存）
+        if ($isNavTemplate) {
+            add_action('wp_enqueue_scripts', function () {
+                wp_enqueue_style('zuo-nav-css', AI_PLUS_PLUGIN_URL . 'Assets/css/nav.css', [], AI_PLUS_VERSION);
+                wp_enqueue_script('zuo-nav-js', AI_PLUS_PLUGIN_URL . 'Assets/js/nav.js', [], AI_PLUS_VERSION, true);
+                // 注入动态配置（替代模板中的 PHP 变量）
+                $navConfig = [
+                    'clickUrl'   => esc_url(rest_url('ai-plus/v1/nav/click')),
+                    'restBase'   => esc_url(rest_url('wp/v2/nav-sites')),
+                    'archiveUrl' => esc_url(get_post_type_archive_link('nav_site')),
+                    'ratingUrl'  => '',
+                    'rateUrl'    => '',
+                    'weightUrl'  => '',
+                    'postId'     => 0,
+                    'siteDomain' => '',
+                    'siteName'   => '',
+                    'sitePermalink' => '',
+                    'siteLogo'   => '',
+                ];
+                // 详情页额外数据
+                if (is_singular('nav_site')) {
+                    $postId = get_the_ID();
+                    $meta = get_post_meta($postId, 'nav_meta', true);
+                    $url = $meta['url'] ?? '';
+                    $domain = preg_replace('#https?://([^/]+).*#i', '$1', $url);
+                    $navConfig['postId'] = $postId;
+                    $navConfig['ratingUrl'] = esc_url(rest_url('ai-plus/v1/nav/rating?post_id=' . $postId . '&visitor_id='));
+                    $navConfig['rateUrl'] = esc_url(rest_url('ai-plus/v1/nav/rate'));
+                    $navConfig['weightUrl'] = esc_url(rest_url('ai-plus/v1/nav/weight'));
+                    $navConfig['siteDomain'] = $domain;
+                    $navConfig['siteName'] = $meta['name'] ?? get_the_title($postId);
+                    $navConfig['sitePermalink'] = get_permalink($postId);
+                    $navConfig['siteLogo'] = $meta['logo'] ?? '';
+                }
+                wp_localize_script('zuo-nav-js', 'zuoNav', $navConfig);
+            });
+        }
+        return $template;
+    });
+}
 
 // ── 插件激活(建表/建选项)─────────────────────────────────────────────────
 register_activation_hook(__FILE__, function () {
@@ -148,21 +237,27 @@ add_filter('the_content', function ($content) {
 add_action('ai_plus_cleanup_cache', function () {
     global $wpdb;
 
-    // 直接删除所有 AI 缓存 transient(不依赖 timeout 比对,
-    // WordPress 会自动清理已过期的 transient,这里主动清释放数据库空间)
-    $prefix = $wpdb->esc_like('_transient_ai_cache_');
-    $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $prefix . '%')); // @phpcs:ignore WordPress.DB.DirectDatabaseQuery
-    $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", '_transient_timeout_' . $prefix . '%')); // @phpcs:ignore WordPress.DB.DirectDatabaseQuery
+    // 只清理过期的 AI 缓存 transient（保留未过期的，避免重新生成）
+    $timeoutPrefix = $wpdb->esc_like('_transient_timeout_ai_cache_');
+    $expired = $wpdb->get_col($wpdb->prepare(
+        "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s AND option_value < %d",
+        $timeoutPrefix . '%', time()
+    ));
+    if ($expired) {
+        foreach ($expired as $timeoutKey) {
+            $transientKey = str_replace('_transient_timeout_', '_transient_', $timeoutKey);
+            delete_transient(str_replace('_transient_', '', $transientKey));
+        }
+    }
 
     // 清理 alloptions 缓存
     wp_cache_delete('alloptions', 'options');
 
     // 清理旧对话历史（超过30天的记录）
-    $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->prefix}ai_plus_chat WHERE created_at < %s", gmdate('Y-m-d H:i:s', strtotime('-30 days')))); // @phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,PluginCheck.Security.DirectDB.UnescapedDBParameter
+    $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->prefix}ai_plus_chat WHERE created_at < %s", gmdate('Y-m-d H:i:s', strtotime('-30 days')))); // @phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
-    // DEBUG: 缓存清理完成（仅在调试模式记录）
     if (defined('WP_DEBUG') && WP_DEBUG) {
-        error_log('AI Plus: Cache cleanup completed'); // @phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+        error_log('AI Plus: Cache cleanup completed (' . count($expired) . ' expired entries removed)'); // @phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
     }
 });
 

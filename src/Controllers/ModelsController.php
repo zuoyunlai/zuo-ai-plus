@@ -69,7 +69,7 @@ class ModelsController extends BaseController
      */
     public function getModelsConfig(): \WP_REST_Response
     {
-        $apiKeys = (array) get_option('ai_plus_api_keys', []);
+        $apiKeys = \ZuoAIPlus\Utils\Crypto::decryptApiKeys((array)\get_option('ai_plus_api_keys', []));
         $models  = [];
 
         foreach (self::MODELS_CONFIG as $id => $config) {
@@ -121,7 +121,7 @@ class ModelsController extends BaseController
      */
     public function healthCheck(): \WP_REST_Response
     {
-        $apiKeys = (array) get_option('ai_plus_api_keys', []);
+        $apiKeys = \ZuoAIPlus\Utils\Crypto::decryptApiKeys((array)\get_option('ai_plus_api_keys', []));
         $results = [];
         $allHealthy = true;
 
@@ -146,7 +146,7 @@ class ModelsController extends BaseController
         $dbOk = true;
         try {
             // @phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- health check probe
-            $wpdb->get_var('SELECT 1');
+            $wpdb->get_var($wpdb->prepare('SELECT %d', 1));
         } catch (\Exception $e) {
             $dbOk = false;
             $allHealthy = false;
