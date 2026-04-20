@@ -119,15 +119,17 @@ class Admin_Init
             $out = [];
             foreach ($v as $k => $item) {
                 if (is_array($item)) {
+                    $apiKey = isset($item['api_key']) && is_string($item['api_key']) ? sanitize_text_field($item['api_key']) : '';
                     $out[$k] = [
-                        'api_key'  => isset($item['api_key']) && is_string($item['api_key']) ? sanitize_text_field($item['api_key']) : '',
+                        'api_key'  => $apiKey !== '' ? \ZuoAIPlus\Utils\Crypto::encrypt($apiKey) : '',
                         'model'    => isset($item['model']) && is_string($item['model']) ? sanitize_text_field($item['model']) : '',
                         'base_url' => isset($item['base_url']) && is_string($item['base_url']) ? esc_url_raw($item['base_url']) : '',
                         'image_model' => isset($item['image_model']) && is_string($item['image_model']) ? sanitize_text_field($item['image_model']) : '',
                     ];
                 } elseif (is_string($item)) {
                     // 旧格式：直接是 API key 字符串
-                    $out[$k] = sanitize_text_field($item);
+                    $raw = sanitize_text_field($item);
+                    $out[$k] = $raw !== '' ? \ZuoAIPlus\Utils\Crypto::encrypt($raw) : '';
                 }
             }
             return $out;
@@ -144,6 +146,8 @@ class Admin_Init
     \register_setting('ai_plus_settings', 'ai_plus_license_key', ['sanitize_callback' => [$this, 'sanitizeLicenseKey']]);
         \register_setting('ai_plus_settings', 'ai_plus_license_server_url', ['sanitize_callback' => [$this, 'sanitizeLicenseUrl']]);
         \register_setting('ai_plus_settings', 'ai_plus_chat_enabled', ['sanitize_callback' => function($v) { return (bool)$v; }]);
+        \register_setting('ai_plus_settings', 'ai_plus_nav_enabled', ['sanitize_callback' => function($v) { return (bool)$v; }]);
+        \register_setting('ai_plus_settings', 'ai_plus_5118_apikey', ['sanitize_callback' => function($v) { return sanitize_text_field(trim($v)); }]);
         \register_setting('ai_plus_settings', 'ai_plus_cache_enabled', ['sanitize_callback' => function($v) { return (bool)$v; }]);
         \register_setting('ai_plus_settings', 'ai_plus_cache_ttl', ['sanitize_callback' => function($v) { return intval($v); }]);
     }
@@ -172,7 +176,7 @@ class Admin_Init
         }
 
 
-        $apiKeys   = \get_option('ai_plus_api_keys', []);
+        $apiKeys   = \ZuoAIPlus\Utils\Crypto::decryptApiKeys((array)\get_option('ai_plus_api_keys', []));
         $kbBase    = \trim(\get_option('ai_plus_knowledge_base', ''));
         $defModel  = \get_option('ai_plus_default_model', 'zhipu');
         $imgModel  = \get_option('ai_plus_image_model', 'tongyi');
@@ -358,8 +362,28 @@ placeholder="例如：本公司专业生产铝合金衣柜，产品特点包括�
                         <tr>
                             <th>开启客服浮窗</th>
                             <td>
+                                <input type="hidden" name="ai_plus_chat_enabled" value="0">
                                 <label><input type="checkbox" name="ai_plus_chat_enabled" value="1" <?php echo  \checked(\get_option('ai_plus_chat_enabled', '0'), '1', false) ?>>
                                 博客页面右下角显示 AI 客服悬浮按钮（默认关闭）</label>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <h2 class="ai-section-title">🧭 网址导航</h2>
+                    <table class="form-table">
+                        <tr>
+                            <th>开启网址导航</th>
+                            <td>
+                                <input type="hidden" name="ai_plus_nav_enabled" value="0">
+                                <label><input type="checkbox" name="ai_plus_nav_enabled" value="1" <?php echo  \checked(\get_option('ai_plus_nav_enabled', '1'), '1', false) ?>>
+                                开启网址导航功能模块，支持 AI 自动抓取网站信息、分类管理、前端展示（默认开启）</label>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>5118 API Key</th>
+                            <td>
+                                <input type="text" name="ai_plus_5118_apikey" value="<?php echo \esc_attr(\get_option('ai_plus_5118_apikey', '')); ?>" placeholder="输入 5118 API Key" style="width:400px;">
+                                <p class="description">用于查询网站 SEO 权重，<a href="https://www.5118.com/apistore" target="_blank">点击申请</a></p>
                             </td>
                         </tr>
                     </table>
