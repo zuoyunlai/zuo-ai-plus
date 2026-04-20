@@ -1,0 +1,20 @@
+# 一次性脚本（勿提交）
+fix-slugs.php
+
+# Service Worker（未启用，勿提交）
+assets/sw-nav.js
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# WordPress（插件独立，不依赖 WP 目录）
+wp-content/
+wp-includes/
+wp-admin/
+
+# 第三方依赖（如果有）
+vendor/
+node_modules/
