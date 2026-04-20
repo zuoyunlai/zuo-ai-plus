@@ -47,8 +47,9 @@ class Admin_Init
             \wp_enqueue_style('ai-plus-stats', AI_PLUS_PLUGIN_URL . 'Assets/css/admin-stats.css', [], AI_PLUS_VERSION);
         }
         \wp_localize_script('ai-plus-admin', 'aiPlusAdmin', [
-            'apiUrl' => \rest_url('ai-plus/v1/'),
-            'nonce'  => \wp_create_nonce('wp_rest'),
+            'apiUrl'   => \rest_url('ai-plus/v1/'),
+            'nonce'    => \wp_create_nonce('wp_rest'),      // REST API X-WP-Nonce
+            'ajaxNonce'=> \wp_create_nonce('ai_plus_admin'), // AJAX nonce
         ]);
     }
 
@@ -411,7 +412,7 @@ placeholder="例如：本公司专业生产铝合金衣柜，产品特点包括�
 
                     var formData = new FormData();
                     formData.append('action', 'ai_plus_test_model');
-                    formData.append('nonce', aiPlusAdmin.nonce);
+                    formData.append('nonce', aiPlusAdmin.ajaxNonce);
                     formData.append('model_id', modelId);
                     formData.append('api_key', apiKey);
                     formData.append('base_url', baseUrl);
@@ -442,7 +443,7 @@ placeholder="例如：本公司专业生产铝合金衣柜，产品特点包括�
                     btn.textContent = '清除中...';
                     var formData = new FormData();
                     formData.append('action', 'ai_plus_flush_cache');
-                    formData.append('nonce', aiPlusAdmin.nonce);
+                    formData.append('nonce', aiPlusAdmin.ajaxNonce);
                     fetch(ajaxurl, {method: 'POST', body: formData})
                         .then(function(r) { return r.json(); })
                         .then(function(data) {
@@ -683,7 +684,7 @@ var aiPlusLicense = (function() {
         // 通过 admin-ajax 保存（后台页面最可靠的方式）
         var formData = new FormData();
         formData.append('action', 'ai_plus_save_license_key');
-        formData.append('nonce', (typeof aiPlusAdmin !== 'undefined' && aiPlusAdmin.nonce) ? aiPlusAdmin.nonce : '');
+        formData.append('nonce', (typeof aiPlusAdmin !== 'undefined' && aiPlusAdmin.ajaxNonce) ? aiPlusAdmin.ajaxNonce : '');
         formData.append('license_key', key);
         fetch(ajaxurl, {method: 'POST', body: formData})
             .then(function(r){ return r.json(); })
