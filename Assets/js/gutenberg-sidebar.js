@@ -32,6 +32,8 @@
     });
 
     function apiRequest(endpoint, data) {
+        // DEBUG
+        console.log('[ZuoAI] apiRequest:', endpoint, data);
         // 添加超时控制（200秒 = 略小于PHP 300秒限制）
         var controller = new AbortController();
         var timeoutId = setTimeout(function() {
@@ -48,14 +50,19 @@
             signal: controller.signal
         }).then(function (r) { 
             clearTimeout(timeoutId);
+            console.log('[ZuoAI] apiResponse status:', r.status, 'ok:', r.ok);
             if (!r.ok) {
                 return r.json().then(function(data) {
+                    console.log('[ZuoAI] apiResponse error data:', JSON.stringify(data));
                     throw new Error(data.error || data.message || 'HTTP ' + r.status);
                 }).catch(function() {
                     throw new Error('HTTP ' + r.status + ' ' + r.statusText);
                 });
             }
-            return r.json(); 
+            return r.json().then(function(data) {
+                console.log('[ZuoAI] apiResponse success:', JSON.stringify(data).substring(0, 500));
+                return data;
+            }); 
         }).catch(function(e) {
             clearTimeout(timeoutId);
             if (e.name === 'AbortError') {
