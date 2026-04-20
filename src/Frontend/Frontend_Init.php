@@ -29,7 +29,7 @@ class Frontend_Init
 
         // 注入 marked.js 的懒加载脚本（inline，避免额外请求）
         $markedUrl = AI_PLUS_PLUGIN_URL . 'Assets/js/marked.min.js';
-        $inline = "window.__loadMarked=function(cb){if(window.marked)return cb();var s=document.createElement('script');s.src='" . esc_url($markedUrl) . "';s.onload=function(){cb()};document.head.appendChild(s);};"];
+        $inline = "window.__loadMarked=function(cb){if(window.marked)return cb();var s=document.createElement('script');s.src='" . esc_url($markedUrl) . "';s.onload=function(){cb()};document.head.appendChild(s)};";
         \wp_add_inline_script('ai-plus-frontend', $inline, 'before');
 
         $defaultModel = \get_option('ai_plus_default_model', 'minimax');
