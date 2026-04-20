@@ -652,9 +652,9 @@ var setGlobalResult = function(){};
                     target_lang: tgt
                 }).then(function(r) {
                     setLoading(false);
-                    if (r.error) { setGlobalResult({ type: 'err', text: '❌ ' + r.error }); if (onError) onError(r.error); return; }
+                    if (r.code !== 'success') { setGlobalResult({ type: 'err', text: '❌ ' + (r.message || r.error || '未知错误') }); if (onError) onError(r.message || r.error); return; }
                     setGlobalResult({ type: 'ok', text: '✅ 完成' });
-                    if (onSuccess) onSuccess(r, postId);
+                    if (onSuccess) onSuccess(r.data || {}, postId);
                 }).catch(function(e) { 
                 setLoading(false); 
                 var errorMsg = e.message || '未知错误';
@@ -703,13 +703,13 @@ var setGlobalResult = function(){};
             }, payload || {}))
             .then(function(r) {
                 setLoading(false);
-                if (r.error) {
-                    setGlobalResult({ type: 'err', text: '❌ ' + r.error });
-                    if (onError) onError(r.error);
+                if (r.code !== 'success') {
+                    setGlobalResult({ type: 'err', text: '❌ ' + (r.message || r.error || '未知错误') });
+                    if (onError) onError(r.message || r.error);
                     return;
                 }
                 setGlobalResult({ type: 'ok', text: '✅ 完成' });
-                if (onSuccess) onSuccess(r, postId);
+                if (onSuccess) onSuccess(r.data || {}, postId);
             })
             .catch(function(e) {
                 setLoading(false);
@@ -869,9 +869,8 @@ function handleKeyword() {
                 model: model, action: 'title_optimize', content: title
             }).then(function(r) {
                 setLoading(false);
-                if (r.error) { setGlobalResult({ type: 'err', text: '❌ 优化失败：' + r.error }); return; }
-                var newTitle = (r.content || '').trim();
-                if (!newTitle) { setGlobalResult({ type: 'err', text: '❌ 未返回结果，请重试' }); return; }
+                if (r.code !== 'success') { setGlobalResult({ type: 'err', text: '❌ 优化失败：' + (r.message || r.error || '未知错误') }); return; }
+                var newTitle = ((r.data || {}).content || '').trim();
                 wp.data.dispatch('core/editor').editPost({ title: newTitle });
                 setGlobalResult({ type: 'ok', text: '🎉 标题已优化！\n\n新标题：' + newTitle });
             }).catch(function(e) {
@@ -895,9 +894,10 @@ function handleKeyword() {
                 model: model, action: 'featured_image',
                 content: fullText, extra_prompt: extraPrompt
             }).then(function(r) {
-                if (r.error) { setLoading(false); setGlobalResult({ type: 'err', text: '❌ ' + r.error }); return; }
-                var prompt = r.image_prompt || r.content || '';
-                var imageUrl = r.url || '';
+                if (r.code !== 'success') { setLoading(false); setGlobalResult({ type: 'err', text: '❌ ' + (r.message || r.error || '未知错误') }); return; }
+                var d = r.data || {};
+                var prompt = d.image_prompt || d.content || '';
+                var imageUrl = d.url || '';
                 if (!imageUrl) {
                     setGlobalResult({ type: 'warn', text: '📷 图片提示词已生成，正在设置特色图…\n\n' + prompt });
                 } else {
