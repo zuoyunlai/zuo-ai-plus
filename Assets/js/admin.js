@@ -186,11 +186,17 @@
                     content: prompt
                 })
             })
-            .then(function (r) { return r.json(); })
+            .then(function (r) {
+                if (!r.ok) {
+                    throw new Error('HTTP ' + r.status + ': ' + r.statusText);
+                }
+                return r.json();
+            })
             .then(function (data) {
                 imgBtn.disabled = false;
                 imgBtn.textContent = '生成图片';
                 imgResult.innerHTML = '';
+                console.log('[DEBUG] Image gen response:', JSON.stringify(data).substring(0, 500));
 
                 // API 可能返回两种格式：
                 // 1. 嵌套: {"code":"success","data":{"url":...}}
@@ -264,6 +270,7 @@
                 imgBtn.disabled = false;
                 imgBtn.textContent = '生成图片';
                 imgResult.innerHTML = '';
+                console.log('[DEBUG] Image gen ERROR:', err.message);
                 addMsg(imgResult, '网络错误: ' + err.message, 'assistant');
             });
         });
