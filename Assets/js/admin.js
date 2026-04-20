@@ -143,8 +143,10 @@
                 pgBtn.disabled = false;
                 pgBtn.textContent = '发送';
                 loadingEl.remove();
-                // API 返回 {"code":"success","data":{...}} 或 {"error":"..."}
-                var inner = data.code === 'success' ? (data.data || {}) : {};
+                // API 可能返回两种格式：
+                // 1. 嵌套: {"code":"success","data":{"content":...}}
+                // 2. 直接: {"content":...}
+                var inner = (data.code === 'success' && data.data) ? data.data : data;
                 var reply = inner.content || (inner.choices && inner.choices[0] && inner.choices[0].message && inner.choices[0].message.content) || data.error || '无响应';
                 addMsg(pgMsgs, reply, 'assistant');
                 pgPrompt.value = '';
@@ -190,10 +192,12 @@
                 imgBtn.textContent = '生成图片';
                 imgResult.innerHTML = '';
 
-                // API 返回 {"code":"success","data":{...}} 或 {"error":"..."}
-                var inner = data.code === 'success' ? (data.data || {}) : {};
+                // API 可能返回两种格式：
+                // 1. 嵌套: {"code":"success","data":{"url":...}}
+                // 2. 直接: {"url":...}
+                var inner = (data.code === 'success' && data.data) ? data.data : data;
 
-                if (inner.url) {
+                if (inner && inner.url) {
                     addMsg(imgResult, '中文说明: ' + (inner.chinese_desc || inner.image_prompt || prompt), 'assistant');
                     if (inner.chinese_alt) addMsg(imgResult, '替代文本: ' + inner.chinese_alt, 'assistant');
                     addImage(imgResult, inner.url);
