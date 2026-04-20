@@ -726,7 +726,14 @@ var setGlobalResult = function(){};
 
         function handleGenerate() {
             doAction('generate', {}, function(r) {
-                if (r.content) insertContent(0, r.content);
+                console.log('[ZuoAI] handleGenerate callback, r:', JSON.stringify(r).substring(0, 300));
+                if (r.content) {
+                    console.log('[ZuoAI] calling insertContent with content length:', r.content.length);
+                    insertContent(0, r.content);
+                } else {
+                    console.log('[ZuoAI] r.content is empty, r:', JSON.stringify(r).substring(0, 300));
+                    setGlobalResult({ type: 'warn', text: '⚠️ AI 未返回文章内容（content为空），请尝试切换模型' });
+                }
             });
         }
 
