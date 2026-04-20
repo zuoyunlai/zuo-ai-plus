@@ -46,6 +46,32 @@ abstract class BaseController
     }
 
     /**
+     * 获取真实客户端 IP（支持 Cloudflare、代理转发等）
+     */
+    protected function getRealIp(): string
+    {
+        // Cloudflare
+        if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+            return sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_CONNECTING_IP']));
+        }
+        // 标准代理转发（取第一个非私有IP）
+        if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $parts = array_map('trim', explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']));
+            foreach ($parts as $ip) {
+                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+                    return $ip;
+                }
+            }
+        }
+        // X-Real-IP（Nginx）
+        if (!empty($_SERVER['HTTP_X_REAL_IP'])) {
+            return sanitize_text_field(wp_unslash($_SERVER['HTTP_X_REAL_IP']));
+        }
+        // 直接连接
+        return sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0'));
+    }
+
+    /**
      * 获取模型实例
      */
     protected function getModel(string $name): ?\ZuoAIPlus\Models\BaseModel
@@ -156,10 +182,11 @@ abstract class BaseController
     protected function checkRateLimit(string $action, int $maxRequests = 10, int $windowSeconds = 60): ?\WP_REST_Response
     {
         // 匿名用户（userId=0）按 IP 区分，避免不同匿名用户共享同一限速桶
+        // 支持常见 CDN/代理：Cloudflare、代理转发、X-Forwarded-For（取第一个非私有IP）
         $userId = get_current_user_id();
         if ($userId === 0) {
-            $ip = isset($_SERVER['REMOTE_ADDR']) ? md5(sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR']))) : 'anon';
-            $transientKey = 'ai_plus_rate_' . $action . '_ip_' . $ip;
+            $ip = $this->getRealIp();
+            $transientKey = 'ai_plus_rate_' . $action . '_ip_' . md5($ip);
         } else {
             $transientKey = 'ai_plus_rate_' . $action . '_user_' . $userId;
         }

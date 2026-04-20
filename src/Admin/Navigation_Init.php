@@ -48,7 +48,7 @@ class Navigation_Init
     public function renderImportPage(): void
     {
         if (!current_user_can('manage_options')) {
-            wp_die('无权访问');
+            wp_die(__('无权访问', 'zuo-ai-plus'));
         }
         ?>
         <div class="wrap">
@@ -105,10 +105,10 @@ class Navigation_Init
             return;
         }
         if (!wp_verify_nonce($_POST['nav_import_nonce'], 'nav_bulk_import')) {
-            wp_die('安全验证失败');
+            wp_die(__('安全验证失败', 'zuo-ai-plus'));
         }
         if (!current_user_can('manage_options')) {
-            wp_die('无权访问');
+            wp_die(__('无权访问', 'zuo-ai-plus'));
         }
 
         $bulkData = sanitize_textarea_field($_POST['bulk_data'] ?? '');
@@ -116,6 +116,10 @@ class Navigation_Init
             add_settings_error('nav_import', 'empty_data', '请输入导入数据', 'error');
             return;
         }
+
+        // 防止大数据量导入时超时
+        ignore_user_abort(true);
+        set_time_limit(0);
 
         $lines = explode("\n", $bulkData);
         $imported = 0;
@@ -220,7 +224,7 @@ class Navigation_Init
     public function renderToolsPage(): void
     {
         if (!current_user_can('manage_options')) {
-            wp_die('无权访问');
+            wp_die(__('无权访问', 'zuo-ai-plus'));
         }
 
         // 获取统计
