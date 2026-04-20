@@ -197,8 +197,13 @@ abstract class BaseController
             return null; // 已验证，直接放行
         }
 
-        $server_url = trim((string) get_option('ai_plus_license_server_url', 'https://www.yily.top/licenses/api.php'));
-        $domain     = isset($_SERVER['HTTP_HOST']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_HOST'])) : '';
+        $server_url = trim((string) get_option('ai_plus_license_server_url', ''));
+        if ($server_url === '') {
+            $server_url = 'https://www.yily.top/licenses/api.php';
+        }
+        $domain = isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] !== ''
+            ? sanitize_text_field(wp_unslash($_SERVER['HTTP_HOST']))
+            : parse_url(home_url(), PHP_URL_HOST);
         $verify_url = add_query_arg([
             'action' => 'verify',
             'key'    => urlencode($key),
