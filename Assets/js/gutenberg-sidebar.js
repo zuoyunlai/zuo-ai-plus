@@ -129,6 +129,7 @@
         // 去掉 AI 内容中可能混入的标题（只在 replaceMode=false 时需要；
         // replaceMode=true 时先不处理，等判断完再决定，防止误删正文）
         var strippedContent = newContent;
+        var merged = '';
 
         var realPostId = 0;
         try { realPostId = wp.data.select('core/editor').getEditedPostAttribute('id') || 0; } catch(e) {
@@ -779,22 +780,36 @@ function handleKeyword() {
                         // 使用接口返回的 term_ids（Gutenberg 需要 ID，而非标签名）
                         if (resp.data.tag_ids && resp.data.tag_ids.length > 0) {
                             try {
-                                // 强制刷新 Gutenberg 标签面板
+                                // 步骤1：editPost 更新 editor store（同时更新 tags 属性）
                                 wp.data.dispatch('core/editor').editPost({ tags: resp.data.tag_ids });
-                                // 强制触发标签 meta box 刷新
+                                console.log('[ZuoAI] Tags updated in store:', resp.data.tag_ids);
+
+                                // 步骤2：立即保存（Tags 面板需要 post save 才能重新获取数据）
                                 setTimeout(function() {
-                                    var tagInput = document.getElementById('tags-input') || 
-                                                   document.querySelector('.tags-input') ||
-                                                   document.querySelector('[name="tax_input[post_tag]"]');
-                                    if (tagInput) {
-                                        tagInput.value = resp.data.tag_ids.join(',');
-                                        // 触发 change 事件让 WordPress 重新加载标签
-                                        tagInput.dispatchEvent(new Event('change', { bubbles: true }));
+                                    try {
+                                        wp.data.dispatch('core/editor').savePost();
+                                        console.log('[ZuoAI] Post saved with new tags');
+
+                                        // 步骤3：invalidate entity cache 强制 Tags 面板重新获取数据
+                                        // Gutenberg 5.8+ 的 Tags 面板监听 core/editor store，
+                                        // invalidateResolution 可使其重新 fetch 最新的 post entity
+                                        setTimeout(function() {
+                                            try {
+                                                if (typeof wp.data.dispatch('core') !== 'undefined') {
+                                                    wp.data.dispatch('core').invalidateResolution('getEntityRecord', ['postType', 'post', postId]);
+                                                }
+                                                if (typeof wp.data.dispatch('core/editor') !== 'undefined') {
+                                                    wp.data.dispatch('core/editor').invalidateResolution('getEntityRecord', ['postType', 'post', postId]);
+                                                }
+                                                console.log('[ZuoAI] Entity cache invalidated, Tags panel should refresh');
+                                            } catch(e3) {
+                                                console.warn('[ZuoAI] invalidateResolution not available:', e3);
+                                            }
+                                        }, 200);
+                                    } catch(e2) {
+                                        console.error('[ZuoAI] savePost failed:', e2);
                                     }
-                                    // 刷新 Gutenberg 数据
-                                    wp.data.dispatch('core/editor').savePost();
-                                }, 100);
-                                console.log('[ZuoAI] Tags set in Gutenberg:', resp.data.tag_ids);
+                                }, 50);
                             } catch(e) {
                                 console.error('[ZuoAI] editPost tags failed:', e);
                             }
