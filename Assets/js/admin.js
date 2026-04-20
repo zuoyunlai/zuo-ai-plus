@@ -196,11 +196,6 @@
                 imgBtn.disabled = false;
                 imgBtn.textContent = '生成图片';
                 imgResult.innerHTML = '';
-                // 调试：页面可见的诊断信息
-                var dbg = document.createElement('div');
-                dbg.style = 'background:#f0f0f0;border:1px solid #ccc;padding:8px;margin:8px 0;font-size:11px;word-break:break-all;max-height:200px;overflow-y:auto;';
-                dbg.textContent = '收到响应: ' + JSON.stringify(data).substring(0, 400);
-                imgResult.appendChild(dbg);
 
                 // API 可能返回两种格式：
                 // 1. 嵌套: {"code":"success","data":{"url":...}}
