@@ -7,6 +7,7 @@
  * 1. 输入网址 → AI全量获取（名称/别名/关键词/描述/Logo/截图）
  * 2. 点击 AI生成简介（生成正文）
  * 3. 点击 AI提取标签（从简介中提取标签）
+ * 截图自动设为特色图，无需手动设置
  * 所有字段均可手动修改
  */
 if (!defined('ABSPATH')) exit;
@@ -145,17 +146,6 @@ if ($currentTags && !is_wp_error($currentTags)) {
                         </div>
                     </div>
 
-                    <!-- 截图 -->
-                    <div class="img-field-group">
-                        <label for="nav_screenshot">网站截图</label>
-                        <div class="img-url-row">
-                            <input type="text" id="nav_screenshot" name="nav_screenshot" value="<?php echo esc_attr($shot); ?>" placeholder="AI 全量获取后自动填入（来自截图服务）">
-                        </div>
-                        <div class="img-actions">
-                            <button type="button" class="btn btn-secondary" id="btn-shot-media">📂 媒体库选择</button>
-                            <button type="button" class="btn" id="btn-shot-save">💾 保存到媒体库</button>
-                        </div>
-                    </div>
                 </div>
             </div>
             <div class="fetch-result" id="img-result"></div>
@@ -254,22 +244,33 @@ if ($currentTags && !is_wp_error($currentTags)) {
                 filled.push('Logo');
             }
             if (d.screenshot) {
-                document.getElementById('nav_screenshot').value = d.screenshot;
-                filled.push('网站截图');
-                // 记录截图附件ID，用于保存时设为特色图
+                filled.push('网站截图(特色图)');
+                // 记录截图附件ID
+                var attIdInput = document.getElementById('nav_screenshot_att_id');
+                if (!attIdInput) {
+                    attIdInput = document.createElement('input');
+                    attIdInput.type = 'hidden';
+                    attIdInput.id = 'nav_screenshot_att_id';
+                    attIdInput.name = 'nav_screenshot_att_id';
+                    document.querySelector('.nav-meta-box').appendChild(attIdInput);
+                }
                 if (d.screenshot_att_id) {
-                    var attIdInput = document.getElementById('nav_screenshot_att_id');
-                    if (!attIdInput) {
-                        attIdInput = document.createElement('input');
-                        attIdInput.type = 'hidden';
-                        attIdInput.id = 'nav_screenshot_att_id';
-                        attIdInput.name = 'nav_screenshot_att_id';
-                        attIdInput.value = d.screenshot_att_id;
-                        document.querySelector('.nav-meta-box').appendChild(attIdInput);
-                    } else {
-                        attIdInput.value = d.screenshot_att_id;
+                    attIdInput.value = d.screenshot_att_id;
+                    // 通知右侧 WordPress 特色图框
+                    if (typeof wp !== 'undefined' && wp.media) {
+                        wp.media.featuredImage.set(d.screenshot_att_id);
                     }
                 }
+                // 保存 nav_screenshot meta 供前端备用
+                var shotInput = document.getElementById('nav_screenshot');
+                if (!shotInput) {
+                    shotInput = document.createElement('input');
+                    shotInput.type = 'hidden';
+                    shotInput.id = 'nav_screenshot';
+                    shotInput.name = 'nav_screenshot';
+                    document.querySelector('.nav-meta-box').appendChild(shotInput);
+                }
+                shotInput.value = d.screenshot;
             }
 
             if (filled.length === 0) {
@@ -418,11 +419,7 @@ if ($currentTags && !is_wp_error($currentTags)) {
     document.getElementById('btn-logo-media').addEventListener('click', function() {
         navOpenMedia('nav_logo');
     });
-    document.getElementById('btn-shot-media').addEventListener('click', function() {
-        navOpenMedia('nav_screenshot');
-    });
 
-    // ── 保存到媒体库 ───────────────────────────────────────
     function navSaveToMediaLib(btn, inputId, resultId) {
         var url = document.getElementById(inputId).value.trim();
         if (!url) { alert('请先输入图片 URL'); return; }
@@ -463,9 +460,5 @@ if ($currentTags && !is_wp_error($currentTags)) {
     document.getElementById('btn-logo-save').addEventListener('click', function() {
         navSaveToMediaLib(this, 'nav_logo', 'img-result');
     });
-    document.getElementById('btn-shot-save').addEventListener('click', function() {
-        navSaveToMediaLib(this, 'nav_screenshot', 'img-result');
-    });
-
 })();
 </script>

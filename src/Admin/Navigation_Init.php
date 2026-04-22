@@ -408,7 +408,7 @@ class Navigation_Init
         // 设置特色图（网站截图）
         if (!empty($_POST['nav_screenshot_att_id'])) {
             $attId = (int) $_POST['nav_screenshot_att_id'];
-            if ($attId > 0 && !has_post_thumbnail($postId)) {
+            if ($attId > 0) {
                 set_post_thumbnail($postId, $attId);
             }
         }
