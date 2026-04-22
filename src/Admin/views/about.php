@@ -1,7 +1,7 @@
 <?php
 /* @phpcs:disable WordPress.NamingConventions.PrefixAllGlobals */
 if (!defined('ABSPATH')) exit;
-$ai_version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.3.0';
+$ai_version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.5.13';
 /* @phpcs:enable WordPress.NamingConventions.PrefixAllGlobals */
 ?>
 <style>
@@ -240,6 +240,22 @@ $ai_version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.3.0';
                 <tr>
                     <td>🔍 SEO 诊断 <span class="ai-new-tag">核心</span></td>
                     <td>全站文章批量诊断 · 得分分析 · 问题定位 · AI 一键优化</td>
+                </tr>
+                <tr>
+                    <td>🧭 网址导航 <span class="ai-new-tag">NEW</span></td>
+                    <td>AI全量获取网站信息，自动截图设特色图，SEO权重胶囊显示</td>
+                </tr>
+                <tr>
+                    <td>📸 网站截图 <span class="ai-new-tag">NEW</span></td>
+                    <td>Chrome Headless截取网站截图，自动设为特色图，AI生成图片alt/标题/描述</td>
+                </tr>
+                <tr>
+                    <td>🏷️ AI提取标签 <span class="ai-new-tag">NEW</span></td>
+                    <td>从网站简介自动提取导航标签，写入WP原生标签栏</td>
+                </tr>
+                <tr>
+                    <td>🌙 暗色模式 <span class="ai-new-tag">NEW</span></td>
+                    <td>CSS变量驱动的全暗色模式支持，自动跟随主题切换</td>
                 </tr>
                 <tr>
                     <td>💬 网站客服</td>

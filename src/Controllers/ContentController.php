@@ -207,11 +207,6 @@ class ContentController extends BaseController
         $chineseDesc   = $meta['chinese_desc'];
         $chineseAlt    = $meta['chinese_alt'];
 
-        // DEBUG: 记录解析结果
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-
-        }
-
         // 再用英文提示词调用绘图模型
         try {
             $result = $model->image($englishPrompt);
@@ -340,12 +335,7 @@ class ContentController extends BaseController
         $chineseDesc   = $meta['chinese_desc'];
         $chineseAlt    = $meta['chinese_alt'];
 
-        // DEBUG: 记录 AI 原始输出和解析结果（仅调试模式）
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-
-        }
-
-        try {
+                try {
             $sizeOpt = get_option('ai_plus_image_size', '1216*832');
             $opts    = [
                 'size'   => $sizeOpt,

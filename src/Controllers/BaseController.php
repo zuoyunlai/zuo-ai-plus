@@ -56,7 +56,7 @@ abstract class BaseController
         }
         // 标准代理转发（取第一个非私有IP）
         if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            $parts = array_map('trim', explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']));
+            $parts = array_map('trim', explode(',', sanitize_text_field(wp_unslash($_SERVER['HTTP_X_FORWARDED_FOR']))));
             foreach ($parts as $ip) {
                 if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
                     return $ip;

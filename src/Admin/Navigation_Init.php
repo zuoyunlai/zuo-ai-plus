@@ -111,7 +111,7 @@ class Navigation_Init
             wp_die(__('无权访问', 'zuo-ai-plus'));
         }
 
-        $bulkData = sanitize_textarea_field($_POST['bulk_data'] ?? '');
+        $bulkData = sanitize_textarea_field(wp_unslash($_POST['bulk_data'] ?? ''));
         if (empty($bulkData)) {
             add_settings_error('nav_import', 'empty_data', '请输入导入数据', 'error');
             return;
@@ -380,7 +380,7 @@ class Navigation_Init
         $textFields = ['nav_url', 'nav_name', 'nav_keywords', 'nav_description', 'nav_ai_summary', 'nav_status'];
         foreach ($textFields as $field) {
             if (isset($_POST[$field])) {
-                update_post_meta($postId, $field, sanitize_text_field($_POST[$field]));
+                update_post_meta($postId, $field, sanitize_text_field(wp_unslash($_POST[$field])));
             }
         }
 
@@ -388,17 +388,17 @@ class Navigation_Init
         $urlFields = ['nav_logo', 'nav_screenshot'];
         foreach ($urlFields as $field) {
             if (isset($_POST[$field])) {
-                $url = esc_url_raw($_POST[$field]);
+                $url = esc_url_raw(wp_unslash($_POST[$field]));
                 update_post_meta($postId, $field, $url);
             }
         }
 
         // 同步标题和 Slug
         if (!empty($_POST['nav_name'])) {
-            $postData = ['ID' => $postId, 'post_title' => sanitize_text_field($_POST['nav_name'])];
+            $postData = ['ID' => $postId, 'post_title' => sanitize_text_field(wp_unslash($_POST['nav_name']))];
             // 更新 slug
             if (!empty($_POST['nav_slug'])) {
-                $postData['post_name'] = sanitize_title($_POST['nav_slug']);
+                $postData['post_name'] = sanitize_title(wp_unslash($_POST['nav_slug']));
             }
             remove_action('save_post_nav_site', [$this, 'saveMeta']);
             wp_update_post($postData);
@@ -407,7 +407,7 @@ class Navigation_Init
 
         // 设置特色图（网站截图）
         if (!empty($_POST['nav_screenshot_att_id'])) {
-            $attId = (int) $_POST['nav_screenshot_att_id'];
+            $attId = (int) wp_unslash($_POST['nav_screenshot_att_id']);
             if ($attId > 0) {
                 set_post_thumbnail($postId, $attId);
             }
@@ -415,7 +415,7 @@ class Navigation_Init
 
         // 保存导航标签（nav_tag 分类）
         if (isset($_POST['nav_tags_json'])) {
-            $tagsJson = wp_kses_post($_POST['nav_tags_json']);
+            $tagsJson = sanitize_text_field(wp_unslash($_POST['nav_tags_json']));
             $tags = json_decode($tagsJson, true);
             if (is_array($tags) && !empty($tags)) {
                 $termIds = [];

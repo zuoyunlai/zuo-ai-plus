@@ -799,7 +799,7 @@ class NavigationController extends BaseController
 
         // 获取客户端 IP 和 User-Agent 用于防刷
         $ip = $this->getClientIp();
-        $ua = sanitize_text_field($_SERVER['HTTP_USER_AGENT'] ?? '');
+        $ua = sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'] ?? ''));
         
         // 生成更可靠的标识（IP + UA + visitorId）
         $uniqueId = md5($ip . '|' . $ua . '|' . $visitorId);
