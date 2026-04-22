@@ -581,9 +581,15 @@
 @media (max-width: 768px) {
   .nav-single-header { padding: 16px; }
   .nav-single-header-inner { flex-wrap: wrap; }
-  .nav-single-actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+  .nav-single-actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; gap: 8px; }
+  .nav-btn-icon { padding: 10px 14px; }
   .nav-single-name { font-size: 1.25rem; }
   .nav-btn { padding: 8px 14px; font-size: 0.8125rem; }
+  .nav-single-meta-row { justify-content: center; gap: 6px; }
+  .nav-single-meta-tag { padding: 3px 8px; font-size: 0.75rem; }
+  .seo-weight-row { gap: 8px; }
+  .seo-capsule-left { font-size: 0.5rem; padding: 1px 4px; }
+  .seo-capsule-right { font-size: 0.55rem; padding: 1px 5px; }
   .nav-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
   .nav-related-grid { grid-template-columns: repeat(2, 1fr); }
   .nav-share-buttons { grid-template-columns: repeat(2, 1fr); }
