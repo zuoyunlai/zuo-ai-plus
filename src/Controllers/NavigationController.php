@@ -193,19 +193,46 @@ class NavigationController extends BaseController
         $description = $this->extractMeta($html, 'description');
         $keywords    = $this->extractMeta($html, 'keywords');
         $logo        = $this->extractLogo($html, $url);
-        $screenshot  = $this->extractScreenshot($html, $url);
+        $screenshotData = $this->extractScreenshot($html, $url);
+        $screenshot  = is_array($screenshotData) ? $screenshotData['url'] : $screenshotData;
+        $screenshotAttId = is_array($screenshotData) ? ($screenshotData['attachment_id'] ?? 0) : 0;
 
         // AI 生成 slug（拼音或英文）
         $slug = $this->generateSlug($name, $description);
 
+        // AI 生成截图的 alt/标题/描述
+        $imageAlt = '';
+        $imageCaption = '';
+        $imageDescription = ''; 
+        if ($name) {
+            $imageAlt = $name . ' 网站截图';
+            $imageCaption = $name . ' 网站预览';
+            $imageDescription = $name . ' 官方网站截图预览，来源：' . parse_url($url, PHP_URL_HOST);
+        }
+
+        // 更新附件的 alt/标题/描述
+        if ($screenshotAttId > 0) {
+            wp_update_post([
+                'ID' => $screenshotAttId,
+                'post_title' => $imageCaption,
+                'post_excerpt' => $imageDescription,
+                'post_content' => $imageDescription,
+            ]);
+            update_post_meta($screenshotAttId, '_wp_attachment_image_alt', $imageAlt);
+        }
+
         $data = [
-            'success'     => true,
-            'name'        => $name,
-            'keywords'    => $keywords,
-            'description' => $description,
-            'logo'        => $logo,
-            'screenshot'  => $screenshot,
-            'slug'        => $slug,
+            'success'         => true,
+            'name'            => $name,
+            'keywords'        => $keywords,
+            'description'     => $description,
+            'logo'            => $logo,
+            'screenshot'      => $screenshot,
+            'screenshot_att_id' => $screenshotAttId,
+            'image_alt'       => $imageAlt,
+            'image_caption'   => $imageCaption,
+            'image_desc'      => $imageDescription,
+            'slug'            => $slug,
         ];
 
         // 清理 HTML 实体
@@ -269,7 +296,7 @@ class NavigationController extends BaseController
      * 提取网站截图 URL
      * 优先使用 og:image（网站首页快照），否则用 thum.io 在线截图服务
      */
-    private function extractScreenshot(string $html, string $url): string
+    private function extractScreenshot(string $html, string $url): array
     {
         $base = parse_url($url, PHP_URL_SCHEME) . '://' . parse_url($url, PHP_URL_HOST);
 
@@ -278,17 +305,20 @@ class NavigationController extends BaseController
             $img = $this->makeAbsolute(trim($m[1]), $base);
             // 过滤掉明显的 logo/favicon URL
             if ($img && !preg_match('/(logo|favicon|icon|apple-touch|avatar|brand)/i', $img)) {
-                return $img;
+                return ['url' => $img, 'attachment_id' => 0];
             }
         }
 
         // 2. 用本地 Chrome Headless 截图，保存到 uploads 目录
-        $localUrl = $this->takeLocalScreenshot($url);
-        if ($localUrl) {
-            return $localUrl;
+        $localShot = $this->takeLocalScreenshot($url);
+        if ($localShot && isset($localShot['url'])) {
+            return $localShot;
         }
 
         // 3. fallback: thum.io（加 allowJPG 提高成功率）
+        $host = parse_url($url, PHP_URL_HOST);
+        return ['url' => 'https://image.thum.io/allowJPG/wait/3/getwidth/800/' . $host, 'attachment_id' => 0];
+    }
         $host = parse_url($url, PHP_URL_HOST);
         return 'https://image.thum.io/allowJPG/wait/3/getwidth/800/' . $host;
     }
@@ -296,10 +326,10 @@ class NavigationController extends BaseController
     /**
      * 用本地 Chrome Headless 截图并保存到 WordPress uploads
      */
-    private function takeLocalScreenshot(string $url): string
+    private function takeLocalScreenshot(string $url): array
     {
         $host = parse_url($url, PHP_URL_HOST);
-        if (!$host) return '';
+        if (!$host) return [];
 
         $uploadDir = wp_upload_dir();
         $navDir = $uploadDir['basedir'] . '/nav-screenshots';
@@ -312,12 +342,14 @@ class NavigationController extends BaseController
 
         // 已存在且不超过7天，直接返回
         if (file_exists($filepath) && (time() - filemtime($filepath)) < 7 * DAY_IN_SECONDS) {
-            return $uploadDir['baseurl'] . '/nav-screenshots/' . $filename;
+            // 检查是否已注册为附件
+            $att_id = $this->findAttachmentByFile($filepath);
+            return ['url' => $uploadDir['baseurl'] . '/nav-screenshots/' . $filename, 'attachment_id' => $att_id];
         }
 
         // 用 Chrome Headless 截图
         $chrome = '/usr/bin/google-chrome';
-        if (!file_exists($chrome)) return '';
+        if (!file_exists($chrome)) return [];
 
         $cmd = escapeshellcmd($chrome)
             . ' --headless --disable-gpu --no-sandbox'
@@ -339,10 +371,34 @@ class NavigationController extends BaseController
 
         if (!file_exists($filepath) || filesize($filepath) < 1000) {
             @unlink($filepath);
-            return ''; // 截图失败
+            return []; // 截图失败
         }
 
-        return $uploadDir['baseurl'] . '/nav-screenshots/' . $filename;
+        // 注册为 WordPress 媒体附件
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+        $att_id = wp_insert_attachment([
+            'post_title'     => $host . ' 网站截图',
+            'post_content'   => '',
+            'post_status'    => 'inherit',
+            'post_mime_type' => 'image/png',
+        ], $filepath);
+
+        if (!is_wp_error($att_id) && $att_id > 0) {
+            wp_update_attachment_metadata($att_id, wp_generate_attachment_metadata($att_id, $filepath));
+        }
+
+        return ['url' => $uploadDir['baseurl'] . '/nav-screenshots/' . $filename, 'attachment_id' => $att_id > 0 ? (int) $att_id : 0];
+    }
+
+    /**
+     * 根据文件路径查找已注册的附件ID
+     */
+    private function findAttachmentByFile(string $filepath): int
+    {
+        global $wpdb;
+        $guid = str_replace(ABSPATH, site_url('/') , $filepath);
+        $id = $wpdb->get_var($wpdb->prepare("SELECT ID FROM $wpdb->posts WHERE guid = %s AND post_type = 'attachment' LIMIT 1", $guid));
+        return (int) $id;
     }
 
     private function makeAbsolute(string $url, string $base): string

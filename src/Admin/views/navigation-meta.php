@@ -256,6 +256,20 @@ if ($currentTags && !is_wp_error($currentTags)) {
             if (d.screenshot) {
                 document.getElementById('nav_screenshot').value = d.screenshot;
                 filled.push('网站截图');
+                // 记录截图附件ID，用于保存时设为特色图
+                if (d.screenshot_att_id) {
+                    var attIdInput = document.getElementById('nav_screenshot_att_id');
+                    if (!attIdInput) {
+                        attIdInput = document.createElement('input');
+                        attIdInput.type = 'hidden';
+                        attIdInput.id = 'nav_screenshot_att_id';
+                        attIdInput.name = 'nav_screenshot_att_id';
+                        attIdInput.value = d.screenshot_att_id;
+                        document.querySelector('.nav-meta-box').appendChild(attIdInput);
+                    } else {
+                        attIdInput.value = d.screenshot_att_id;
+                    }
+                }
             }
 
             if (filled.length === 0) {

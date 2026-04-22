@@ -405,6 +405,14 @@ class Navigation_Init
             add_action('save_post_nav_site', [$this, 'saveMeta'], 10, 3);
         }
 
+        // 设置特色图（网站截图）
+        if (!empty($_POST['nav_screenshot_att_id'])) {
+            $attId = (int) $_POST['nav_screenshot_att_id'];
+            if ($attId > 0 && !has_post_thumbnail($postId)) {
+                set_post_thumbnail($postId, $attId);
+            }
+        }
+
         // 保存导航标签（nav_tag 分类）
         if (isset($_POST['nav_tags_json'])) {
             $tagsJson = wp_kses_post($_POST['nav_tags_json']);

@@ -13,7 +13,10 @@ $url   = $meta['url'] ?: '#';
 $desc  = $meta['description'] ?: '';
 $kw    = $meta['keywords'] ?: '';
 $logo  = $meta['logo'] ?: '';
-$sshot = $meta['screenshot'] ?: '';
+// 优先使用特色图，否则用 meta 截图
+$thumbId = get_post_thumbnail_id(get_the_ID());
+$sshot = $thumbId ? wp_get_attachment_url($thumbId) : ($meta['screenshot'] ?: '');
+$sshotAlt = $thumbId ? get_post_meta($thumbId, '_wp_attachment_image_alt', true) : (esc_attr($name) . ' 网站截图');
 $aiSum = $meta['ai_summary'] ?: '';
 $tags  = get_the_terms(get_the_ID(), 'nav_tag');
 $cats  = get_the_terms(get_the_ID(), 'nav_category');
@@ -120,7 +123,7 @@ $bcItems[] = ['name' => $name, 'url' => get_permalink()];
     <!-- 1. 网站截图 -->
     <div class="nav-screenshot-section">
         <?php if ($sshot): ?>
-            <img src="<?php echo esc_url($sshot); ?>" alt="<?php echo esc_attr($name); ?> 截图" loading="lazy">
+            <img src="<?php echo esc_url($sshot); ?>" alt="<?php echo esc_attr($sshotAlt); ?>" loading="lazy">
         <?php else: ?>
             <img src="https://s0.wp.com/mshots/v1/<?php echo urlencode($url); ?>?w=1080&h=600" alt="截图"
                  onerror="this.src='https://image.thum.io/get/width/1080/crop/600/<?php echo esc_url($url); ?>'">
