@@ -568,7 +568,7 @@ class NavigationController extends BaseController
         }
 
         // 速率限制：同一IP对同一文章每分钟最多1次点击
-        $clientIp = sanitize_text_field($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+        $clientIp = sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
         $rateKey = 'nav_rate_' . md5($clientIp . '_' . $postId);
         if (get_transient($rateKey)) {
             return new \WP_REST_Response(['success' => true, 'clicks' => (int) get_post_meta($postId, 'nav_clicks', true), 'throttled' => true], 200);
@@ -857,14 +857,14 @@ class NavigationController extends BaseController
         $keys = ['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'HTTP_X_FORWARDED', 'HTTP_X_CLUSTER_CLIENT_IP', 'HTTP_FORWARDED_FOR', 'HTTP_FORWARDED', 'REMOTE_ADDR'];
         foreach ($keys as $key) {
             if (!empty($_SERVER[$key])) {
-                $ips = explode(',', $_SERVER[$key]);
+                $ips = explode(',', sanitize_text_field(wp_unslash($_SERVER[$key])));
                 $ip = trim($ips[0]);
                 if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
                     return $ip;
                 }
             }
         }
-        return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+        return sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0'));
     }
 
     /**

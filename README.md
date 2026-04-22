@@ -1,13 +1,15 @@
-# Zuo AI Plus - WordPress AI 内容助手插件
+# Zuo AI Plus - WordPress AI 内容助手 + 导航模块
 
-> 集成国内主流大模型（智谱GLM、阿里通义、MiniMax、Kimi、DeepSeek）的 WordPress 站点 AI 助手
+> 集成国内主流大模型的 WordPress 站点 AI 助手，附带智能导航目录模块
 
-**版本**: 1.2.4  
-**测试环境**: WordPress 6.0-6.8, PHP 8.1+
+**版本**: 1.5.13  
+**测试环境**: WordPress 6.0-6.9, PHP 8.1+
 
 ## 功能
 
-- ⚡ **多模型支持**：智谱GLM、阿里通义千问、MiniMax、Kimi、DeepSeek，后台自由切换
+### AI 内容创作
+
+- ⚡ **多模型支持**：智谱GLM、阿里通义千问、MiniMax、Kimi、DeepSeek、DashScope，后台自由切换
 - 📝 **文章生成**：根据标题/提示生成完整文章
 - 🔄 **内容改写**：重写/润色现有内容，优化表达方式
 - 🎭 **风格语气**：专业正式、轻松随性、温暖亲切等多种文风选择
@@ -20,66 +22,73 @@
 - 🖼️ **特色图生成**：根据文章内容生成封面图
 - 🖼️ **插图生成**：在文章任意位置插入 AI 生成的配图
 - 🌐 **多语言翻译**：中英日韩法德等 12 种语言互译
-- 💬 **客服聊天窗口**：前台浮动聊天按钮，短代码 `[ai_plus_chat]` 嵌入
 - 🔍 **SEO 诊断**：全站文章批量诊断、得分分析、AI 一键优化
+- 💬 **客服聊天窗口**：前台浮动聊天按钮，短代码 `[ai_plus_chat]` 嵌入
 - 📊 **使用统计**：实时追踪 Token 消耗、操作次数、各模型使用分布
-- 🔧 **多模型切换**：后台任意位置快速切换 AI 模型对比测试
-- 🧱 **Gutenberg 区块**：聊天区块 + 图片生成区块
-- 🔄 **Playground**：自由对话测试所有模型
+
+### 🆕 AI 导航模块
+
+- 🔗 **AI 全量获取**：输入网址，自动抓取名称/关键词/描述/Logo/截图
+- 📸 **自动截图 → 特色图**：Chrome Headless 截图自动注册为 WordPress 媒体附件，设为特色图，AI 生成 alt/标题/描述
+- ✨ **AI 生成简介**：300-500 字网站详细介绍
+- 🤖 **AI 提取标签**：从简介中提取 nav_tag 分类标签，自动写入
+- 📊 **SEO 权重胶囊**：百度/360/神马/头条/移动排名彩色胶囊显示
+- 🌳 **分类树侧栏**：层级分类展开/折叠
+- ⭐ **推荐/收藏/历史**：收藏+最近访问+推荐标记
+- 🌙 **暗色模式**：CSS 变量完整支持，与主题切换同步
+- 📱 **响应式设计**：480/768/900px 三断点移动端适配
+- 🔍 **SEO 结构化数据**：Schema.org BreadcrumbList + WebSite JSON-LD
+- 🔗 **分享 & 二维码**：移动端分享弹窗+二维码
+
+## 截图策略（3层优先级）
+
+1. **og:image** — 目标网站自带的预览图
+2. **Chrome Headless** — 本地截图保存到 uploads/nav-screenshots/，7天缓存，注册为WP附件
+3. **thum.io** — 兜底在线截图服务
 
 ## 安装
 
-1. WordPress 后台
-2. WordPress 后台 → 插件 → 启用 AI Plus
-3. 进入 **AI Plus → API设置**，填入各模型 API Key
-4. 开始使用
+1. 上传 `zuo-ai-plus` 到 `/wp-content/plugins/`
+2. 在 WordPress 插件菜单激活
+3. 进入 **Zuo AI Plus → 文本模型** 配置 API Key
+4. 开始使用 Gutenberg 侧边栏或导航模块
 
-## API Key 申请
-
-| 模型 | 申请地址 |
-|------|---------|
-| 智谱 GLM | https://open.bigmodel.cn/ |
-| 阿里通义千问 | https://dashscope.console.aliyun.com/ |
-| MiniMax | https://www.minimaxi.com/ |
-| Kimi | https://platform.moonshot.cn/ |
-
-## 使用方式
-
-### 文章编辑器 AI 助手
-在文章编辑页面右侧边栏，点击按钮即可使用各项 AI 功能。
-
-### 客服聊天窗口
-浮动按钮自动出现在前台页面右下角，短代码可嵌入文章/页面：
-
-```
-[ai_plus_chat model="zhipu"]
-```
-
-### REST API
-```
-POST /wp-json/ai-plus/v1/chat
-POST /wp-json/ai-plus/v1/generate
-POST /wp-json/ai-plus/v1/image
-POST /wp-json/ai-plus/v1/translate
-POST /wp-json/ai-plus/v1/seo
-GET  /wp-json/ai-plus/v1/models
-```
-
-## 系统要求
+## 配置要求
 
 - WordPress 6.0+
 - PHP 8.1+
-- OpenSSL PHP 扩展（用于HTTPS请求）
+- API Key（各模型提供商均有免费额度）
+- Chrome/Chromium（可选，用于本地截图，无则用 thum.io 兜底）
+
+## 目录结构
+
+```
+zuo-ai-plus/
+├── zuo-ai-plus.php          # 主入口
+├── readme.txt               # WP官方readme
+├── src/
+│   ├── Controllers/         # REST API 控制器
+│   ├── Models/              # AI 模型封装
+│   ├── Admin/               # 后台管理
+│   │   └── views/           # 模板视图
+│   ├── Services/            # 服务层(Crypto/Cache等)
+│   └── Traits/              # 可复用特性
+├── Templates/               # 前端模板
+├── Assets/
+│   ├── css/nav.v2.css       # 导航模块样式
+│   └── js/nav.js            # 导航模块脚本
+└── languages/               # 多语言翻译
+```
 
 ## 更新日志
 
-### v1.2.4 (2025-04-15)
-- ✨ 新增内容改写功能
-- ✨ 新增风格语气选择（专业/轻松/温暖等）
-- ✨ 新增知识库功能
-- ✨ 新增插图生成功能
-- ✨ 新增智能续写
-- ✨ 新增多模型快速切换
-- ✨ 新增使用统计面板
-- 📱 移动端后台全面优化
-- 🐛 修复统计功能，支持所有AI操作类型
+### 1.5.13
+- 新增：AI 导航模块（全量获取/简介/标签/截图/特色图）
+- 新增：SEO 权重胶囊 + Schema.org 结构化数据
+- 新增：暗色模式 CSS 变量 + 响应式三断点
+- 修复：PHP exec() 命名空间 + disable_functions
+- 修复：标签 # 前缀移除 + PHP代码泄露修复
+- 修复：暗色模式20+硬编码颜色→CSS变量
+
+### 1.3.1
+- 初始发布版本
