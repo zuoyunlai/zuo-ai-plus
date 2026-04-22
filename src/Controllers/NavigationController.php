@@ -326,7 +326,7 @@ class NavigationController extends BaseController
             . ' ' . escapeshellarg($url)
             . ' 2>/dev/null';
 
-        exec($cmd, $output, $retcode);
+        \exec($cmd, $output, $retcode);
 
         // Chrome 的 --screenshot 默认保存为 screenshot.png，需要检查
         // 如果原文件没生成，检查当前目录的 screenshot.png
@@ -1017,11 +1017,11 @@ class NavigationController extends BaseController
             escapeshellarg($url)
         );
 
-        @exec('rm -rf ' . escapeshellarg($user_data_dir));
+        @\exec('rm -rf ' . escapeshellarg($user_data_dir));
         $output = [];
         $return_code = 0;
-        exec($cmd, $output, $return_code);
-        @exec('rm -rf ' . escapeshellarg($user_data_dir));
+        \exec($cmd, $output, $return_code);
+        @\exec('rm -rf ' . escapeshellarg($user_data_dir));
 
         if ($return_code !== 0 || !file_exists($tmp_file)) {
             return new \WP_REST_Response(['success' => false, 'message' => '截图失败，Chrome返回码: ' . $return_code], 500);

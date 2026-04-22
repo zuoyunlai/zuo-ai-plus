@@ -153,7 +153,6 @@ if ($currentTags && !is_wp_error($currentTags)) {
                         </div>
                         <div class="img-actions">
                             <button type="button" class="btn btn-secondary" id="btn-shot-media">📂 媒体库选择</button>
-                            <button type="button" class="btn btn-success" id="btn-shot-capture">🔫 截取截图</button>
                             <button type="button" class="btn" id="btn-shot-save">💾 保存到媒体库</button>
                         </div>
                     </div>
@@ -461,43 +460,5 @@ if ($currentTags && !is_wp_error($currentTags)) {
         navSaveToMediaLib(this, 'nav_screenshot', 'img-result');
     });
 
-    // ── Chrome Headless 截取截图 ───────────────────────────
-    document.getElementById('btn-shot-capture').addEventListener('click', function() {
-        var url = document.getElementById('nav_url').value.trim();
-        if (!url) { alert('请先输入网址'); return; }
-        var btn = this;
-        btn.disabled = true; btn.textContent = '截取中...';
-        var box = document.getElementById('img-result');
-        show(box, '⏳ Chrome 正在截取网站截图（可能需要5-10秒）...', '');
-
-        var xhr = new XMLHttpRequest();
-        xhr.open('POST', restUrl + 'nav/screenshot', true);
-        xhr.setRequestHeader('Content-Type', 'application/json');
-        xhr.setRequestHeader('X-WP-Nonce', nonce);
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState !== 4) return;
-            btn.disabled = false; btn.textContent = '🔫 截取截图';
-
-            if (xhr.status !== 200) {
-                show(box, '❌ HTTP ' + xhr.status + '：' + xhr.statusText, 'error'); return;
-            }
-            var data;
-            try { data = JSON.parse(xhr.responseText); } catch(e) {
-                show(box, '❌ 解析失败：' + xhr.responseText.substring(0, 100), 'error'); return;
-            }
-            if (data.success && data.file_url) {
-                document.getElementById('nav_screenshot').value = data.file_url;
-                show(box, '✅ 截图完成！已填入截图URL（' + data.width + 'x' + data.height + '）', 'success');
-                setTimeout(function() { hide(box); }, 6000);
-            } else {
-                show(box, '❌ ' + (data.message || '截图失败'), 'error');
-            }
-        };
-        xhr.onerror = function() {
-            btn.disabled = false; btn.textContent = '🔫 截取截图';
-            show(box, '❌ 网络错误', 'error');
-        };
-        xhr.send(JSON.stringify({ url: url }));
-    });
 })();
 </script>
