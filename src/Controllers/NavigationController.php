@@ -1084,16 +1084,37 @@ class NavigationController extends BaseController
         $content = trim($content);
         $content = trim(preg_replace('/^```(?:\w+)?\s*/', '', $content));
         $content = trim(preg_replace('/\s*```$/', '', $content));
+        // 去掉 AI 可能返回的前缀说明（如"标签："、"可能的标签："等）
+        $content = preg_replace('/^[^\n]*标签[：:][^\n]*\n/u', '', $content);
+        $content = preg_replace('/^.*?(?:根据|以下|这些|提取|生成|需要|可能的)[^\n]*\n/u', '', $content);
+        // 只取第一行（AI 有时返回多行解释+标签列表，第一行纯标签最可靠）
+        $lines = array_filter(array_map('trim', explode("\n", $content)));
+        // 找到最长的一行（通常是完整标签列表）
+        $bestLine = '';
+        foreach ($lines as $line) {
+            if (mb_strlen($line, 'utf-8') > mb_strlen($bestLine, 'utf-8') && preg_match('/[、，,]/u', $line)) {
+                $bestLine = $line;
+            }
+        }
+        $content = $bestLine ?: ($lines[0] ?? $content);
 
         if (!$content) {
             return new \WP_REST_Response(['success' => false, 'message' => 'AI 未返回内容'], 500);
         }
 
         $tagsRaw = preg_replace('/[、，,\s]+/u', ',', $content);
+        // 去掉编号前缀（1. 2. 等）
+        $tagsRaw = preg_replace('/\d+[.、)）]\s*/u', ',', $tagsRaw);
         $tags = array_filter(array_map('trim', explode(',', $tagsRaw)), function ($t) {
-            return mb_strlen($t, 'utf-8') >= 2 && mb_strlen($t, 'utf-8') <= 10;
+            $t = trim($t);
+            // 过滤：太短(<2字)、太长(>8字)、纯数字、含标点/解释性词
+            if (mb_strlen($t, 'utf-8') < 2 || mb_strlen($t, 'utf-8') > 8) return false;
+            if (preg_match('/^\d+$/', $t)) return false;
+            if (preg_match('/[.。！？：:；;、，,\n\r]/u', $t)) return false;
+            if (preg_match('/^(提供|根据|需要|可能|具体|涵盖|以下|这些|核心|功能|类型|维度|平台|行业|工具|辅助)$/u', $t)) return false;
+            return true;
         });
-        $tags = array_unique($tags);
+        $tags = array_unique(array_values($tags));
 
         if (empty($tags)) {
             return new \WP_REST_Response(['success' => false, 'message' => '未能解析出有效标签'], 500);
