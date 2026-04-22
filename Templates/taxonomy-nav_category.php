@@ -55,6 +55,7 @@ $query = new \WP_Query($queryArgs);
             $desc = $meta['description'] ?: '';
             $logo = $meta['logo'] ?: '';
             $tags = get_the_terms(get_the_ID(), 'nav_tag');
+            $cats = get_the_terms(get_the_ID(), 'nav_category');
         ?>
         <article class="nav-card" data-post-id="<?php echo get_the_ID(); ?>">
             <?php if ($meta['status'] === 'featured'): ?>
@@ -80,18 +81,18 @@ $query = new \WP_Query($queryArgs);
             
             <div class="nav-card-footer">
                 <div class="nav-card-tags">
+                    <?php if ($cats && !is_wp_error($cats)): ?>
+                        <?php foreach (array_slice($cats, 0, 2) as $cat): ?>
+                        <a href="<?php echo esc_url(get_term_link($cat)); ?>" class="nav-card-tag tag-cat"><?php echo esc_html($cat->name); ?></a>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                     <?php if ($tags && !is_wp_error($tags)): ?>
                         <?php foreach (array_slice($tags, 0, 2) as $tag): ?>
                         <a href="<?php echo esc_url(get_term_link($tag)); ?>" class="nav-card-tag"># <?php echo esc_html($tag->name); ?></a>
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </div>
-                <a href="<?php echo esc_url($url); ?>" target="_blank" rel="noopener" class="nav-card-togo" title="直达" onclick="recordNavClick(<?php echo get_the_ID(); ?>)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="7" y1="17" x2="17" y2="7"></line>
-                        <polyline points="7 7 17 7 17 17"></polyline>
-                    </svg>
-                </a>
+                <a href="<?php echo esc_url($url); ?>" target="_blank" rel="noopener" class="nav-card-togo" title="直达" onclick="recordNavClick(<?php echo get_the_ID(); ?>)">直达</a>
             </div>
         </article>
         <?php endwhile; ?>
