@@ -205,7 +205,7 @@ wp_reset_postdata();
         <h2 class="nav-cat-block-title">
             <?php if ($term->term_id): ?>
                 <a href="<?php echo esc_url(get_term_link($term)); ?>">📂 <?php echo esc_html($term->name); ?></a>
-                <span style="font-weight:400;color:#a7aaad;font-size:14px;margin-left:8px;">(<?php echo count($sites); ?>)</span>
+                <span style="font-weight:400;color:var(--nav-text-muted);font-size:14px;margin-left:8px;">(<?php echo count($sites); ?>)</span>
             <?php else: ?>
                 📂 未分类
             <?php endif; ?>
@@ -264,7 +264,7 @@ wp_reset_postdata();
                 <button class="nav-share-close" onclick="document.getElementById('importFile').click()" style="flex: 1;">📤 导入数据</button>
             </div>
             <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importData(this)">
-            <button class="nav-share-close" onclick="clearAllData()" style="width: 100%; color: #e65054;">🗑️ 清空所有数据</button>
+            <button class="nav-share-close" onclick="clearAllData()" style="width: 100%; color: var(--nav-fav-active-color);">🗑️ 清空所有数据</button>
         </div>
         <button class="nav-share-close" onclick="closeDataManager()">关闭</button>
     </div>
