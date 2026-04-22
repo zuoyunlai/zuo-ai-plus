@@ -166,7 +166,7 @@
 }
 @media (max-width: 1100px) { .nav-grid { grid-template-columns: repeat(3, 1fr); } .nav-related-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 768px) { .nav-grid { grid-template-columns: repeat(2, 1fr); } .nav-related-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 480px) { .nav-grid { grid-template-columns: repeat(2, 1fr); } .nav-related-grid { grid-template-columns: repeat(2, 1fr); } .nav-quick-link { flex: 1 1 45%; font-size: 0.7rem; } }
+@media (max-width: 480px) { .nav-grid { grid-template-columns: repeat(2, 1fr); } .nav-related-grid { grid-template-columns: repeat(2, 1fr); } .nav-quick-links { flex-direction: column; } .nav-quick-link { flex: none; font-size: 0.8rem; } .nav-quick-icon { width: 24px; height: 24px; } }
 
 /* Skeleton loading */
 .nav-skeleton { animation: nav-pulse 1.5s ease-in-out infinite; background: var(--nav-surface); border-radius: var(--nav-radius-lg); }

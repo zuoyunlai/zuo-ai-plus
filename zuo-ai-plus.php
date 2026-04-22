@@ -15,7 +15,7 @@ if (!defined('ABSPATH')) exit;
 
 // ── 常量(插件常量检查防止重复加载)─────────────────────────────────────────
 if (!defined('AI_PLUS_VERSION')) {
-    define('AI_PLUS_VERSION', '1.5.5');
+    define('AI_PLUS_VERSION', '1.5.6');
 }
 if (!defined('AI_PLUS_PLUGIN_DIR')) {
     define('AI_PLUS_PLUGIN_DIR', plugin_dir_path(__FILE__));
