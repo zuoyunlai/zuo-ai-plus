@@ -273,19 +273,77 @@ class NavigationController extends BaseController
     {
         $base = parse_url($url, PHP_URL_SCHEME) . '://' . parse_url($url, PHP_URL_HOST);
 
-        // og:image 如果存在（有些站点用 og:image 做网站快照）
+        // 1. 优先使用 og:image（网站首页快照）
         if (preg_match('/<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']/i', $html, $m)) {
             $img = $this->makeAbsolute(trim($m[1]), $base);
-            // 过滤掉明显的 logo/favicon URL（它们常也被放进 og:image）
+            // 过滤掉明显的 logo/favicon URL
             if ($img && !preg_match('/(logo|favicon|icon|apple-touch|avatar|brand)/i', $img)) {
                 return $img;
             }
         }
 
-        // 使用 thum.io 免费截图服务（无需 API key）
-        // 格式：https://image.thum.io/getwidth/800/<host>
+        // 2. 用本地 Chrome Headless 截图，保存到 uploads 目录
+        $localUrl = $this->takeLocalScreenshot($url);
+        if ($localUrl) {
+            return $localUrl;
+        }
+
+        // 3. fallback: thum.io（加 allowJPG 提高成功率）
         $host = parse_url($url, PHP_URL_HOST);
-        return 'https://image.thum.io/getwidth/800/' . $host;
+        return 'https://image.thum.io/allowJPG/wait/3/getwidth/800/' . $host;
+    }
+
+    /**
+     * 用本地 Chrome Headless 截图并保存到 WordPress uploads
+     */
+    private function takeLocalScreenshot(string $url): string
+    {
+        $host = parse_url($url, PHP_URL_HOST);
+        if (!$host) return '';
+
+        $uploadDir = wp_upload_dir();
+        $navDir = $uploadDir['basedir'] . '/nav-screenshots';
+        if (!is_dir($navDir)) {
+            mkdir($navDir, 0755, true);
+        }
+
+        $filename = sanitize_file_name($host . '.png');
+        $filepath = $navDir . '/' . $filename;
+
+        // 已存在且不超过7天，直接返回
+        if (file_exists($filepath) && (time() - filemtime($filepath)) < 7 * DAY_IN_SECONDS) {
+            return $uploadDir['baseurl'] . '/nav-screenshots/' . $filename;
+        }
+
+        // 用 Chrome Headless 截图
+        $chrome = '/usr/bin/google-chrome';
+        if (!file_exists($chrome)) return '';
+
+        $cmd = escapeshellcmd($chrome)
+            . ' --headless --disable-gpu --no-sandbox'
+            . ' --screenshot=' . escapeshellarg($filepath)
+            . ' --window-size=1280,800'
+            . ' --default-background-color=0xFFFFFFFF'
+            . ' ' . escapeshellarg($url)
+            . ' 2>/dev/null';
+
+        exec($cmd, $output, $retcode);
+
+        // Chrome 的 --screenshot 默认保存为 screenshot.png，需要检查
+        // 如果原文件没生成，检查当前目录的 screenshot.png
+        if (!file_exists($filepath)) {
+            $fallback = ABSPATH . 'screenshot.png';
+            if (file_exists($fallback)) {
+                rename($fallback, $filepath);
+            }
+        }
+
+        if (!file_exists($filepath) || filesize($filepath) < 1000) {
+            @unlink($filepath);
+            return ''; // 截图失败
+        }
+
+        return $uploadDir['baseurl'] . '/nav-screenshots/' . $filename;
     }
 
     private function makeAbsolute(string $url, string $base): string
