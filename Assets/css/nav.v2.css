@@ -319,10 +319,10 @@
   letter-spacing: -0.02em;
 }
 .nav-single-badge { display: inline-flex; align-items: center; background: linear-gradient(135deg, #ffd700, #ffaa00); color: #333; font-size: 0.6875rem; font-weight: 700; padding: 4px 12px; border-radius: 12px; box-shadow: 0 2px 6px rgba(255,170,0,0.30); }
-.seo-weight-row { margin-top: 10px; min-height: 22px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
-.seo-capsule { display: inline-flex; align-items: center; border-radius: 12px; overflow: hidden; box-shadow: var(--nav-shadow); }
-.seo-capsule-left { background: var(--nav-bg); padding: 3px 8px; font-size: 0.6875rem; color: var(--nav-text-muted); font-weight: 500; }
-.seo-capsule-right { padding: 3px 10px; color: #fff; font-weight: 700; font-size: 0.75rem; }
+.seo-weight-row { margin-top: 8px; min-height: 18px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.seo-capsule { display: inline-flex; align-items: center; border-radius: 10px; overflow: hidden; }
+.seo-capsule-left { background: var(--nav-bg); padding: 2px 6px; font-size: 0.6rem; color: var(--nav-text-muted); font-weight: 500; }
+.seo-capsule-right { padding: 2px 7px; color: #fff; font-weight: 700; font-size: 0.65rem; }
 .nav-single-actions { display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
 .nav-btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 18px; border-radius: 10px; text-decoration: none; font-size: 0.875rem; font-weight: 500; cursor: pointer; border: none; font-family: inherit; transition: all 0.25s; white-space: nowrap; }
 .nav-btn-primary { background: linear-gradient(135deg, var(--nav-accent), #1557b0); color: #fff; box-shadow: 0 4px 12px rgba(26,115,232,0.30); }
