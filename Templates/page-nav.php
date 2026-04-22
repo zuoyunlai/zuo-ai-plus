@@ -11,6 +11,8 @@ if (!defined('ABSPATH')) exit;
  * Description: 网址导航首页模板，请新建页面并选择此模板
  */
 
+get_header();
+
 $cats = get_terms([
     'taxonomy'   => 'nav_category',
     'hide_empty' => true,
@@ -69,7 +71,13 @@ wp_reset_postdata();
 ?>
 
 
-<div class="nav-home-wrap">
+<nav class="nav-breadcrumb">
+    <a href="<?php echo esc_url(home_url()); ?>">首页</a>
+    <span class="sep">/</span>
+    <span class="current">网址导航</span>
+</nav>
+
+<main class="nav-home-wrap">
     <!-- 搜索 -->
     <div class="nav-home-search" style="position:relative;">
         <input type="search" id="nav-search-input" placeholder="🔍 搜索网站名称或关键词... (按 / 快速搜索)" autocomplete="off">
@@ -296,5 +304,27 @@ wp_reset_postdata();
 
 <!-- PWA 支持 -->
 
+
+</main>
+
+<!-- Schema.org 结构化数据 -->
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "网址导航",
+    "url": "<?php echo esc_js(get_permalink()); ?>",
+    "description": "精选优质网站导航，按分类整理推荐",
+    "inLanguage": "zh-CN",
+    "isPartOf": {"@type": "WebSite", "name": "<?php bloginfo('name'); ?>", "url": "<?php echo esc_js(home_url()); ?>"},
+    "breadcrumb": {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": "首页", "item": "<?php echo esc_js(home_url()); ?>"},
+            {"@type": "ListItem", "position": 2, "name": "网址导航", "item": "<?php echo esc_js(get_permalink()); ?>"}
+        ]
+    }
+}
+</script>
 
 <?php get_footer(); ?>

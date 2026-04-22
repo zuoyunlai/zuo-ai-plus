@@ -40,7 +40,7 @@ $query = new \WP_Query($queryArgs);
     <span class="current"><?php echo esc_html($term->name); ?></span>
 </nav>
 
-<div class="nav-archive-wrap">
+<main class="nav-archive-wrap">
     <div class="nav-archive-header">
         <h1><?php echo esc_html($term->name); ?></h1>
         <p><?php echo esc_html($term->description ?: '共 ' . $query->found_posts . ' 个网站'); ?></p>
@@ -122,8 +122,18 @@ $query = new \WP_Query($queryArgs);
     "description": "<?php echo esc_js($term->description ?: ('相关分类：' . $term->name)); ?>",
     "inLanguage": "zh-CN",
     "isPartOf": {"@type": "WebSite", "name": "<?php bloginfo('name'); ?>", "url": "<?php echo esc_js(home_url()); ?>"}
+    "breadcrumb": {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": "首页", "item": "<?php echo esc_js(home_url()); ?>"},
+            {"@type": "ListItem", "position": 2, "name": "网址导航", "item": "<?php echo esc_js(get_post_type_archive_link('nav_site')); ?>"},
+            {"@type": "ListItem", "position": 3, "name": "<?php echo esc_js($term->name); ?>", "item": "<?php echo esc_js(get_term_link($term)); ?>"}
+        ]
+    }
 }
 </script>
+
+</main>
 
 <?php get_footer(); ?>
 

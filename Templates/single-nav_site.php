@@ -56,7 +56,7 @@ $bcItems[] = ['name' => $name, 'url' => get_permalink()];
     <?php endforeach; ?>
 </nav>
 
-<div class="nav-single-wrap">
+<main class="nav-single-wrap">
     <!-- 头部区域 -->
     <div class="nav-single-header">
         <div class="nav-single-header-inner">
@@ -268,7 +268,7 @@ $bcItems[] = ['name' => $name, 'url' => get_permalink()];
     <div class="nav-footer-bar">
         <div>浏览 <?php echo intval($views); ?> 次</div>
     </div>
-</div>
+</main>
 
 <!-- 二维码弹窗 -->
 <div class="qr-overlay" id="qrOverlay" onclick="closeQrCode(event)">
