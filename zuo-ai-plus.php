@@ -15,7 +15,7 @@ if (!defined('ABSPATH')) exit;
 
 // ── 常量(插件常量检查防止重复加载)─────────────────────────────────────────
 if (!defined('AI_PLUS_VERSION')) {
-    define('AI_PLUS_VERSION', '1.4.0');
+    define('AI_PLUS_VERSION', '1.5.1');
 }
 if (!defined('AI_PLUS_PLUGIN_DIR')) {
     define('AI_PLUS_PLUGIN_DIR', plugin_dir_path(__FILE__));
@@ -82,26 +82,84 @@ if (get_option('ai_plus_nav_enabled', '1')) {
         $isNavTemplate = false;
         if (is_post_type_archive('nav_site') || is_post_type_archive('nav-sites')) {
             $t = AI_PLUS_PLUGIN_DIR . 'Templates/archive-nav_site.php';
-            if (file_exists($t)) { $template = $t; $isNavTemplate = true; }
+            if (file_exists($t)) {
+                $template = $t; $isNavTemplate = true;
+                add_filter('pre_get_document_title', function () {
+                    return '网址导航 - ' . get_bloginfo('name');
+                });
+            }
         }
         if (is_singular('nav_site')) {
             $t = AI_PLUS_PLUGIN_DIR . 'Templates/single-nav_site.php';
-            if (file_exists($t)) { $template = $t; $isNavTemplate = true; }
+            if (file_exists($t)) {
+                $template = $t; $isNavTemplate = true;
+                // 详情页 SEO title + meta + og
+                add_filter('pre_get_document_title', function ($title) {
+                    $postId = get_queried_object_id();
+                    $meta = \ZuoAIPlus\Models\NavigationSite::getMeta($postId);
+                    $name = $meta['name'] ?: get_the_title($postId);
+                    $desc = $meta['description'] ?: $meta['ai_summary'] ?: '';
+                    return $name . ' - ' . get_bloginfo('name');
+                });
+                add_action('wp_head', function () {
+                    $postId = get_queried_object_id();
+                    $meta = \ZuoAIPlus\Models\NavigationSite::getMeta($postId);
+                    $name = $meta['name'] ?: get_the_title($postId);
+                    $desc = $meta['description'] ?: $meta['ai_summary'] ?: '';
+                    $logo = $meta['logo'] ?: '';
+                    $url  = get_permalink($postId);
+                    $cats = get_the_terms($postId, 'nav_category');
+                    $firstCat = $cats && !is_wp_error($cats) ? $cats[0]->name : '';
+                    printf(
+                        "<meta name=\"description\" content=\"%s\">\n",
+                        esc_attr(mb_substr($desc, 0, 120, 'utf-8'))
+                    );
+                    printf(
+                        "<meta property=\"og:title\" content=\"%s\">\n" .
+                        "<meta property=\"og:description\" content=\"%s\">\n" .
+                        "<meta property=\"og:url\" content=\"%s\">\n" .
+                        "<meta property=\"og:type\" content=\"article\">\n",
+                        esc_attr($name),
+                        esc_attr(mb_substr($desc, 0, 80, 'utf-8')),
+                        esc_url($url)
+                    );
+                    if ($logo) {
+                        printf("<meta property=\"og:image\" content=\"%s\">\n", esc_url($logo));
+                        printf("<meta name=\"twitter:card\" content=\"summary_large_image\">\n");
+                    }
+                    if ($firstCat) {
+                        printf("<meta property=\"article:section\" content=\"%s\">\n", esc_attr($firstCat));
+                    }
+                }, 2);
+            }
         }
         // 导航分类页
         if (is_tax('nav_category')) {
             $t = AI_PLUS_PLUGIN_DIR . 'Templates/taxonomy-nav_category.php';
-            if (file_exists($t)) { $template = $t; $isNavTemplate = true; }
+            if (file_exists($t)) {
+                $template = $t; $isNavTemplate = true;
+                add_filter('pre_get_document_title', function ($title) {
+                    $term = get_queried_object();
+                    $site = get_bloginfo('name');
+                    return ($term ? $term->name : '分类') . ' - 网站收录 - ' . $site;
+                });
+            }
         }
         // 导航标签页
         if (is_tax('nav_tag')) {
             $t = AI_PLUS_PLUGIN_DIR . 'Templates/taxonomy-nav_tag.php';
-            if (file_exists($t)) { $template = $t; $isNavTemplate = true; }
+            if (file_exists($t)) {
+                $template = $t; $isNavTemplate = true;
+                add_filter('pre_get_document_title', function ($title) {
+                    $term = get_queried_object();
+                    return ($term ? $term->name : '标签') . ' - 标签收录 - ' . get_bloginfo('name');
+                });
+            }
         }
         // 注册导航页面 CSS/JS 资源（外置文件，可浏览器缓存）
         if ($isNavTemplate) {
             add_action('wp_enqueue_scripts', function () {
-                wp_enqueue_style('zuo-nav-css', AI_PLUS_PLUGIN_URL . 'Assets/css/nav.css', [], AI_PLUS_VERSION);
+                wp_enqueue_style('zuo-nav-css', AI_PLUS_PLUGIN_URL . 'Assets/css/nav.v2.css', [], AI_PLUS_VERSION);
                 wp_enqueue_script('zuo-nav-js', AI_PLUS_PLUGIN_URL . 'Assets/js/nav.js', [], AI_PLUS_VERSION, true);
                 // 注入动态配置（替代模板中的 PHP 变量）
                 $navConfig = [
@@ -120,7 +178,7 @@ if (get_option('ai_plus_nav_enabled', '1')) {
                 // 详情页额外数据
                 if (is_singular('nav_site')) {
                     $postId = get_the_ID();
-                    $meta = get_post_meta($postId, 'nav_meta', true);
+                    $meta = \ZuoAIPlus\Models\NavigationSite::getMeta($postId);
                     $url = $meta['url'] ?? '';
                     $domain = preg_replace('#https?://([^/]+).*#i', '$1', $url);
                     $navConfig['postId'] = $postId;

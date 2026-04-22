@@ -299,7 +299,7 @@
         // 3. 清理危险标签（只保留安全标签白名单）
         // 安全标签：strong, em, b, i, code, pre, br, p, ul, ol, li, a, blockquote, hr, h1-h6
         var safeTags = ['strong','em','b','i','code','pre','br','p','ul','ol','li','a','blockquote','hr',
-                        'h1','h2','h3','h4','h5','h6','span','div','table','thead','tbody','tr','th','td'];
+                        'h1','h2','h3','h4','h5','h6','table','thead','tbody','tr','th','td'];
         // 把所有 <tag ...> 逐个检查，非白名单标签名转为 &lt;tag ...&gt;
         html = html.replace(/<([a-z][a-z0-9]*)([^>]*)>/gi, function(match, tag, attrs) {
             tag = tag.toLowerCase();
@@ -310,7 +310,17 @@
             if (tag === 'a') {
                 if (attrs.indexOf('rel=') === -1) attrs += ' rel="noopener noreferrer"';
                 if (attrs.indexOf('target=') === -1) attrs += ' target="_blank"';
+                // 只允许 href 属性，过滤 style 和事件属性
+                attrs = attrs.replace(/\s+on\w+\s*=\s*"[^"]*"/gi, '');
+                attrs = attrs.replace(/\s+on\w+\s*=\s*'[^']*'/gi, '');
+                attrs = attrs.replace(/\s+style\s*=\s*"[^"]*"/gi, '');
+                attrs = attrs.replace(/\s+style\s*=\s*'[^']*'/gi, '');
             }
+            // 所有标签：过滤 style 和事件属性
+            attrs = attrs.replace(/\s+on\w+\s*=\s*"[^"]*"/gi, '');
+            attrs = attrs.replace(/\s+on\w+\s*=\s*'[^']*'/gi, '');
+            attrs = attrs.replace(/\s+style\s*=\s*"[^"]*"/gi, '');
+            attrs = attrs.replace(/\s+style\s*=\s*'[^']*'/gi, '');
             return '<' + tag + attrs + '>';
         });
 

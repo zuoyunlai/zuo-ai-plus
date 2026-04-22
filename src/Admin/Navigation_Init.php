@@ -104,7 +104,7 @@ class Navigation_Init
         if (!isset($_POST['import_submit']) || !isset($_POST['nav_import_nonce'])) {
             return;
         }
-        if (!wp_verify_nonce($_POST['nav_import_nonce'], 'nav_bulk_import')) {
+        if (!wp_verify_nonce(sanitize_key(wp_unslash($_POST['nav_import_nonce'])), 'nav_bulk_import')) {
             wp_die(__('安全验证失败', 'zuo-ai-plus'));
         }
         if (!current_user_can('manage_options')) {
@@ -372,7 +372,7 @@ class Navigation_Init
         if ($post->post_type !== 'nav_site') return;
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!current_user_can('edit_post', $postId)) return;
-        if (!isset($_POST['nav_meta_nonce']) || !wp_verify_nonce($_POST['nav_meta_nonce'], 'nav_site_save_' . $postId)) {
+        if (!isset($_POST['nav_meta_nonce']) || !wp_verify_nonce(sanitize_key(wp_unslash($_POST['nav_meta_nonce'])), 'nav_site_save_' . $postId)) {
             return;
         }
 
@@ -403,6 +403,29 @@ class Navigation_Init
             remove_action('save_post_nav_site', [$this, 'saveMeta']);
             wp_update_post($postData);
             add_action('save_post_nav_site', [$this, 'saveMeta'], 10, 3);
+        }
+
+        // 保存导航标签（nav_tag 分类）
+        if (isset($_POST['nav_tags_json'])) {
+            $tagsJson = wp_kses_post($_POST['nav_tags_json']);
+            $tags = json_decode($tagsJson, true);
+            if (is_array($tags) && !empty($tags)) {
+                $termIds = [];
+                foreach ($tags as $tagName) {
+                    $tagName = sanitize_text_field(trim($tagName));
+                    if (mb_strlen($tagName, 'utf-8') < 2) continue;
+                    $term = get_term_by('name', $tagName, 'nav_tag');
+                    if ($term) {
+                        $termIds[] = (int) $term->term_id;
+                    } else {
+                        $new = wp_insert_term($tagName, 'nav_tag');
+                        if (!is_wp_error($new)) $termIds[] = (int) $new['term_id'];
+                    }
+                }
+                wp_set_object_terms($postId, $termIds, 'nav_tag');
+            } else {
+                wp_set_object_terms($postId, [], 'nav_tag');
+            }
         }
     }
 

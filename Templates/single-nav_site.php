@@ -21,19 +21,39 @@ $cats  = get_the_terms(get_the_ID(), 'nav_category');
 // 浏览量
 $views = (int) $meta['views'] + 1;
 update_post_meta(get_the_ID(), 'nav_views', $views);
+
+// 评分数据（取真实值，无评分则不输出 AggregateRating）
+$ratings = get_post_meta(get_the_ID(), 'nav_ratings', true);
+$ratingCount = is_array($ratings) ? intval($ratings['count'] ?? 0) : 0;
+$ratingAvg   = is_array($ratings) ? floatval($ratings['avg'] ?? 0) : 0;
+
+// 构建面包屑 Schema 数据
+$bcItems = [
+    ['name' => '首页', 'url' => home_url()],
+    ['name' => '网址导航', 'url' => get_post_type_archive_link('nav_site')],
+];
+if ($cats && !is_wp_error($cats) && !empty($cats)) {
+    $firstCat = $cats[0];
+    if ($firstCat->parent) {
+        $grandparent = get_term($firstCat->parent, 'nav_category');
+        if ($grandparent && !is_wp_error($grandparent)) {
+            $bcItems[] = ['name' => $grandparent->name, 'url' => get_term_link($grandparent)];
+        }
+    }
+    $bcItems[] = ['name' => $firstCat->name, 'url' => get_term_link($firstCat)];
+}
+$bcItems[] = ['name' => $name, 'url' => get_permalink()];
 ?>
 
-
 <nav class="nav-breadcrumb">
-    <a href="<?php echo esc_url(home_url()); ?>">首页</a>
-    <span class="sep">/</span>
-    <a href="<?php echo esc_url(get_post_type_archive_link('nav_site')); ?>">网址导航</a>
-    <?php if ($cats && !is_wp_error($cats) && !empty($cats)): ?>
-    <span class="sep">/</span>
-    <a href="<?php echo esc_url(get_term_link($cats[0])); ?>"><?php echo esc_html($cats[0]->name); ?></a>
+    <?php foreach ($bcItems as $i => $item): ?>
+    <?php if ($i > 0): ?><span class="sep">/</span><?php endif; ?>
+    <?php if ($i === count($bcItems) - 1): ?>
+    <span class="current"><?php echo esc_html($item['name']); ?></span>
+    <?php else: ?>
+    <a href="<?php echo esc_url($item['url']); ?>"><?php echo esc_html($item['name']); ?></a>
     <?php endif; ?>
-    <span class="sep">/</span>
-    <span class="current"><?php echo esc_html($name); ?></span>
+    <?php endforeach; ?>
 </nav>
 
 <div class="nav-single-wrap">
@@ -188,7 +208,7 @@ update_post_meta(get_the_ID(), 'nav_views', $views);
         $relatedQuery = new \WP_Query([
             'post_type'      => 'nav_site',
             'post_status'    => 'publish',
-            'posts_per_page' => 6,
+            'posts_per_page' => 8,
             'post__not_in'   => [get_the_ID()],
             'tax_query'      => [[
                 'taxonomy' => 'nav_category',
@@ -205,7 +225,7 @@ update_post_meta(get_the_ID(), 'nav_views', $views);
             $relatedQuery = new \WP_Query([
                 'post_type'      => 'nav_site',
                 'post_status'    => 'publish',
-                'posts_per_page' => 6,
+                'posts_per_page' => 8,
                 'post__not_in'   => [get_the_ID()],
                 'tax_query'      => [[
                     'taxonomy' => 'nav_tag',
@@ -230,7 +250,7 @@ update_post_meta(get_the_ID(), 'nav_views', $views);
                 <a href="<?php echo esc_url(get_permalink()); ?>" class="nav-related-card">
                     <div class="nav-related-logo">
                         <?php if ($relatedMeta['logo']): ?>
-                            <img src="<?php echo esc_url($relatedMeta['logo']); ?>" alt="<?php echo esc_attr($relatedName); ?>">
+                            <img src="<?php echo esc_url($relatedMeta['logo']); ?>" alt="<?php echo esc_attr($relatedName); ?>" loading="lazy">
                         <?php else: ?>
                             <span class="nav-related-letter"><?php echo esc_html(mb_substr($relatedName, 0, 1, 'UTF-8')); ?></span>
                         <?php endif; ?>
@@ -263,15 +283,40 @@ update_post_meta(get_the_ID(), 'nav_views', $views);
 <script type="application/ld+json">
 {
     "@context": "https://schema.org",
-    "@type": "WebSite",
+    "@type": "WebPage",
     "name": "<?php echo esc_js($name); ?>",
-    "url": "<?php echo esc_js($url); ?>",
+    "url": "<?php echo esc_js(get_permalink()); ?>",
     "description": "<?php echo esc_js($desc ?: $aiSum); ?>",
-    <?php if ($logo): ?>"image": "<?php echo esc_js($logo); ?>",<?php endif; ?>
+    "inLanguage": "zh-CN",
+    "isPartOf": {
+        "@type": "WebSite",
+        "name": "<?php bloginfo('name'); ?>",
+        "url": "<?php echo esc_js(home_url()); ?>"
+    },
+    <?php if ($logo): ?>
+    "image": "<?php echo esc_js($logo); ?>",
+    <?php endif; ?>
+    <?php if ($ratingCount > 0): ?>
     "aggregateRating": {
         "@type": "AggregateRating",
-        "ratingValue": "<?php echo rand(40, 50) / 10; ?>",
-        "reviewCount": "<?php echo intval($views); ?>"
+        "ratingValue": "<?php echo esc_js(number_format($ratingAvg, 1)); ?>",
+        "ratingCount": "<?php echo intval($ratingCount); ?>",
+        "bestRating": "5",
+        "worstRating": "1"
+    },
+    <?php endif; ?>
+    "breadcrumb": {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            <?php foreach ($bcItems as $i => $item): ?>
+            {
+                "@type": "ListItem",
+                "position": <?php echo $i + 1; ?>,
+                "name": "<?php echo esc_js($item['name']); ?>",
+                "item": "<?php echo esc_js($item['url']); ?>"
+            }<?php echo ($i < count($bcItems) - 1) ? ',' : ''; ?>
+            <?php endforeach; ?>
+        ]
     }
 }
 </script>

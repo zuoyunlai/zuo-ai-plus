@@ -524,13 +524,48 @@ class SeoOptimizer
         }
 
         if ($need_desc) {
+            // 优先：带「摘要：」前缀的行
             if (preg_match('/摘要[：:]\s*(.+)/u', $text, $m)) {
-                $result['description'] = trim($m[1]);
-            } elseif (count($lines) >= 3) {
-                foreach (array_slice($lines, 2) as $line) {
-                    if (preg_match('/^[#\-*·]|^标签|^新标题|^优化|^分析/u', $line)) continue;
-                    $result['description'] = $line;
-                    break;
+                $desc = trim($m[1]);
+                // 防御性清理：去掉末尾的英文统计提示（如 "...Characters: 95"）
+                $desc = preg_replace('/[,，.]?[\s]*[A-Za-z\s]*[Cc]haracters?[：:]?\s*\d+\s*$/u', '', $desc);
+                $desc = preg_replace('/[,，.]?[\s]*[A-Za-z\s]*[Cc]har[\s:]*\d+[\s]*$/u', '', $desc);
+                $desc = preg_replace('/[,，.]?[\s]*字数[：:]?\s*\d+\s*$/u', '', $desc);
+                if (preg_match('/[\x{4e00}-\x{9fa5}]/u', $desc)) {
+                    $result['description'] = trim($desc);
+                }
+            } else {
+                // 长文本（包含推理过程）：从后往前找合理描述行
+                if (mb_strlen($text, 'utf-8') > 200) {
+                    for ($i = count($lines) - 1; $i >= 0; $i--) {
+                        if (!isset($lines[$i])) continue;
+                        $line = trim($lines[$i]);
+                        if (!$line) continue;
+                        // 跳过标题类、分析类、标签类行
+                        if (preg_match('/^[#\-*·\[\(]|^分析|^思考|^结论|^选择|^关键词|^字数|^SEO|^标签|^描述|^打磨|^优化|^内容|^要点|^写作|^任务|^格式|^输出|^提示|^说明|^参考|^注意|^直接|^标题|^新标题|^新标签/u', $line)) continue;
+                        // 跳过含思考/计数关键词的英文行
+                        if (preg_match('/count|counting|character|characters|word.?count|字数|字符|长度|length|prefix|content|label|tag|note|text|output|format|生成|写给|给你的|参考的|输出格式|写作任务|标签为|直接写|前缀|不要写|original\s*title|new\s*title|suggested\s*title|recommended\s*title|final\s*title|optimized\s*title|thus|therefore|hence|so\s+we|let\s+us|we\s+can/iu', $line)) continue;
+                        // 跳过纯英文或无中文行
+                        if (!preg_match('/[\x{4e00}-\x{9fa5}]/u', $line)) continue;
+                        // 跳过太短或太长的行（描述合理范围 30-130 字）
+                        $len = mb_strlen($line, 'utf-8');
+                        if ($len < 30 || $len > 130) continue;
+                        // 防御性清理末尾统计
+                        $line = preg_replace('/[,，.]?[\s]*[A-Za-z\s]*[Cc]haracters?[：:]?\s*\d+\s*$/u', '', $line);
+                        $line = preg_replace('/[,，.]?[\s]*字数[：:]?\s*\d+\s*$/u', '', $line);
+                        $result['description'] = trim($line);
+                        break;
+                    }
+                } elseif (count($lines) >= 3) {
+                    // 正常情况：从第3行起找合理描述行
+                    foreach (array_slice($lines, 2) as $line) {
+                        if (preg_match('/^[#\-*·]|^标签|^新标题|^新标签|^优化|^分析/u', $line)) continue;
+                        if (!preg_match('/[\x{4e00}-\x{9fa5}]/u', $line)) continue;
+                        $len = mb_strlen(trim($line), 'utf-8');
+                        if ($len < 30 || $len > 130) continue;
+                        $result['description'] = trim($line);
+                        break;
+                    }
                 }
             }
         }

@@ -17,14 +17,14 @@ class NavigationController extends BaseController
         register_rest_route($this->namespace, '/nav/fetch', [
             'methods'  => 'POST',
             'callback' => [$this, 'fetchUrl'],
-            'permission_callback' => fn() => current_user_can('edit_posts'),
+            'permission_callback' => function() { return current_user_can('edit_posts'); },
         ]);
 
         // AI 生成摘要
         register_rest_route($this->namespace, '/nav/ai-summary', [
             'methods'  => 'POST',
             'callback' => [$this, 'generateAiSummary'],
-            'permission_callback' => fn() => current_user_can('edit_posts'),
+            'permission_callback' => function() { return current_user_can('edit_posts'); },
         ]);
 
         // SEO 权重查询（公开访问，结果缓存）
@@ -59,7 +59,7 @@ class NavigationController extends BaseController
         register_rest_route($this->namespace, '/nav/bulk-check-status', [
             'methods'  => 'POST',
             'callback' => [$this, 'bulkCheckStatus'],
-            'permission_callback' => fn() => current_user_can('manage_options'),
+            'permission_callback' => function() { return current_user_can('manage_options'); },
         ]);
 
         // 获取网站列表（分页）
@@ -81,6 +81,27 @@ class NavigationController extends BaseController
             'methods'  => 'GET',
             'callback' => [$this, 'getRating'],
             'permission_callback' => '__return_true',
+        ]);
+
+        // 下载远程图片到媒体库
+        register_rest_route($this->namespace, '/nav/download-image', [
+            'methods'  => 'POST',
+            'callback' => [$this, 'downloadImage'],
+            'permission_callback' => function() { return current_user_can('upload_files'); },
+        ]);
+
+        // 使用 Chrome Headless 截取网站截图
+        register_rest_route($this->namespace, '/nav/screenshot', [
+            'methods'  => 'POST',
+            'callback' => [$this, 'takeScreenshot'],
+            'permission_callback' => function() { return current_user_can('upload_files'); },
+        ]);
+
+        // AI 生成导航标签
+        register_rest_route($this->namespace, '/nav/ai-tags', [
+            'methods'  => 'POST',
+            'callback' => [$this, 'generateAiTags'],
+            'permission_callback' => function() { return current_user_can('edit_posts'); },
         ]);
     }
 
@@ -172,7 +193,8 @@ class NavigationController extends BaseController
         $description = $this->extractMeta($html, 'description');
         $keywords    = $this->extractMeta($html, 'keywords');
         $logo        = $this->extractLogo($html, $url);
-        
+        $screenshot  = $this->extractScreenshot($html, $url);
+
         // AI 生成 slug（拼音或英文）
         $slug = $this->generateSlug($name, $description);
 
@@ -182,7 +204,7 @@ class NavigationController extends BaseController
             'keywords'    => $keywords,
             'description' => $description,
             'logo'        => $logo,
-            'screenshot'  => '',
+            'screenshot'  => $screenshot,
             'slug'        => $slug,
         ];
 
@@ -241,6 +263,29 @@ class NavigationController extends BaseController
             }
         }
         return '';
+    }
+
+    /**
+     * 提取网站截图 URL
+     * 优先使用 og:image（网站首页快照），否则用 thum.io 在线截图服务
+     */
+    private function extractScreenshot(string $html, string $url): string
+    {
+        $base = parse_url($url, PHP_URL_SCHEME) . '://' . parse_url($url, PHP_URL_HOST);
+
+        // og:image 如果存在（有些站点用 og:image 做网站快照）
+        if (preg_match('/<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']/i', $html, $m)) {
+            $img = $this->makeAbsolute(trim($m[1]), $base);
+            // 过滤掉明显的 logo/favicon URL（它们常也被放进 og:image）
+            if ($img && !preg_match('/(logo|favicon|icon|apple-touch|avatar|brand)/i', $img)) {
+                return $img;
+            }
+        }
+
+        // 使用 thum.io 免费截图服务（无需 API key）
+        // 格式：https://image.thum.io/getwidth/800/<host>
+        $host = parse_url($url, PHP_URL_HOST);
+        return 'https://image.thum.io/getwidth/800/' . $host;
     }
 
     private function makeAbsolute(string $url, string $base): string
@@ -816,6 +861,248 @@ class NavigationController extends BaseController
             'success' => true,
             'checked' => count($results),
             'data'    => $results,
+        ]);
+    }
+
+    /**
+     * POST /ai-plus/v1/nav/download-image
+     * Body: { image_url: "https://...", filename?: "xxx.png" }
+     * 下载远程图片到媒体库，返回 attachment_id 和 URL
+     */
+    public function downloadImage(\WP_REST_Request $request): \WP_REST_Response
+    {
+        // 加载 WordPress admin 文件（REST API 上下文不会自动加载）
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/media.php';
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+
+        $imageUrl = esc_url_raw($request->get_param('image_url'));
+        if (!$imageUrl) {
+            return new \WP_REST_Response(['success' => false, 'message' => '缺少图片地址'], 400);
+        }
+
+        // 下载到临时目录
+        $tmp = download_url($imageUrl, 30);
+        if (is_wp_error($tmp)) {
+            return new \WP_REST_Response(['success' => false, 'message' => '下载失败：' . $tmp->get_error_message()], 500);
+        }
+
+        $filename = sanitize_file_name($request->get_param('filename') ?: basename(parse_url($imageUrl, PHP_URL_PATH)));
+        if (!preg_match('/\.(jpg|jpeg|png|gif|webp|svg|ico)$/i', $filename)) {
+            $ext = 'png';
+            $filename .= '.' . $ext;
+        }
+
+        $fileArr = [
+            'name'     => $filename,
+            'tmp_name' => $tmp,
+        ];
+
+        // 插入媒体库
+        $attId = media_handle_sideload($fileArr, 0, '', [
+            'post_status' => 'inherit',
+        ]);
+
+        if (is_wp_error($attId)) {
+            @unlink($tmp);
+            return new \WP_REST_Response(['success' => false, 'message' => '保存失败：' . $attId->get_error_message()], 500);
+        }
+
+        $attachment = wp_get_attachment_image_src($attId, 'full');
+        $imageUrl2  = $attachment ? $attachment[0] : wp_get_attachment_url($attId);
+
+        return new \WP_REST_Response([
+            'success'       => true,
+            'attachment_id' => $attId,
+            'url'          => $imageUrl2,
+            'filename'      => $filename,
+        ]);
+    }
+
+    /**
+     * POST /ai-plus/v1/nav/screenshot
+     * Body: { url: "https://..." }
+     * 使用 Chrome Headless 截取网站截图，保存到媒体库
+     */
+    public function takeScreenshot(\WP_REST_Request $request): \WP_REST_Response
+    {
+        $url = esc_url_raw($request->get_param('url'));
+        if (!$url) {
+            return new \WP_REST_Response(['success' => false, 'message' => 'URL无效'], 400);
+        }
+
+        $chrome = '/usr/bin/google-chrome';
+        if (!file_exists($chrome)) {
+            $chrome = 'google-chrome';
+        }
+
+        // 创建目录
+        $upload_dir = wp_upload_dir();
+        $shot_dir = $upload_dir['basedir'] . '/nav-screenshots';
+        if (!file_exists($shot_dir)) {
+            wp_mkdir_p($shot_dir);
+        }
+
+        $hash = md5($url . time());
+        $filename = 'screenshot-' . $hash . '.png';
+        $filepath = $shot_dir . '/' . $filename;
+        $tmp_file = '/tmp/chrome-shot-' . $hash . '.png';
+        $user_data_dir = '/tmp/chrome-ud-' . $hash;
+
+        // Chrome Headless 截图命令
+        $cmd = sprintf(
+            '%s --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage ' .
+            '--single-process --screenshot=%s --window-size=1280,800 ' .
+            '--user-data-dir=%s %s 2>/dev/null',
+            escapeshellcmd($chrome),
+            escapeshellarg($tmp_file),
+            escapeshellarg($user_data_dir),
+            escapeshellarg($url)
+        );
+
+        @exec('rm -rf ' . escapeshellarg($user_data_dir));
+        $output = [];
+        $return_code = 0;
+        exec($cmd, $output, $return_code);
+        @exec('rm -rf ' . escapeshellarg($user_data_dir));
+
+        if ($return_code !== 0 || !file_exists($tmp_file)) {
+            return new \WP_REST_Response(['success' => false, 'message' => '截图失败，Chrome返回码: ' . $return_code], 500);
+        }
+
+        if (!rename($tmp_file, $filepath)) {
+            @unlink($tmp_file);
+            return new \WP_REST_Response(['success' => false, 'message' => '文件保存失败'], 500);
+        }
+
+        // 注册为 WordPress 附件
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+        $att_id = wp_insert_attachment([
+            'post_title'     => '网站截图 - ' . parse_url($url, PHP_URL_HOST),
+            'post_content'   => '',
+            'post_status'    => 'inherit',
+            'post_mime_type' => 'image/png',
+        ], $filepath);
+
+        if (!is_wp_error($att_id) && $att_id > 0) {
+            wp_update_attachment_metadata($att_id, wp_generate_attachment_metadata($att_id, $filepath));
+        }
+
+        $file_url = $att_id > 0 ? wp_get_attachment_url($att_id) : $upload_dir['baseurl'] . '/nav-screenshots/' . $filename;
+
+        return new \WP_REST_Response([
+            'success'       => true,
+            'file_url'      => $file_url,
+            'attachment_id' => $att_id > 0 ? (int) $att_id : null,
+            'width'        => 1280,
+            'height'       => 800,
+        ]);
+    }
+
+    /**
+     * POST /ai-plus/v1/nav/ai-tags
+     * Body: { post_id, name, url?, description? }
+     * 调用 AI 根据网站名称/URL/描述生成导航标签，并直接写入 post
+     */
+    public function generateAiTags(\WP_REST_Request $request): \WP_REST_Response
+    {
+        $postId = (int) $request->get_param('post_id');
+        $name   = sanitize_text_field($request->get_param('name') ?? '');
+        $url    = esc_url_raw($request->get_param('url') ?? '');
+        $desc   = sanitize_text_field($request->get_param('description') ?? '');
+
+        if (!$postId || !$name) {
+            return new \WP_REST_Response(['success' => false, 'message' => '缺少必要参数'], 400);
+        }
+
+        $post = get_post($postId);
+        if (!$post || $post->post_type !== 'nav_site') {
+            return new \WP_REST_Response(['success' => false, 'message' => '无效的文章ID'], 400);
+        }
+
+        $prompt = "请根据以下网站信息生成3-8个标签（tag）。\n"
+            . "网站名称：{$name}\n"
+            . "网站URL：{$url}\n"
+            . "网站描述：{$desc}\n\n"
+            . "要求：\n"
+            . "1. 每个标签2-6个中文字（或2-4个英文单词）\n"
+            . "2. 直接返回标签列表，用逗号分隔，不要编号、不要解释、不要额外说明\n"
+            . "3. 标签要贴合网站主题，涵盖行业、功能、类型等维度\n"
+            . "4. 示例格式：AI工具, 在线写作, 英文学习, 办公效率\n"
+            . "直接输出标签列表：";
+
+        $chatMessages = [
+            ['role' => 'system', 'content' => '你是一个专业的网站标签生成助手，根据网站信息生成简洁准确的标签列表，直接输出标签列表，不要任何解释。'],
+            ['role' => 'user', 'content' => $prompt],
+        ];
+
+        $model  = get_option('ai_plus_default_model', 'minimax');
+        $apiKey = get_option('ai_plus_api_key_' . $model) ?: get_option('ai_plus_api_key');
+        if (!$apiKey) {
+            return new \WP_REST_Response(['success' => false, 'message' => '未配置 AI API Key'], 400);
+        }
+
+        $body = [
+            'model'    => $model === 'glm-5' ? 'GLM-5' : 'MiniMax-M2.7',
+            'messages' => $chatMessages,
+            'max_tokens' => 200,
+        ];
+
+        $apiBase = ($model === 'glm-5' || $model === 'glm-4-flash')
+            ? 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
+            : 'https://api.minimax.chat/v1/text/chatcompletion_v2';
+
+        $headers = ['Authorization' => 'Bearer ' . $apiKey, 'Content-Type' => 'application/json'];
+
+        $resp = wp_remote_post($apiBase, [
+            'timeout'  => 30,
+            'headers' => $headers,
+            'body'    => json_encode($body),
+        ]);
+
+        if (is_wp_error($resp)) {
+            return new \WP_REST_Response(['success' => false, 'message' => 'AI 请求失败：' . $resp->get_error_message()], 500);
+        }
+
+        $resBody = json_decode(wp_remote_retrieve_body($resp), true);
+        $content = $resBody['choices'][0]['message']['content'] ?? '';
+        $content = trim($content);
+        $content = trim(preg_replace('/^```(?:\w+)?\s*/', '', $content));
+        $content = trim(preg_replace('/\s*```$/', '', $content));
+
+        if (!$content) {
+            return new \WP_REST_Response(['success' => false, 'message' => 'AI 未返回内容'], 500);
+        }
+
+        $tagsRaw = preg_replace('/[、，,\s]+/u', ',', $content);
+        $tags = array_filter(array_map('trim', explode(',', $tagsRaw)), function ($t) {
+            return mb_strlen($t, 'utf-8') >= 2 && mb_strlen($t, 'utf-8') <= 10;
+        });
+        $tags = array_unique($tags);
+
+        if (empty($tags)) {
+            return new \WP_REST_Response(['success' => false, 'message' => '未能解析出有效标签'], 500);
+        }
+
+        $termIds = [];
+        foreach ($tags as $tagName) {
+            $term = get_term_by('name', $tagName, 'nav_tag');
+            if ($term) {
+                $termIds[] = (int) $term->term_id;
+            } else {
+                $new = wp_insert_term($tagName, 'nav_tag');
+                if (!is_wp_error($new)) {
+                    $termIds[] = (int) $new['term_id'];
+                }
+            }
+        }
+
+        wp_set_object_terms($postId, $termIds, 'nav_tag');
+
+        return new \WP_REST_Response([
+            'success'   => true,
+            'tags'      => $tags,
+            'term_ids'  => $termIds,
         ]);
     }
 }

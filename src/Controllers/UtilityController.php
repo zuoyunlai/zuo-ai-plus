@@ -333,8 +333,9 @@ class UtilityController extends BaseController
             update_post_meta($att_id, '_wp_attachment_image_alt', mb_substr($final_alt, 0, 200, 'utf-8'));
         }
 
-        // 不自动设特色图——由用户在 Gutenberg 侧边栏「设置特色图」按钮手动操作
-        // DEBUG: 返回实际保存的元数据供前端确认
+        // 自动设置文章特色图（在后端直接写库，最可靠）
+        update_post_meta($post_id, '_thumbnail_id', $att_id);
+
         return $this->success([
             'success'       => true,
             'attachment_id' => $att_id,
@@ -342,12 +343,7 @@ class UtilityController extends BaseController
             'title'         => $final_title,
             'alt'           => $final_alt,
             'description'   => $final_desc,
-            '_debug'        => defined('WP_DEBUG') && WP_DEBUG ? [
-                'received_chinese_desc' => $chinese_desc,
-                'received_chinese_alt'  => $chinese_alt,
-                'final_title'   => $final_title,
-                'final_alt'     => $final_alt,
-            ] : null,
+            'post_id'       => $post_id,
         ]);
     }
 

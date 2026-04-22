@@ -13,7 +13,8 @@ $termId = $term->term_id;
 $queryArgs = [
     'post_type'      => 'nav_site',
     'post_status'    => 'publish',
-    'posts_per_page' => 100,
+    'posts_per_page' => 24,
+    'paged'          => max(1, get_query_var('paged')),
     'tax_query'      => [[
         'taxonomy' => 'nav_tag',
         'field'    => 'term_id',
@@ -88,10 +89,34 @@ $query = new \WP_Query($queryArgs);
         </article>
         <?php endwhile; ?>
     </div>
+
+    <?php if ($query->max_num_pages > 1): ?>
+    <div class="nav-pagination">
+        <?php
+        echo paginate_links([
+            'total'   => $query->max_num_pages,
+            'current' => max(1, get_query_var('paged')),
+        ]);
+        ?>
+    </div>
+    <?php endif; ?>
     <?php else: ?>
     <div class="nav-empty"><p>该标签下暂无网站</p></div>
     <?php endif; ?>
 </div>
+
+<!-- SEO -->
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "<?php echo esc_js($term->name); ?>",
+    "url": "<?php echo esc_js(get_term_link($term)); ?>",
+    "description": "<?php echo esc_js($term->description ?: ('标签：' . $term->name)); ?>",
+    "inLanguage": "zh-CN",
+    "isPartOf": {"@type": "WebSite", "name": "<?php bloginfo('name'); ?>", "url": "<?php echo esc_js(home_url()); ?>"}
+}
+</script>
 
 <?php get_footer(); ?>
 

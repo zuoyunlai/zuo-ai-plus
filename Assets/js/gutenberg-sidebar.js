@@ -32,43 +32,20 @@
     });
 
     function apiRequest(endpoint, data) {
-        // DEBUG
-        
-        // 添加超时控制（200秒 = 略小于PHP 300秒限制）
-        var controller = new AbortController();
-        var timeoutId = setTimeout(function() {
-            controller.abort();
-        }, 200000); // 200秒超时
-        
-        return fetch(window.aiPlusConfig.apiUrl + endpoint, {
+        // 自动在短名称前加 namespace 前缀，兼容现有所有调用
+        var ns = 'ai-plus/v1/';
+        var path = (endpoint && endpoint.indexOf('/') === -1) ? (ns + endpoint) : endpoint;
+        // wp.apiFetch 自动处理 WordPress nonce 刷新
+        return wp.apiFetch({
+            path: path,
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-WP-Nonce': window.aiPlusConfig.nonce
-            },
-            body: JSON.stringify(data),
-            signal: controller.signal
-        }).then(function (r) { 
-            clearTimeout(timeoutId);
-            
-            if (!r.ok) {
-                return r.json().then(function(data) {
-                    
-                    throw new Error(data.error || data.message || 'HTTP ' + r.status);
-                }).catch(function() {
-                    throw new Error('HTTP ' + r.status + ' ' + r.statusText);
-                });
+            data: data
+        }).catch(function(err) {
+            var msg = err.message || '请求失败';
+            if (msg.indexOf('nonce') !== -1 || msg.indexOf('rest_cookie') !== -1) {
+                msg = '认证失败，请刷新页面重新登录';
             }
-            return r.json().then(function(data) {
-                
-                return data;
-            }); 
-        }).catch(function(e) {
-            clearTimeout(timeoutId);
-            if (e.name === 'AbortError') {
-                throw new Error('请求超时，服务器响应时间过长');
-            }
-            throw e;
+            throw new Error(msg);
         });
     }
 
@@ -192,7 +169,7 @@
                 }
             }
 
-            // 等待这些块的 clientId 出现在编辑器中
+            // 等待这些块的 clientId 出现在编辑器中（最多 60次 × 200ms = 12秒）
             var retries = 0;
             var iv = setInterval(function() {
                 retries++;
@@ -215,12 +192,29 @@
                     } catch(e) {
                         setTimeout(saveDone, 500);
                     }
-                } else if (retries > 15) {
-                    // 超时未确认：提示失败，提供复制选项
+                } else if (retries > 60) {
+                    // 超时未确认：尝试强制同步写入（reset+insert组合）
                     clearInterval(iv);
-                    setGlobalResult({ type: 'err', text: '❌ 编辑器写入超时（块插入未被确认），内容已复制到剪贴板，请手动粘贴' });
-                    if (navigator.clipboard && navigator.clipboard.writeText) {
-                        navigator.clipboard.writeText(merged).catch(function() {});
+                    try {
+                        // 最后尝试：强制 resetBlocks（覆盖模式）或 再次 insertBlocks（追加模式）
+                        if (replaceMode) {
+                            blockDisp.resetBlocks(blocks);
+                        } else {
+                            var cur2 = blockSel.getBlocks();
+                            if (cur2 && cur2.length > 0) {
+                                var last2 = cur2[cur2.length - 1];
+                                blockDisp.insertBlocks(blocks, undefined, last2 && last2.clientId ? last2.clientId : undefined);
+                            } else {
+                                blockDisp.resetBlocks(blocks);
+                            }
+                        }
+                        setGlobalResult({ type: 'ok', text: '✅ 已写入编辑器（已重试）！' });
+                        wp.data.dispatch('core/editor').savePost();
+                    } catch(e2) {
+                        setGlobalResult({ type: 'err', text: '❌ 编辑器写入超时（块插入未被确认），内容已复制到剪贴板，请手动粘贴' });
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            navigator.clipboard.writeText(merged).catch(function() {});
+                        }
                     }
                 }
             }, 200);
@@ -780,55 +774,27 @@ function handleKeyword() {
                 var tagStr = (r.content || '').trim();
                 if (!tagStr) { setGlobalResult({ type: 'warn', text: '未提取到标签' }); return; }
                 var tagArray = tagStr.split(/[,，、]/).map(function(t){return t.trim();}).filter(Boolean);
-                fetch(window.aiPlusConfig.apiUrl + 'tags-save', {
+                // 使用 wp.apiFetch（自动处理 nonce 刷新，解决页面停留久后 nonce 失效的问题）
+                wp.apiFetch({
+                    path: '/ai-plus/v1/tags-save',
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': window.aiPlusConfig.nonce },
-                    body: JSON.stringify({ post_id: postId, tags: tagStr })
-                }).then(function(resp){ return resp.json().then(function(d){ return { ok: resp.ok, data: d }; }); })
+                    data: { post_id: postId, tags: tagStr }
+                }).then(function(resp) {
+                    return { ok: true, data: resp };
+                }).catch(function(err) {
+                    // wp.apiFetch 会自动重试 nonce，过滤掉自动重试后的最终错误
+                    console.error('tags-save error:', err);
+                    return { ok: false, data: { code: 'error', message: err.message || '保存失败' } };
+                })
                 .then(function(resp) {
                     if (resp.ok && resp.data.code === 'success') {
                         // 优先使用后端过滤后的标签名（与实际写入的一致）
                         var savedTagStr = (resp.data.tag_names && resp.data.tag_names.length > 0)
                             ? resp.data.tag_names.join('，')
                             : tagStr;
-                        // 使用接口返回的 term_ids（Gutenberg 需要 ID，而非标签名）
-                        if (resp.data.tag_ids && resp.data.tag_ids.length > 0) {
-                            try {
-                                // 步骤1：editPost 更新 editor store（同时更新 tags 属性）
-                                wp.data.dispatch('core/editor').editPost({ tags: resp.data.tag_ids });
-                                
-
-                                // 步骤2：立即保存（Tags 面板需要 post save 才能重新获取数据）
-                                setTimeout(function() {
-                                    try {
-                                        wp.data.dispatch('core/editor').savePost();
-                                        
-
-                                        // 步骤3：invalidate entity cache 强制 Tags 面板重新获取数据
-                                        // Gutenberg 5.8+ 的 Tags 面板监听 core/editor store，
-                                        // invalidateResolution 可使其重新 fetch 最新的 post entity
-                                        setTimeout(function() {
-                                            try {
-                                                if (typeof wp.data.dispatch('core') !== 'undefined') {
-                                                    wp.data.dispatch('core').invalidateResolution('getEntityRecord', ['postType', 'post', postId]);
-                                                }
-                                                if (typeof wp.data.dispatch('core/editor') !== 'undefined') {
-                                                    wp.data.dispatch('core/editor').invalidateResolution('getEntityRecord', ['postType', 'post', postId]);
-                                                }
-                                                
-                                            } catch(e3) {
-                                                
-                                            }
-                                        }, 200);
-                                    } catch(e2) {
-                                        
-                                    }
-                                }, 50);
-                            } catch(e) {
-                                
-                            }
-                        }
-                        setGlobalResult({ type: 'ok', text: '✅ 标签已写入（' + resp.data.tag_ids.length + '个）：' + savedTagStr });
+                        setGlobalResult({ type: 'ok', text: '✅ 标签已写入（' + (resp.data.tag_ids ? resp.data.tag_ids.length : 0) + '个）：' + savedTagStr + '\n\n⏳ 页面将自动刷新…' });
+                        // 后端已写库，reload 让 Tags 面板获取最新数据
+                        setTimeout(function() { window.location.reload(); }, 1000);
                     } else {
                         setGlobalResult({ type: 'warn', text: '标签已生成：' + tagStr + ' (保存失败：' + (resp.data.message || resp.data.error || '未知原因') + ')' });
                     }
@@ -917,29 +883,39 @@ function handleKeyword() {
                 } else {
                     setGlobalResult({ type: 'info', text: '🖼️ AI图片已生成，正在设置…' });
                 }
-                return fetch(window.aiPlusConfig.apiUrl + 'featured-image-set', {
+                // 使用 wp.apiFetch（自动处理 nonce 刷新）
+                wp.apiFetch({
+                    path: '/ai-plus/v1/featured-image-set',
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': window.aiPlusConfig.nonce },
-                    body: JSON.stringify({
+                    data: {
                         post_id: postId, image_url: imageUrl,
                         post_title: title, image_prompt: prompt,
-                        // 优先使用中文替代文本，不再使用英文 prompt
                         alt_text: (r.chinese_alt || r.chinese_desc || ''),
                         chinese_desc: (r.chinese_desc || ''),
                         chinese_alt:  (r.chinese_alt || ''),
-                    })
-                }).then(function(resp) { return resp.json(); })
-                .then(function(data) {
-                    setLoading(false);
-                    if (data.code !== 'success') {
-                        setGlobalResult({ type: 'warn', text: '⚠️ 特色图设置失败\n\n提示词：' + prompt });
-                    } else if (data.attachment_id) {
-                        try { wp.data.dispatch('core/editor').editPost({ featured_media: parseInt(data.attachment_id) }); } catch(e) {}
-                        var metaInfo = (data.title ?       ('📝 标题：'       + data.title + '\n') : '') +
-                                       (data.description ? ('📝 说明文字：' + data.description + '\n') : '') +
-                                       (data.alt ?        ('📝 替代文本：'  + data.alt) : '');
-                        setGlobalResult({ type: 'ok', text: '✅ 特色图已设置！\n\n' + metaInfo + (imageUrl ? ('\n🔗 ' + imageUrl) : '') });
                     }
+                }).then(function(data) {
+                    setLoading(false);
+                    // 防御性：兼容两种响应格式（直接返回 data 或 {code,data} 包装）
+                    var raw = (data.data !== undefined) ? data.data : data;
+                    var code = data.code || (data.data || {}).code;
+                    if (code !== 'success' && code !== true) {
+                        setGlobalResult({ type: 'warn', text: '⚠️ 特色图设置失败\n\n提示词：' + prompt });
+                        console.warn('featured-image-set error response:', data);
+                    } else if (raw.attachment_id) {
+                        var metaInfo = (raw.title ?       ('📝 标题：'       + raw.title + '\n') : '') +
+                                       (raw.description ? ('📝 说明文字：' + raw.description + '\n') : '') +
+                                       (raw.alt ?        ('📝 替代文本：'  + raw.alt) : '');
+                        setGlobalResult({ type: 'ok', text: '✅ 特色图已设置！\n\n' + metaInfo + (imageUrl ? ('\n🔗 ' + imageUrl) : '') + '\n\n⏳ 页面将自动刷新…' });
+                        setTimeout(function() { window.location.reload(); }, 1200);
+                    } else {
+                        setGlobalResult({ type: 'warn', text: '⚠️ 特色图设置失败：未返回附件ID\n响应：' + JSON.stringify(data).substring(0, 200) });
+                        console.warn('featured-image-set unexpected response:', data);
+                    }
+                }).catch(function(err) {
+                    setLoading(false);
+                    console.error('featured-image-set error:', err);
+                    setGlobalResult({ type: 'err', text: '❌ 特色图设置失败：' + (err.message || '未知错误') });
                 });
             }).catch(function(e) {
                 setLoading(false);

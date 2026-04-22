@@ -7,13 +7,14 @@ if (!defined('ABSPATH')) exit;
 
 get_header();
 
-// 自行查询数据
-$cats = get_terms(['taxonomy' => 'nav_category', 'hide_empty' => true]);
+// 使用模型方法获取分类层级树（自动累加子分类计数）
+$catTree = \ZuoAIPlus\Models\NavigationSite::getCatTree();
 $activeCat = isset($_GET['cat']) ? intval($_GET['cat']) : 0;
 $queryArgs = [
     'post_type'      => 'nav_site',
     'post_status'    => 'publish',
     'posts_per_page' => 24,
+    'paged'          => max(1, get_query_var('paged')),
     'orderby'        => ['menu_order' => 'ASC', 'date' => 'DESC'],
 ];
 if ($activeCat) {
@@ -56,16 +57,35 @@ $query = new \WP_Query($queryArgs);
       </div>
 
       <!-- 分类导航 -->
-      <?php if (!empty($cats)): ?>
+      <?php if (!empty($catTree)): ?>
       <div class="nav-sidebar-section">
         <h3 class="nav-sidebar-title">📁 分类导航</h3>
-        <ul class="nav-cat-list">
-          <?php foreach ($cats as $cat): ?>
-          <li>
-            <a href="<?php echo esc_url(get_term_link($cat)); ?>">
-              <span><?php echo esc_html($cat->name); ?></span>
-              <span class="cat-count"><?php echo esc_html($cat->count); ?></span>
+        <ul class="nav-cat-list" id="nav-cat-tree">
+          <?php foreach ($catTree as $parent): ?>
+          <?php $hasChildren = !empty($parent['children']); ?>
+          <li class="cat-item<?php echo $hasChildren ? ' cat-has-children' : ''; ?><?php echo ($activeCat && $activeCat == $parent['term']->term_id) ? ' cat-active' : ''; ?>">
+            <?php if ($hasChildren): ?>
+            <div class="cat-parent-row" onclick="toggleCatChildren(this)">
+              <span class="cat-toggle-icon">▸</span>
+              <a href="<?php echo esc_url(get_term_link($parent['term'])); ?>" class="cat-name"><?php echo esc_html($parent['term']->name); ?></a>
+              <span class="cat-count"><?php echo intval($parent['accumulated_count']); ?></span>
+            </div>
+            <ul class="cat-children" style="display:none">
+              <?php foreach ($parent['children'] as $child): ?>
+              <li class="cat-child-item<?php echo ($activeCat && $activeCat == $child['term']->term_id) ? ' cat-active' : ''; ?>">
+                <a href="<?php echo esc_url(get_term_link($child['term'])); ?>">
+                  <span class="cat-child-name"><?php echo esc_html($child['term']->name); ?></span>
+                  <span class="cat-count"><?php echo intval($child['term']->count); ?></span>
+                </a>
+              </li>
+              <?php endforeach; ?>
+            </ul>
+            <?php else: ?>
+            <a href="<?php echo esc_url(get_term_link($parent['term'])); ?>" class="cat-name">
+              <span><?php echo esc_html($parent['term']->name); ?></span>
+              <span class="cat-count"><?php echo intval($parent['term']->count); ?></span>
             </a>
+            <?php endif; ?>
           </li>
           <?php endforeach; ?>
         </ul>
@@ -77,6 +97,7 @@ $query = new \WP_Query($queryArgs);
     <main class="nav-main">
       <div class="nav-main-header">
         <h1 id="main-title">全部网站</h1>
+        <p class="nav-main-count" id="site-count-display">共 <?php echo intval(wp_count_posts('nav_site')->publish); ?> 个站点</p>
       </div>
 
       <!-- 全部网站 -->

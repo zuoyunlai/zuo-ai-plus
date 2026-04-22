@@ -117,6 +117,12 @@ class SeoController extends BaseController
             'paged'          => (int) $request->get_param('page') ?: 1,
             'skip_done'      => $request->get_param('skip_done') !== 'false',
         ]);
+        // 诊断结果也要保存分数，让"诊断全部"后分数能持久化显示
+        foreach ($result['posts'] as $post_result) {
+            if (!empty($post_result['id']) && isset($post_result['score'])) {
+                update_post_meta($post_result['id'], \ZuoAIPlus\Models\SeoOptimizer::META_SCORE, $post_result['score']);
+            }
+        }
         return $this->success($result);
     }
 
@@ -268,7 +274,11 @@ class SeoController extends BaseController
             return $this->error(__('文章不存在', 'zuo-ai-plus'), 404);
         }
 
-        return $this->success($this->seo->auditPost($post));
+        $result = $this->seo->auditPost($post);
+        if (!is_wp_error($result) && isset($result['score'])) {
+            update_post_meta($id, \ZuoAIPlus\Models\SeoOptimizer::META_SCORE, $result['score']);
+        }
+        return $this->success($result);
     }
 
     public function handleOptimizePost(\WP_REST_Request $request): \WP_REST_Response

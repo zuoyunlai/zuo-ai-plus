@@ -174,4 +174,59 @@ class NavigationSite
         $args = array_merge($defaults, $args);
         return new \WP_Query($args);
     }
+
+    /**
+     * 返回分类层级树结构，父分类累加子分类计数（1小时缓存）
+     * @return array [{term, children, accumulated_count}]
+     */
+    public static function getCatTree(bool $force = false): array
+    {
+        $cacheKey = 'ai_plus_nav_cat_tree';
+        $tree = $force ? false : get_transient($cacheKey);
+        if ($tree === false) {
+            $allCats = get_terms(['taxonomy' => self::TAX_CAT, 'hide_empty' => false]);
+            if (is_wp_error($allCats) || empty($allCats)) {
+                return [];
+            }
+            $map = [];
+            foreach ($allCats as $c) {
+                $map[$c->term_id] = ['term' => $c, 'children' => []];
+            }
+            $tree = [];
+            foreach ($allCats as $c) {
+                if ($c->parent && isset($map[$c->parent])) {
+                    $map[$c->parent]['children'][] = &$map[$c->term_id];
+                } else {
+                    $tree[] = &$map[$c->term_id];
+                }
+                unset($map[$c->term_id]);
+            }
+            unset($map);
+
+            $accumulate = function (array &$node) use (&$accumulate): int {
+                $sum = intval($node['term']->count);
+                foreach ($node['children'] as &$child) {
+                    $sum += $accumulate($child);
+                }
+                unset($child);
+                $node['accumulated_count'] = $sum;
+                return $sum;
+            };
+            foreach ($tree as &$node) {
+                $accumulate($node);
+            }
+            unset($node);
+
+            set_transient($cacheKey, $tree, HOUR_IN_SECONDS);
+        }
+        return $tree;
+    }
+
+    /**
+     * 取最新缓存版本号（用于强制刷新缓存）
+     */
+    public static function invalidateCatTreeCache(): void
+    {
+        delete_transient('ai_plus_nav_cat_tree');
+    }
 }

@@ -267,7 +267,11 @@
             .catch(function (err) {
                 imgBtn.disabled = false;
                 imgBtn.textContent = '生成图片';
-                imgResult.innerHTML = '<div style="background:#ffe0e0;border:1px solid #c00;padding:8px;margin:8px 0;">网络错误: ' + err.message + '</div>';
+                // 安全转义 err.message，防止 XSS
+var errDiv = document.createElement('div');
+errDiv.style.cssText = 'background:#ffe0e0;border:1px solid #c00;padding:8px;margin:8px 0;';
+errDiv.textContent = '网络错误: ' + err.message;
+imgResult.appendChild(errDiv);
                 addMsg(imgResult, '网络错误: ' + err.message, 'assistant');
             });
         });

@@ -236,7 +236,9 @@ add_action('wp_ajax_ai_plus_save_license_key', function () {
     update_option('ai_plus_license_key', $key, true);
     update_option('ai_plus_license_server_url', $server_url, true);
     delete_transient('ai_plus_license_status');
-    wp_send_json_success(['saved' => true, 'key' => $key]);
+    // 返回掩码后的 key，不暴露完整密钥
+    $masked = strlen($key) <= 8 ? $key : substr($key, 0, 4) . '****' . substr($key, -4);
+    wp_send_json_success(['saved' => true, 'key' => $masked]);
 });
 
 // 测试模型连接 - 需要管理员权限

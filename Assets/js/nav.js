@@ -279,7 +279,7 @@
         fetch(cfg.ratingUrl + encodeURIComponent(visitorId))
             .then(function (r) { return r.json(); })
             .then(function (res) {
-                if (res.code !== 'success') return;
+                if (!res.success) return;
                 var data = res.data;
                 var scoreEl = document.getElementById('rating-score');
                 var countEl = document.getElementById('rating-count');
@@ -316,7 +316,7 @@
         .then(function (res) {
             var msgEl = document.getElementById('rating-message');
             if (!msgEl) return;
-            if (res.code === 'success') {
+            if (res.success) {
                 msgEl.textContent = '感谢您的评分！';
                 msgEl.className = 'nav-rating-message success';
                 loadRating();
@@ -358,7 +358,7 @@
         if (!box) return;
 
         // 先检查 HTTP 状态，未登录用户访问需带上 cookie（WordPress 允许公开访问但有nonce检查）
-        fetch(cfg.weightUrl + encodeURIComponent(cfg.siteDomain), { credentials: 'include' })
+        fetch(cfg.weightUrl + '?domain=' + encodeURIComponent(cfg.siteDomain), { credentials: 'include' })
             .then(function (r) {
                 if (!r.ok) {
                     throw new Error('HTTP ' + r.status);
@@ -366,7 +366,7 @@
                 return r.json();
             })
             .then(function (res) {
-                if (res.code !== 'success') {
+                if (!res.success) {
                     box.innerHTML = '<span style="color:var(--zhuoer-color-text-muted, #5f6368);font-size:0.8125rem;">' + (res.message || '暂无数据') + '</span>';
                     return;
                 }
@@ -532,6 +532,17 @@
         closeDataManager();
         alert('数据已清空');
         location.reload();
+    };
+
+    // ── 侧边栏分类下拉展开/折叠 ──────────────────────────────────────────────
+    window.toggleCatChildren = function (trigger) {
+        var row = trigger.closest('.cat-item');
+        var childList = row.querySelector('.cat-children');
+        if (!childList) return;
+        var isOpen = childList.style.display !== 'none';
+        childList.style.display = isOpen ? 'none' : 'block';
+        var icon = row.querySelector('.cat-toggle-icon');
+        if (icon) icon.textContent = isOpen ? '▸' : '▾';
     };
 
 })();
