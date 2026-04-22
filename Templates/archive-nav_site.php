@@ -156,7 +156,7 @@ $query = new \WP_Query($queryArgs);
                 </a>
             </div>
         </article>
-        <?php endwhile; ?>
+        <?php endwhile; wp_reset_postdata(); ?>
       </div>
 
       <?php if ($query->max_num_pages > 1): ?>

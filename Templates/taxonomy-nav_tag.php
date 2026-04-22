@@ -88,6 +88,7 @@ $query = new \WP_Query($queryArgs);
             </div>
         </article>
         <?php endwhile; ?>
+        <?php wp_reset_postdata(); ?>
     </div>
 
     <?php if ($query->max_num_pages > 1): ?>
@@ -114,7 +115,7 @@ $query = new \WP_Query($queryArgs);
     "url": "<?php echo esc_js(get_term_link($term)); ?>",
     "description": "<?php echo esc_js($term->description ?: ('标签：' . $term->name)); ?>",
     "inLanguage": "zh-CN",
-    "isPartOf": {"@type": "WebSite", "name": "<?php bloginfo('name'); ?>", "url": "<?php echo esc_js(home_url()); ?>"}
+    "isPartOf": {"@type": "WebSite", "name": "<?php bloginfo('name'); ?>", "url": "<?php echo esc_js(home_url()); ?>"},
     "breadcrumb": {
         "@type": "BreadcrumbList",
         "itemListElement": [
