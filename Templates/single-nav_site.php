@@ -108,7 +108,7 @@ $bcItems[] = ['name' => $name, 'url' => get_permalink()];
             <div class="nav-single-meta-group">
                 <?php foreach ($tags as $tag): ?>
                     <a href="<?php echo esc_url(get_term_link($tag)); ?>" class="nav-single-meta-tag">
-                        <span>#</span> <?php echo esc_html($tag->name); ?>
+                        <?php echo esc_html($tag->name); ?>
                     </a>
                 <?php endforeach; ?>
             </div>
