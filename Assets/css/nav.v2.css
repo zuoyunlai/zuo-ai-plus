@@ -228,7 +228,7 @@
 }
 .nav-card-footer {
   display: flex; align-items: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   padding: 10px 12px 10px;
   border-top: 1px solid var(--nav-border); margin-top: auto;
   background: var(--nav-surface);
