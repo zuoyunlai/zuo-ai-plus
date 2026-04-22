@@ -163,34 +163,11 @@ if ($currentTags && !is_wp_error($currentTags)) {
         </div>
     </div>
 
-    <!-- ═══ 第四区：标签 ═══ -->
-    <div class="section">
-        <div class="section-title">🏷️ 导航标签</div>
-        <div class="section-body">
-            <div class="field-row">
-                <label>当前标签</label>
-                <div class="tag-display" id="tag-display">
-                    <?php if (!empty($tagNames)): foreach ($tagNames as $tn): ?>
-                        <span class="tag-chip" data-tag="<?php echo esc_attr($tn); ?>">
-                            <?php echo esc_html($tn); ?>
-                            <span class="remove-tag" onclick="navRemoveTag('<?php echo esc_attr(esc_js($tn)); ?>')">×</span>
-                        </span>
-                    <?php endforeach; else: ?>
-                        <span class="desc" style="padding:4px 0;">暂无标签，生成简介后可点击「AI 提取标签」</span>
-                    <?php endif; ?>
-                </div>
-                <input type="hidden" id="nav_tags_json" name="nav_tags_json" value="<?php echo esc_attr(json_encode($tagNames)); ?>">
-                <div class="tag-input-row">
-                    <input type="text" id="tag-input" placeholder="输入标签后回车添加">
-                    <button type="button" class="btn btn-secondary" id="btn-add-tag">+ 添加</button>
-                </div>
-                <div style="margin-top:10px;">
-                    <button type="button" class="btn btn-success" id="btn-ai-tags">🤖 AI 提取标签</button>
-                    <span class="desc" style="margin-left:8px;">从网站简介正文提取贴合主题的导航标签</span>
-                </div>
-                <div class="fetch-result" id="tag-result"></div>
-            </div>
-        </div>
+    <!-- ═══ 第四区：AI提取标签（按钮区） ═══ -->
+    <div class="section" style="padding:10px 14px;display:flex;align-items:center;gap:10px;">
+        <button type="button" class="btn btn-success" id="btn-ai-tags">🤖 AI 提取标签</button>
+        <span class="desc">根据网站简介自动提取标签，写入右侧导航标签栏</span>
+        <div class="fetch-result" id="tag-result" style="margin-left:10px;display:inline-block;"></div>
     </div>
 
     <!-- ═══ 第五区：推荐状态 ═══ -->
@@ -380,12 +357,29 @@ if ($currentTags && !is_wp_error($currentTags)) {
             }
 
             if (data.success && data.tags && data.tags.length > 0) {
-                data.tags.forEach(function(t) {
-                    if (navCurrentTags.indexOf(t) === -1) navCurrentTags.push(t);
-                });
-                navRenderTags();
-                show(box, '✅ 已提取 ' + data.tags.length + ' 个标签：' + data.tags.join('、'), 'success');
-                setTimeout(function() { hide(box); }, 6000);
+                show(box, '✅ 已提取 ' + data.tags.length + ' 个标签：' + data.tags.join('、') + '，正在写入...', 'success');
+
+                // 如果有 post_id，标签已由后端写入 nav_tag taxonomy，刷新右侧标签框
+                if (postId > 0 && data.saved) {
+                    // 刷新页面让右侧 WordPress 原生标签框更新
+                    setTimeout(function() { location.reload(); }, 1500);
+                } else {
+                    // 新建文章（无post_id），手动将标签写入右侧标签输入框
+                    var tagInput = document.getElementById('new-tag-nav_tag');
+                    if (tagInput) {
+                        // WordPress 原生标签框：逐个添加
+                        data.tags.forEach(function(tag) {
+                            tagInput.value = tag;
+                            // 模拟点击添加按钮
+                            var addBtn = tagInput.parentElement.querySelector('.button.tagadd');
+                            if (addBtn) addBtn.click();
+                        });
+                        tagInput.value = '';
+                        show(box, '✅ 已提取 ' + data.tags.length + ' 个标签并写入右侧标签栏', 'success');
+                    } else {
+                        show(box, '✅ 已提取 ' + data.tags.length + ' 个标签，请保存文章后标签会自动写入', 'success');
+                    }
+                }
             } else {
                 show(box, '❌ ' + (data.message || '未能提取有效标签'), 'error');
             }
@@ -395,61 +389,6 @@ if ($currentTags && !is_wp_error($currentTags)) {
             show(box, '❌ 网络错误', 'error');
         };
         xhr.send(JSON.stringify({ post_id: postId, name: name, url: url, description: desc }));
-    });
-
-    // ── 标签管理 ────────────────────────────────────────────
-    var navCurrentTags = <?php echo json_encode($tagNames); ?>;
-
-    function navRenderTags() {
-        var el = document.getElementById('tag-display');
-        var inp = document.getElementById('nav_tags_json');
-        if (!el) return;
-        if (navCurrentTags.length === 0) {
-            el.innerHTML = '<span class="desc" style="padding:4px 0;">暂无标签</span>';
-        } else {
-            el.innerHTML = navCurrentTags.map(function(t) {
-                return '<span class="tag-chip">' + navEscHtml(t) +
-                    '<span class="remove-tag" onclick="navRemoveTag(\'' + navEscJs(t) + '\')">×</span></span>';
-            }).join('');
-        }
-        inp.value = JSON.stringify(navCurrentTags);
-    }
-
-    function navEscHtml(s) {
-        var d = document.createElement('div');
-        d.textContent = s;
-        return d.innerHTML;
-    }
-    function navEscJs(s) {
-        return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
-    }
-
-    window.navRemoveTag = function(tagName) {
-        navCurrentTags = navCurrentTags.filter(function(t) { return t !== tagName; });
-        navRenderTags();
-    };
-
-    document.getElementById('btn-add-tag').addEventListener('click', function() {
-        var input = document.getElementById('tag-input');
-        var val = input.value.trim();
-        if (!val) return;
-        if (navCurrentTags.indexOf(val) === -1) {
-            navCurrentTags.push(val);
-            navRenderTags();
-        }
-        input.value = '';
-    });
-
-    document.getElementById('tag-input').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            var val = this.value.trim();
-            if (val && navCurrentTags.indexOf(val) === -1) {
-                navCurrentTags.push(val);
-                navRenderTags();
-            }
-            this.value = '';
-        }
     });
 
     // ── 媒体库选择 ─────────────────────────────────────────
