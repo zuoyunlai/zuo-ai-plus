@@ -92,7 +92,12 @@ $query = new \WP_Query($queryArgs);
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </div>
-                <a href="<?php echo esc_url($url); ?>" target="_blank" rel="noopener" class="nav-card-togo" title="直达" onclick="recordNavClick(<?php echo get_the_ID(); ?>)">直达</a>
+                <a href="<?php echo esc_url($url); ?>" target="_blank" rel="noopener" class="nav-card-togo" title="直达" onclick="recordNavClick(<?php echo get_the_ID(); ?>)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="7" y1="17" x2="17" y2="7"></line>
+                        <polyline points="7 7 17 7 17 17"></polyline>
+                    </svg>
+                </a>
             </div>
         </article>
         <?php endwhile; ?>
