@@ -1024,16 +1024,12 @@ class NavigationController extends BaseController
             }
         }
 
-        $prompt = "请根据以下网站信息生成3-8个标签（tag）。\n"
+        $prompt = "你是一个标签生成工具。根据网站信息直接输出3-8个标签，用逗号分隔，不要任何解释、编号、前缀或思考过程。\n"
             . "网站名称：{$name}\n"
             . "网站URL：{$url}\n"
-            . "网站描述：{$desc}\n\n"
-            . "要求：\n"
-            . "1. 每个标签2-6个中文字（或2-4个英文单词）\n"
-            . "2. 直接返回标签列表，用逗号分隔，不要编号、不要解释、不要额外说明\n"
-            . "3. 标签要贴合网站主题，涵盖行业、功能、类型等维度\n"
-            . "4. 示例格式：AI工具, 在线写作, 英文学习, 办公效率\n"
-            . "直接输出标签列表：";
+            . "网站描述：{$desc}\n"
+            . "输出示例：AI工具,在线写作,办公效率\n"
+            . "直接输出标签：";
 
         $chatMessages = [
             ['role' => 'system', 'content' => '你是一个专业的网站标签生成助手，根据网站信息生成简洁准确的标签列表，直接输出标签列表，不要任何解释。'],
@@ -1075,7 +1071,7 @@ class NavigationController extends BaseController
         }
 
         try {
-            $result = $modelInstance->chat($chatMessages, ['max_tokens' => 200]);
+            $result = $modelInstance->chat($chatMessages, ['max_tokens' => 1024]);
             $content = $result['content'] ?? '';
         } catch (\Exception $e) {
             return new \WP_REST_Response(['success' => false, 'message' => 'AI 请求失败：' . $e->getMessage()], 500);
