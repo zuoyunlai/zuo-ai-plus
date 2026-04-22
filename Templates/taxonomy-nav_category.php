@@ -88,7 +88,7 @@ $query = new \WP_Query($queryArgs);
                     <?php endif; ?>
                     <?php if ($tags && !is_wp_error($tags)): ?>
                         <?php foreach (array_slice($tags, 0, 2) as $tag): ?>
-                        <a href="<?php echo esc_url(get_term_link($tag)); ?>" class="nav-card-tag">?php echo esc_html($tag->name); ?></a>
+                        <a href="<?php echo esc_url(get_term_link($tag)); ?>" class="nav-card-tag"><?php echo esc_html($tag->name); ?></a>
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </div>
