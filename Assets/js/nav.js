@@ -163,9 +163,7 @@
                     '<h3 class="nav-card-title"><b>' + itemName + '</b></h3>' +
                     '<div class="nav-card-desc">最近访问</div></div></a>' +
                     '<div class="nav-card-footer"><div class="nav-card-tags"></div>' +
-                    '<a href="' + itemUrl + '" target="_blank" rel="noopener" class="nav-card-togo" title="直达">直达</a>' +
-                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>' +
-                    '</a></div></article>';
+                    '<a href="' + itemUrl + '" target="_blank" rel="noopener" class="nav-card-togo" title="直达">直达</a></div></article>';
             }).join('');
             return;
         }
