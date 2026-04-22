@@ -319,9 +319,6 @@ class NavigationController extends BaseController
         $host = parse_url($url, PHP_URL_HOST);
         return ['url' => 'https://image.thum.io/allowJPG/wait/3/getwidth/800/' . $host, 'attachment_id' => 0];
     }
-        $host = parse_url($url, PHP_URL_HOST);
-        return 'https://image.thum.io/allowJPG/wait/3/getwidth/800/' . $host;
-    }
 
     /**
      * 用本地 Chrome Headless 截图并保存到 WordPress uploads
