@@ -77,7 +77,7 @@
         }
         if (tags) {
             tags.slice(0, 2).forEach(function (tag) {
-                tagsHtml += '<a href="' + escAttr(tag.link) + '" class="nav-card-tag"># ' + esc(tag.name) + '</a>';
+                tagsHtml += '<a href="' + escAttr(tag.link) + '" class="nav-card-tag">' + esc(tag.name) + '</a>';
             });
         }
 
