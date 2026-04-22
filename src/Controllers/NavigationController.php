@@ -1011,13 +1011,17 @@ class NavigationController extends BaseController
         $url    = esc_url_raw($request->get_param('url') ?? '');
         $desc   = sanitize_text_field($request->get_param('description') ?? '');
 
-        if (!$postId || !$name) {
-            return new \WP_REST_Response(['success' => false, 'message' => '缺少必要参数'], 400);
+        if (!$name) {
+            return new \WP_REST_Response(['success' => false, 'message' => '缺少网站名称'], 400);
         }
 
-        $post = get_post($postId);
-        if (!$post || $post->post_type !== 'nav_site') {
-            return new \WP_REST_Response(['success' => false, 'message' => '无效的文章ID'], 400);
+        // 有 post_id 时验证文章类型，没有时仅返回标签不写入
+        $hasPost = false;
+        if ($postId) {
+            $post = get_post($postId);
+            if ($post && $post->post_type === 'nav_site') {
+                $hasPost = true;
+            }
         }
 
         $prompt = "请根据以下网站信息生成3-8个标签（tag）。\n"
@@ -1097,12 +1101,15 @@ class NavigationController extends BaseController
             }
         }
 
-        wp_set_object_terms($postId, $termIds, 'nav_tag');
+        if ($hasPost) {
+            wp_set_object_terms($postId, $termIds, 'nav_tag');
+        }
 
         return new \WP_REST_Response([
             'success'   => true,
             'tags'      => $tags,
             'term_ids'  => $termIds,
+            'saved'     => $hasPost,
         ]);
     }
 }
