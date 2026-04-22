@@ -573,8 +573,8 @@
   .nav-sidebar-section { padding: 12px; }
   .nav-cat-list { display: flex; flex-wrap: wrap; gap: 8px; }
   .nav-cat-list a { padding: 6px 12px; border: 1px solid var(--nav-border); }
-  .nav-quick-links { flex-direction: row; flex-wrap: wrap; }
-  .nav-quick-link { flex: 1 1 30%; min-width: 0; justify-content: center; font-size: 0.75rem; }
+  .nav-quick-links { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+  .nav-quick-link { flex: 1 1 auto; min-width: 0; justify-content: center; font-size: 0.75rem; padding: 6px 8px; }
   .nav-quick-icon { width: 20px; height: 20px; }
   .nav-quick-count { font-size: 0.6rem; }
 }
