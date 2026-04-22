@@ -323,7 +323,6 @@ class NavigationController extends BaseController
             . ' --headless --disable-gpu --no-sandbox'
             . ' --screenshot=' . escapeshellarg($filepath)
             . ' --window-size=1280,800'
-            . ' --default-background-color=0xFFFFFFFF'
             . ' ' . escapeshellarg($url)
             . ' 2>/dev/null';
 
