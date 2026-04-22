@@ -356,29 +356,22 @@ if ($currentTags && !is_wp_error($currentTags)) {
             }
 
             if (data.success && data.tags && data.tags.length > 0) {
-                show(box, '✅ 已提取 ' + data.tags.length + ' 个标签：' + data.tags.join('、') + '，正在写入...', 'success');
+                show(box, '✅ 已提取 ' + data.tags.length + ' 个标签：' + data.tags.join('、'), 'success');
 
-                // 如果有 post_id，标签已由后端写入 nav_tag taxonomy，刷新右侧标签框
-                if (postId > 0 && data.saved) {
-                    // 刷新页面让右侧 WordPress 原生标签框更新
-                    setTimeout(function() { location.reload(); }, 1500);
+                // 将标签写入右侧 WordPress 原生标签输入框
+                var tagInput = document.getElementById('new-tag-nav_tag');
+                if (tagInput) {
+                    data.tags.forEach(function(tag) {
+                        tagInput.value = tag;
+                        var addBtn = tagInput.parentElement.querySelector('.button.tagadd');
+                        if (addBtn) addBtn.click();
+                    });
+                    tagInput.value = '';
+                    show(box, '✅ 已提取 ' + data.tags.length + ' 个标签并写入右侧标签栏', 'success');
                 } else {
-                    // 新建文章（无post_id），手动将标签写入右侧标签输入框
-                    var tagInput = document.getElementById('new-tag-nav_tag');
-                    if (tagInput) {
-                        // WordPress 原生标签框：逐个添加
-                        data.tags.forEach(function(tag) {
-                            tagInput.value = tag;
-                            // 模拟点击添加按钮
-                            var addBtn = tagInput.parentElement.querySelector('.button.tagadd');
-                            if (addBtn) addBtn.click();
-                        });
-                        tagInput.value = '';
-                        show(box, '✅ 已提取 ' + data.tags.length + ' 个标签并写入右侧标签栏', 'success');
-                    } else {
-                        show(box, '✅ 已提取 ' + data.tags.length + ' 个标签，请保存文章后标签会自动写入', 'success');
-                    }
+                    show(box, '✅ 已提取 ' + data.tags.length + ' 个标签，请手动添加到右侧标签栏', 'success');
                 }
+                setTimeout(function() { hide(box); }, 5000);
             } else {
                 show(box, '❌ ' + (data.message || '未能提取有效标签'), 'error');
             }
