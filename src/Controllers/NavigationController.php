@@ -1040,36 +1040,47 @@ class NavigationController extends BaseController
             ['role' => 'user', 'content' => $prompt],
         ];
 
-        $model  = get_option('ai_plus_default_model', 'minimax');
-        $apiKey = get_option('ai_plus_api_key_' . $model) ?: get_option('ai_plus_api_key');
-        if (!$apiKey) {
+        // 使用插件现有的加密 API Key + Model 类
+        $apiKeys = \ZuoAIPlus\Utils\Crypto::decryptApiKeys((array)\get_option('ai_plus_api_keys', []));
+        $defaultModel = \get_option('ai_plus_default_model', 'minimax');
+        $modelConfig = $apiKeys[$defaultModel] ?? null;
+        if (!$modelConfig || empty($modelConfig['api_key'])) {
             return new \WP_REST_Response(['success' => false, 'message' => '未配置 AI API Key'], 400);
         }
 
-        $body = [
-            'model'    => $model === 'glm-5' ? 'GLM-5' : 'MiniMax-M2.7',
-            'messages' => $chatMessages,
-            'max_tokens' => 200,
-        ];
-
-        $apiBase = ($model === 'glm-5' || $model === 'glm-4-flash')
-            ? 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
-            : 'https://api.minimax.chat/v1/text/chatcompletion_v2';
-
-        $headers = ['Authorization' => 'Bearer ' . $apiKey, 'Content-Type' => 'application/json'];
-
-        $resp = wp_remote_post($apiBase, [
-            'timeout'  => 30,
-            'headers' => $headers,
-            'body'    => json_encode($body),
-        ]);
-
-        if (is_wp_error($resp)) {
-            return new \WP_REST_Response(['success' => false, 'message' => 'AI 请求失败：' . $resp->get_error_message()], 500);
+        // 根据默认模型选择对应的 Model 类
+        $modelInstance = null;
+        switch ($defaultModel) {
+            case 'minimax':
+                $modelInstance = new \ZuoAIPlus\Models\MiniMaxModel($modelConfig['api_key'], $modelConfig['model'] ?? 'MiniMax-M2.7-highspeed');
+                break;
+            case 'zhipu':
+                $modelInstance = new \ZuoAIPlus\Models\ZhipuModel($modelConfig['api_key'], $modelConfig['model'] ?? 'glm-4-flash');
+                break;
+            case 'deepseek':
+                $modelInstance = new \ZuoAIPlus\Models\DeepSeekModel($modelConfig['api_key'], $modelConfig['model'] ?? 'deepseek-chat');
+                break;
+            case 'kimi':
+                $modelInstance = new \ZuoAIPlus\Models\KimiModel($modelConfig['api_key'], $modelConfig['model'] ?? 'kimi-k2.5');
+                break;
+            default:
+                // custom 或其他：使用 DeepSeekModel（兼容 OpenAI 格式）
+                $baseUrl = $modelConfig['base_url'] ?? 'https://api.deepseek.com/v1';
+                $modelInstance = new \ZuoAIPlus\Models\CustomModel($modelConfig['api_key'], $modelConfig['model'] ?? 'deepseek-chat', $baseUrl);
+                break;
         }
 
-        $resBody = json_decode(wp_remote_retrieve_body($resp), true);
-        $content = $resBody['choices'][0]['message']['content'] ?? '';
+        if (!$modelInstance) {
+            return new \WP_REST_Response(['success' => false, 'message' => '无法初始化 AI 模型'], 500);
+        }
+
+        try {
+            $result = $modelInstance->chat($chatMessages, ['max_tokens' => 200]);
+            $content = $result['content'] ?? '';
+        } catch (\Exception $e) {
+            return new \WP_REST_Response(['success' => false, 'message' => 'AI 请求失败：' . $e->getMessage()], 500);
+        }
+
         $content = trim($content);
         $content = trim(preg_replace('/^```(?:\w+)?\s*/', '', $content));
         $content = trim(preg_replace('/\s*```$/', '', $content));
