@@ -901,9 +901,10 @@ function handleKeyword() {
                     data: {
                         post_id: postId, image_url: imageUrl,
                         post_title: title, image_prompt: prompt,
-                        alt_text: (r.chinese_alt || r.chinese_desc || ''),
-                        chinese_desc: (r.chinese_desc || ''),
-                        chinese_alt:  (r.chinese_alt || ''),
+                        post_content: content,
+                        alt_text: (d.chinese_alt || d.chinese_desc || ''),
+                        chinese_desc: (d.chinese_desc || ''),
+                        chinese_alt:  (d.chinese_alt || ''),
                     }
                 }).then(function(data) {
                     setLoading(false);

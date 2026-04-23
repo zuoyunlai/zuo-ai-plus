@@ -249,9 +249,10 @@ class UtilityController extends BaseController
 
     public function handleFeaturedImageSet(\WP_REST_Request $request): \WP_REST_Response
     {
-        $imageUrl   = esc_url_raw($request->get_param('image_url') ?: '');
-        $post_id    = intval($request->get_param('post_id') ?: 0);
+        $imageUrl    = esc_url_raw($request->get_param('image_url') ?: '');
+        $post_id     = intval($request->get_param('post_id') ?: 0);
         $post_title  = sanitize_text_field($request->get_param('post_title') ?: '');
+        $post_content = sanitize_textarea_field($request->get_param('post_content') ?: '');
         $prompt      = sanitize_textarea_field($request->get_param('image_prompt') ?: '');
         $alt_text    = sanitize_text_field($request->get_param('alt_text') ?: '');
         $chinese_desc = sanitize_text_field($request->get_param('chinese_desc') ?: '');
@@ -264,14 +265,21 @@ class UtilityController extends BaseController
             error_log('  chinese_desc: ' . ($chinese_desc ?: '(empty)'));
             error_log('  chinese_alt: ' . ($chinese_alt ?: '(empty)'));
             error_log('  post_title: ' . ($post_title ?: '(empty)'));
-            error_log('  prompt: ' . ($prompt ? mb_substr($prompt, 0, 50, 'utf-8') : '(empty)'));
+            error_log('  post_content len: ' . mb_strlen($post_content, 'utf-8'));
             /* @phpcs:enable WordPress.PHP.DevelopmentFunctions.error_log_error_log */
         }
 
+        // 智能备用：当 AI 未返回中文 metadata 时，从文章内容中提取关键词生成
+        if (!$chinese_desc && !$chinese_alt) {
+            $meta = $this->generateFallbackImageMeta($post_title, $post_content);
+            $chinese_desc = $meta['desc'];
+            $chinese_alt  = $meta['alt'];
+        }
+
         // 优先使用中文元数据
-        $final_title   = $chinese_desc ?: $post_title ?: ($prompt ? mb_substr($prompt, 0, 50, 'utf-8') : 'AI生成图片');
-        $final_alt     = $chinese_alt ?: $chinese_desc ?: $alt_text ?: '文章配图';
-        $final_desc    = $chinese_desc ?: $prompt ?: '';
+        $final_title   = $chinese_desc ?: $post_title ?: 'AI生成图片';
+        $final_alt     = $chinese_alt ?: '文章配图';
+        $final_desc    = $chinese_desc ?: ('图片展示了' . ($post_title ?: '相关内容'));
 
         if (empty($imageUrl)) {
             return $this->error('图片URL不能为空');
@@ -348,6 +356,53 @@ class UtilityController extends BaseController
     }
 
     // ============ 私有方法 ============
+
+    /**
+     * 特色图中文 metadata 智能备用
+     * 当 AI 未返回中文元数据时，从文章标题和内容中提取关键词生成
+     */
+    private function generateFallbackImageMeta(string $postTitle, string $postContent): array
+    {
+        $desc = '';
+        $alt  = '';
+
+        // 从标题提取核心主题词
+        if ($postTitle) {
+            // 去掉常见前缀词
+            $cleanTitle = preg_replace('/^(现代简约|极简|北欧|日式|中式|欧式|美式|工业风|轻奢|诧寂|混搭)\s*/u', '', $postTitle);
+            $len = mb_strlen($cleanTitle, 'utf-8');
+            if ($len <= 20) {
+                $desc = $cleanTitle . '效果图';
+                $alt  = mb_substr($cleanTitle, 0, 18, 'utf-8');
+            } else {
+                // 标题过长时，取前15字
+                $desc = mb_substr($cleanTitle, 0, 15, 'utf-8') . '...';
+                $alt  = mb_substr($cleanTitle, 0, 15, 'utf-8');
+            }
+        }
+
+        // 如果内容中有明确主题词，补充到 alt 中
+        if ($postContent && mb_strlen($postContent, 'utf-8') > 10) {
+            // 提取内容中最先出现的3-6字主题词（名词）
+            if (preg_match('/[\x{4e00}-\x{9fa5}]{3,8}(?:设计|风格|应用|装修|搭配|布局|空间|效果)/u', $postContent, $m)) {
+                $keyword = $m[0];
+                if ($alt && mb_strlen($alt, 'utf-8') < 12) {
+                    $alt = $alt . '——' . $keyword;
+                } else {
+                    $alt = $keyword;
+                }
+            }
+        }
+
+        // 绝对兜底
+        if (!$desc) $desc = '家居设计效果图';
+        if (!$alt)  $alt  = mb_substr($desc, 0, 18, 'utf-8');
+
+        return [
+            'desc' => $desc,
+            'alt'  => $alt,
+        ];
+    }
 
     /**
      * 专用 slug 生成：使用智谱 GLM（比 MiniMax 更遵循 prompt，不易复制 prompt 词汇）
