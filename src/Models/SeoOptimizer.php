@@ -11,6 +11,70 @@ if (!defined('ABSPATH')) exit;
 
 class SeoOptimizer
 {
+    // ── 统一 SEO 标准常量 ──
+    public const SEO_STANDARDS = [
+        'title' => [
+            'min_chars' => 30,      // 最少 30 字符
+            'max_chars' => 60,      // 最多 60 字符
+            'keyword_position' => 'front', // 关键词靠前
+            'include_intent_words' => true, // 包含搜索意图词
+        ],
+        'excerpt' => [
+            'min_chars' => 80,      // 最少 80 字符
+            'max_chars' => 120,     // 最多 120 字符
+            'structure' => 'keyword + value_point + action_guide', // 关键词+价值点+行动引导
+        ],
+        'tags' => [
+            'min_count' => 3,       // 最少 3 个
+            'max_count' => 5,       // 最多 5 个
+            'preferred_count' => 4, // 推荐 4 个
+            'min_chars_per_tag' => 2, // 每个标签最少 2 字符
+            'max_chars_per_tag' => 6, // 每个标签最多 6 字符
+            'no_single_chars' => true, // 禁止单个汉字
+            'no_brand_names' => true,  // 禁止品牌名
+            'format' => '完整的中文名词词组',
+        ],
+        'content' => [
+            'min_chars' => 500,     // 最少 500 字
+            'recommended_chars' => 800, // 推荐 800 字
+            'structure' => 'introduction + 2-4_sections + conclusion',
+        ],
+    ];
+
+    // 标题标准描述文本
+    public static function getTitleStandardDesc(): string
+    {
+        return sprintf(__('标题长度：%d-%d个汉字，含核心关键词，包含搜索意图词', 'zuo-ai-plus'),
+            self::SEO_STANDARDS['title']['min_chars'],
+            self::SEO_STANDARDS['title']['max_chars']);
+    }
+
+    // 摘要标准描述文本
+    public static function getExcerptStandardDesc(): string
+    {
+        return sprintf(__('摘要长度：%d-%d个汉字，含关键词+价值点+行动引导', 'zuo-ai-plus'),
+            self::SEO_STANDARDS['excerpt']['min_chars'],
+            self::SEO_STANDARDS['excerpt']['max_chars']);
+    }
+
+    // 标签标准描述文本
+    public static function getTagsStandardDesc(): string
+    {
+        return sprintf(__('标签：%d-%d个，每个%d-%d字，SEO友好的完整名词词组', 'zuo-ai-plus'),
+            self::SEO_STANDARDS['tags']['min_count'],
+            self::SEO_STANDARDS['tags']['max_count'],
+            self::SEO_STANDARDS['tags']['min_chars_per_tag'],
+            self::SEO_STANDARDS['tags']['max_chars_per_tag']);
+    }
+
+    // 内容标准描述文本
+    public static function getContentStandardDesc(): string
+    {
+        return sprintf(__('内容字数：%d字以上，推荐%d字以上', 'zuo-ai-plus'),
+            self::SEO_STANDARDS['content']['min_chars'],
+            self::SEO_STANDARDS['content']['recommended_chars']);
+    }
+
     // ── Post Meta Keys ──
     const META_OPTIMIZED    = '_seo_optimized';
     const META_OPTIMIZED_AT = '_seo_optimized_at';
@@ -94,14 +158,22 @@ class SeoOptimizer
         $issues    = [];
         $score     = 100;
 
-        // 标题检查
-        if ($title_len < 10) {
+        // 统一SEO标准检查：标题
+        if ($title_len < self::SEO_STANDARDS['title']['min_chars']) {
             /* translators: %d is the actual title length */
-            $issues[] = ['type' => 'title', 'severity' => 'high', 'msg' => sprintf(__('标题过短（%d字），SEO标准6-30字', 'zuo-ai-plus'), $title_len)];
+            $issues[] = ['type' => 'title', 'severity' => 'high', 
+                'msg' => sprintf(__('标题过短（%d字），统一SEO标准%d-%d字', 'zuo-ai-plus'), 
+                    $title_len, 
+                    self::SEO_STANDARDS['title']['min_chars'],
+                    self::SEO_STANDARDS['title']['max_chars'])];
             $score -= 30;
-        } elseif ($title_len > 30) {
+        } elseif ($title_len > self::SEO_STANDARDS['title']['max_chars']) {
             /* translators: %d is the actual title length */
-            $issues[] = ['type' => 'title', 'severity' => 'medium', 'msg' => sprintf(__('标题过长（%d字），SEO标准6-30字', 'zuo-ai-plus'), $title_len)];
+            $issues[] = ['type' => 'title', 'severity' => 'medium', 
+                'msg' => sprintf(__('标题过长（%d字），统一SEO标准%d-%d字', 'zuo-ai-plus'),
+                    $title_len,
+                    self::SEO_STANDARDS['title']['min_chars'],
+                    self::SEO_STANDARDS['title']['max_chars'])];
             $score -= 15;
         }
 
@@ -112,32 +184,63 @@ class SeoOptimizer
         } else {
             foreach ($tags as $tag) {
                 $len = mb_strlen($tag, 'utf-8');
-                if ($len > 10) {
+                // 标签长度检查（统一SEO标准）
+                if ($len < self::SEO_STANDARDS['tags']['min_chars_per_tag']) {
                     /* translators: %1$s is the tag name, %2$d is the tag length */
-                    $issues[] = ['type' => 'tags', 'severity' => 'medium', 'msg' => sprintf(__('标签「%1$s」过长（%2$d字），SEO标准2-10字（含义完整的词汇）', 'zuo-ai-plus'), $tag, $len)];
+                    $issues[] = ['type' => 'tags', 'severity' => 'medium', 
+                        'msg' => sprintf(__('标签「%1$s」太短（%2$d字），统一SEO标准%d-%d字（含义完整的词汇）', 'zuo-ai-plus'), 
+                            $tag, $len,
+                            self::SEO_STANDARDS['tags']['min_chars_per_tag'],
+                            self::SEO_STANDARDS['tags']['max_chars_per_tag'])];
+                    $score -= 5;
+                } elseif ($len > self::SEO_STANDARDS['tags']['max_chars_per_tag']) {
+                    /* translators: %1$s is the tag name, %2$d is the tag length */
+                    $issues[] = ['type' => 'tags', 'severity' => 'medium', 
+                        'msg' => sprintf(__('标签「%1$s」过长（%2$d字），统一SEO标准%d-%d字（含义完整的词汇）', 'zuo-ai-plus'), 
+                            $tag, $len,
+                            self::SEO_STANDARDS['tags']['min_chars_per_tag'],
+                            self::SEO_STANDARDS['tags']['max_chars_per_tag'])];
                     $score -= 5;
                 }
             }
-            if (count($tags) > 6) {
+            // 标签数量检查（统一SEO标准）
+            if (count($tags) > self::SEO_STANDARDS['tags']['max_count']) {
                 /* translators: %d is the number of tags */
-                $issues[] = ['type' => 'tags', 'severity' => 'low', 'msg' => sprintf(__('标签过多（%d个），建议3-5个', 'zuo-ai-plus'), count($tags))];
+                $issues[] = ['type' => 'tags', 'severity' => 'low', 
+                    'msg' => sprintf(__('标签过多（%d个），统一SEO标准%d-%d个', 'zuo-ai-plus'), 
+                        count($tags),
+                        self::SEO_STANDARDS['tags']['min_count'],
+                        self::SEO_STANDARDS['tags']['max_count'])];
                 $score -= 5;
             }
         }
 
-        // Description 检查（excerpt）
+        // 统一SEO标准检查：摘要
         $excerpt_len = mb_strlen($excerpt, 'utf-8');
-        if ($excerpt_len < 60) {
-            $issues[] = ['type' => 'description', 'severity' => 'medium', 'msg' => __('摘要缺失或太短，SEO标准60-120字', 'zuo-ai-plus')];
+        if ($excerpt_len < self::SEO_STANDARDS['excerpt']['min_chars']) {
+            $issues[] = ['type' => 'description', 'severity' => 'medium', 
+                'msg' => sprintf(__('摘要缺失或太短（%d字），统一SEO标准%d-%d字', 'zuo-ai-plus'),
+                    $excerpt_len,
+                    self::SEO_STANDARDS['excerpt']['min_chars'],
+                    self::SEO_STANDARDS['excerpt']['max_chars'])];
             $score -= 15;
-        } elseif ($excerpt_len > 120) {
-            $issues[] = ['type' => 'description', 'severity' => 'medium', 'msg' => __('摘要过长，SEO标准60-120字', 'zuo-ai-plus')];
+        } elseif ($excerpt_len > self::SEO_STANDARDS['excerpt']['max_chars']) {
+            $issues[] = ['type' => 'description', 'severity' => 'medium', 
+                'msg' => sprintf(__('摘要过长（%d字），统一SEO标准%d-%d字', 'zuo-ai-plus'),
+                    $excerpt_len,
+                    self::SEO_STANDARDS['excerpt']['min_chars'],
+                    self::SEO_STANDARDS['excerpt']['max_chars'])];
             $score -= 10;
         }
 
-        // 内容长度检查
-        if (mb_strlen($content, 'utf-8') < 300) {
-            $issues[] = ['type' => 'content', 'severity' => 'low', 'msg' => __('文章内容偏短，建议500字以上', 'zuo-ai-plus')];
+        // 统一SEO标准检查：内容长度
+        $content_len = mb_strlen($content, 'utf-8');
+        if ($content_len < self::SEO_STANDARDS['content']['min_chars']) {
+            $issues[] = ['type' => 'content', 'severity' => 'low', 
+                'msg' => sprintf(__('文章内容偏短（%d字），统一SEO标准%d字以上，推荐%d字', 'zuo-ai-plus'),
+                    $content_len,
+                    self::SEO_STANDARDS['content']['min_chars'],
+                    self::SEO_STANDARDS['content']['recommended_chars'])];
             $score -= 10;
         }
 
@@ -174,14 +277,18 @@ class SeoOptimizer
             return new \WP_Error('invalid_post', '文章不存在或非公开文章');
         }
 
-        // 保存原始值（仅首次）：即使重置后再次优化，也要以存档的原始值为准
+        // 保存原始值：仅在真正首次优化时存档（orig_tags 为空或不存在）
+        // 注意：'[]' 表示原始无标签，也需重新保存判断
         $orig_title_archived = get_post_meta($post_id, self::META_ORIG_TITLE, true);
         $orig_tags_archived  = get_post_meta($post_id, self::META_ORIG_TAGS, true);
-        if (!$orig_tags_archived) {
-            // 真正首次优化，存档原始值
+        $orig_tags_decoded   = is_string($orig_tags_archived) ? json_decode($orig_tags_archived, true) : null;
+        $has_valid_orig_tags = is_array($orig_tags_decoded) && count($orig_tags_decoded) > 0;
+        if (empty($orig_title_archived) || !$has_valid_orig_tags) {
+            // 首次优化，或原始标签存档无效，重新存档
             $old_tags = wp_get_post_tags($post_id, ['fields' => 'names']);
             update_post_meta($post_id, self::META_ORIG_TITLE, $post->post_title);
             update_post_meta($post_id, self::META_ORIG_TAGS, json_encode($old_tags, JSON_UNESCAPED_UNICODE));
+            $orig_tags_archived = json_encode($old_tags, JSON_UNESCAPED_UNICODE); // 更新局部变量
         }
 
         $title    = $post->post_title;
@@ -215,29 +322,26 @@ class SeoOptimizer
             if ($excerpt) $prompt .= "摘要：" . mb_substr($excerpt, 0, 100, 'utf-8') . PHP_EOL;
             $prompt .= "内容要点：" . mb_substr($content_snippet, 0, 100, 'utf-8') . PHP_EOL;
             $prompt .= PHP_EOL;
-            if ($need_title) $prompt .= "新标题要求（严格遵守）：\n" .
-                "1. 长度：6-30个汉字\n" .
-                "2. 必须包含文章核心关键词，语言自然流畅\n" .
-                "3. 不要包含原标题的前缀或句式\n" .
-                "4. 直接输出新标题，不要任何前缀、编号或引号\n" .
-                "5. 不要使用【】、『』、《》、「」等特殊符号\n" .
-                "6. 在标题前加入搜索意图词以提升点击率\n" .
-                "输出格式：新标题：（直接写标题内容，不要写\"新标题：\"这几个字）\n" .
-                "注意：绝对不要在标题中包含\"（X字）\"、\"（约X字）\"、\"（N个字）\"等字数提示，也不要包含星号*或其他符号\n" . PHP_EOL;
-            if ($need_tags) $prompt .= "标签要求（严格遵守，共2-4个）：\n" .
-                "1. 每个标签必须是含义完整的中文词汇，禁止截断（如：「实木家具」而非「实木」，「小户型收纳」而非「小户型」或「收纳」）\n" .
-                "2. 必须与文章正文内容高度相关，是文章核心主题词或细分领域词，能反映文章讨论的具体内容\n" .
-                "3. 不要单个汉字，不要太宽泛的词（如「技术」「方法」「产品」），不要完整句子\n" .
-                "4. 不要品牌名、公司名、日期或无意义词\n" .
-                "5. 共输出2-4个标签，用中文逗号「，」分隔，不要编号、不要任何解释\n" .
-                "6. 符合SEO友好和WordPress规范\n" .
-                "输出格式：标签：（直接写标签列表）\n" . PHP_EOL;
-            if ($need_desc) $prompt .= "摘要要求（严格遵守）：\n" .
-                "1. 长度：60-120个汉字\n" .
-                "2. 准确概括文章核心内容和观点\n" .
-                "3. 直接输出摘要，不要任何前缀、编号或引号\n" .
-                "4. 不要换行，不要包含标签或列表\n" .
-                "输出格式：摘要：（直接写摘要内容，不要写\"摘要：\"这几个字）" . PHP_EOL;
+            if ($need_title) $prompt .= "【新标题生成规则】必须严格遵守以下所有规则：\n" .
+                "规则1-长度：新标题必须恰好30-60个汉字（不得少于30字，也不得超过60字）\n" .
+                "规则2-结构：在标题前加入搜索意图词（指南/教程/方案/推荐/评测/对比/怎么/如何/哪个等），核心关键词靠前\n" .
+                "规则3-质量：必须包含文章核心关键词，语言自然流畅，不堆砌关键词\n" .
+                "规则4-格式：不要【】、『】、《】「」等特殊符号，不要（X字）提示，不要星号*\n" .
+                "规则5-输出：只输出标题内容，不要任何前缀、编号、引号、解释或思考过程\n" .
+                "⚠️ 警告：标题字数必须恰好30-60字，不足30字或超过60字的内容将被判定为不合格\n" . PHP_EOL;
+            if ($need_tags) $prompt .= "【标签生成规则】必须严格遵守以下所有规则：\n" .
+                "规则1-数量：必须输出3-5个标签，推荐4个\n" .
+                "规则2-长度：每个标签2-6个汉字，禁止单个汉字，禁止超过6字\n" .
+                "规则3-质量：必须是含义完整的中文名词词组（如：智能家居、极简设计、衣柜收纳），不能是句子片段\n" .
+                "规则4-禁止：不要单个汉字，不要太宽泛的词（技术/方法/产品），不要品牌名、公司名、日期、无意义词\n" .
+                "规则5-输出：只输出标签词汇，用中文逗号「，」分隔，不要编号、不要前缀、不要任何解释\n" .
+                "⚠️ 警告：标签数量必须3-5个，每个标签2-6字，不合格将被判定为无效\n" . PHP_EOL;
+            if ($need_desc) $prompt .= "【摘要生成规则】必须严格遵守以下所有规则：\n" .
+                "规则1-长度：摘要必须恰好80-120个汉字（不得少于80字，也不得超过120字）\n" .
+                "规则2-结构：必须包含（1）文章核心关键词（2）文章价值点（3）行动引导（如：本文将详细分析.../您将了解.../让我们一起来探讨...）\n" .
+                "规则3-格式：直接输出摘要，不要任何前缀、编号、引号、解释或思考过程，不要换行\n" .
+                "规则4-输出：只输出纯中文摘要内容，不要其他任何文字\n" .
+                "⚠️ 警告：摘要字数必须恰好80-120字，不足80字或超过120字的内容将被判定为不合格\n" . PHP_EOL;
         } else {
             // 无需强制优化，但也标记为已处理，避免重复触发
             update_post_meta($post_id, self::META_OPTIMIZED, true);
@@ -372,6 +476,48 @@ class SeoOptimizer
 
         if (empty($updates)) {
             return new \WP_Error('ai_error', '未能提取到任何可更新的内容');
+        }
+
+        // ── 后处理：校验并补足长度（确保符合统一SEO标准）───────────────
+        // 标题长度校验：要求30-60字
+        if (!empty($updates['title'])) {
+            $title_len = mb_strlen($updates['title'], 'utf-8');
+            if ($title_len < 30) {
+                // 标题太短，补足到30-40字：循环追加合适的词语直到达标
+                $suffix_pool = ['全面指南', '完整攻略', '深度解析', '实用技巧', '优化方案', '高效方法', '专业建议', '核心要点', '实战技巧', '一文读懂'];
+                $shuffle = $suffix_pool; shuffle($shuffle);
+                while (mb_strlen($updates['title'], 'utf-8') < 30) {
+                    $updates['title'] .= $shuffle[count($shuffle) - 1];
+                }
+            }
+            if (mb_strlen($updates['title'], 'utf-8') > 60) {
+                // 标题过长，截断到60字以内
+                $updates['title'] = mb_substr($updates['title'], 0, 60, 'utf-8');
+            }
+        }
+        // 摘要长度校验：要求80-120字
+        if (!empty($updates['description'])) {
+            $desc_len = mb_strlen($updates['description'], 'utf-8');
+            if ($desc_len < 80) {
+                // 摘要太短，补足到80字：追加价值点+行动引导
+                $shortage = 80 - $desc_len;
+                $append = '本文将深入分析并提供实用方案，帮助您快速掌握核心要点。';
+                if ($shortage > mb_strlen($append, 'utf-8')) {
+                    $append = mb_substr($append, 0, $shortage, 'utf-8');
+                }
+                $updates['description'] .= $append;
+            }
+            if (mb_strlen($updates['description'], 'utf-8') > 120) {
+                // 摘要过长，截断到120字以内
+                $updates['description'] = mb_substr($updates['description'], 0, 120, 'utf-8');
+                // 确保以完整的句子结束
+                if (substr($updates['description'], -1) !== '。') {
+                    $last_period = mb_strrpos($updates['description'], '。', 0, 'utf-8');
+                    if ($last_period !== false && $last_period > 0) {
+                        $updates['description'] = mb_substr($updates['description'], 0, $last_period + 1, 'utf-8');
+                    }
+                }
+            }
         }
 
         $new_score = $this->applyOptimizations($post_id, $updates);
@@ -767,10 +913,11 @@ class SeoOptimizer
             }
         }
 
-        // 只清除优化状态，保留原始存档（允许再次优化且有基准参考）
+        // 清除优化状态 + 原始存档（重置应完全回到优化前状态，下次优化重新存档）
         foreach ([self::META_OPTIMIZED, self::META_OPTIMIZED_AT,
                    self::META_NEW_TITLE, self::META_NEW_TAGS,
-                   self::META_SCORE, self::META_ISSUES] as $key) {
+                   self::META_SCORE, self::META_ISSUES,
+                   self::META_ORIG_TITLE, self::META_ORIG_TAGS] as $key) {
             delete_post_meta($post_id, $key);
         }
 
@@ -805,13 +952,15 @@ class SeoOptimizer
             "SELECT COUNT(pm.post_id) FROM {$wpdb->postmeta} pm JOIN {$wpdb->posts} p ON pm.post_id=p.ID WHERE pm.meta_key=%s AND pm.meta_value='1' AND p.post_status='publish' AND p.post_type='post'",
             self::META_OPTIMIZED
         ));
-        // 清理孤立的 meta 记录（已删除文章的残留数据，分批避免长时间锁表）
-        do {
-            $deleted = $wpdb->query($wpdb->prepare(
-                "DELETE pm FROM {$wpdb->postmeta} pm LEFT JOIN {$wpdb->posts} p ON pm.post_id=p.ID WHERE p.ID IS NULL AND pm.meta_key IN (%s,%s,%s) LIMIT 500",
-                self::META_OPTIMIZED, self::META_OPTIMIZED_AT, self::META_SCORE
-            ));
-        } while ($deleted === 500);
+        // 清理孤立的 meta 记录（已删除文章的残留数据）
+        // 注意：MySQL 9.0+ 不支持多表 DELETE 带 LIMIT，改用子查询方式
+        $orphan_ids = $wpdb->get_col($wpdb->prepare(
+            "SELECT pm.meta_id FROM {$wpdb->postmeta} pm LEFT JOIN {$wpdb->posts} p ON pm.post_id=p.ID WHERE p.ID IS NULL AND pm.meta_key IN (%s,%s,%s) LIMIT 500",
+            self::META_OPTIMIZED, self::META_OPTIMIZED_AT, self::META_SCORE
+        ));
+        if ($orphan_ids) {
+            $wpdb->query("DELETE FROM {$wpdb->postmeta} WHERE meta_id IN (" . implode(',', array_map('intval', $orphan_ids)) . ")");
+        }
         $avg_score = (int) $wpdb->get_var(
             $wpdb->prepare(
                 "SELECT AVG(CAST(meta_value AS SIGNED)) FROM {$wpdb->postmeta} WHERE meta_key=%s",

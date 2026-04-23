@@ -239,6 +239,17 @@ table.seo-table {width:100%;border-collapse:collapse;font-size:13px;}
 <div class="wrap" style="max-width:1200px;">
     <h1>🔍 Zuo AI Plus SEO 诊断</h1>
 
+    <!-- 统一SEO标准说明 -->
+    <div style="background:#f0f6ff;border:1px solid #b3d7ff;border-radius:8px;padding:14px 16px;margin:16px 0 20px;font-size:13px;color:#1a3a5c;">
+        <div style="font-weight:600;margin-bottom:8px;color:#1d4ed8;">📋 统一 SEO 标准</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <span style="background:#e0f0ff;padding:3px 10px;border-radius:12px;font-size:12px;">📝 标题 <?php echo esc_html(\ZuoAIPlus\Models\SeoOptimizer::getTitleStandardDesc()); ?></span>
+            <span style="background:#fff3e0;padding:3px 10px;border-radius:12px;font-size:12px;">📋 摘要 <?php echo esc_html(\ZuoAIPlus\Models\SeoOptimizer::getExcerptStandardDesc()); ?></span>
+            <span style="background:#e8f5e9;padding:3px 10px;border-radius:12px;font-size:12px;">🏷️ 标签 <?php echo esc_html(\ZuoAIPlus\Models\SeoOptimizer::getTagsStandardDesc()); ?></span>
+            <span style="background:#fce4ec;padding:3px 10px;border-radius:12px;font-size:12px;">📄 内容 <?php echo esc_html(\ZuoAIPlus\Models\SeoOptimizer::getContentStandardDesc()); ?></span>
+        </div>
+    </div>
+
     <!-- 统计卡片 -->
     <div class="seo-stat-grid">
         <div class="seo-stat-card">
@@ -401,7 +412,19 @@ table.seo-table {width:100%;border-collapse:collapse;font-size:13px;}
                 'X-WP-Nonce': nonce
             },
             body: data ? JSON.stringify(data) : undefined
-        }).then(r => r.json());
+        }).then(r => r.json()).then(res => {
+            // WordPress REST API 返回 { code: "success", data: {...} } 格式
+            // 自动解包，让调用方直接拿到 data
+            if (res && res.code === 'success' && res.data !== undefined) {
+                return res.data;
+            }
+            // 错误响应：{ code: "error", data: { status: 500 }, message: "..." }
+            if (res && res.code === 'error' && res.message) {
+                return { error: res.message };
+            }
+            // 非标准格式原样返回
+            return res;
+        });
     }
 
     function log(msg, type='info') {
@@ -545,6 +568,21 @@ table.seo-table {width:100%;border-collapse:collapse;font-size:13px;}
                     location.reload();
                 } else if (result && !result.error) {
                     log('文章 #' + id + ' 优化成功！新得分 ' + (result.score ?? 'N/A'), 'ok');
+                    updateRow(id, { score: result.score, optimized: true });
+                    
+                    // 自动重新诊断以更新问题数和最新分数
+                    try {
+                        const auditResult = await api('GET', 'seo-audit-post/' + parseInt(id));
+                        if (auditResult && auditResult.id) {
+                            updateRow(id, { 
+                                score: auditResult.score, 
+                                issues: auditResult.issues ? auditResult.issues.length : 0, 
+                                optimized: auditResult.optimized 
+                            });
+                        }
+                    } catch(auditErr) {
+                        console.warn('Re-audit failed:', auditErr);
+                    }
                     
                     // 更新标签显示（AI 返回内容做 HTML 转义，防止标签含特殊字符导致渲染异常）
                     if (result.new_tags && Array.isArray(result.new_tags)) {
@@ -645,6 +683,8 @@ table.seo-table {width:100%;border-collapse:collapse;font-size:13px;}
                         } else {
                             log('批量优化完成！成功 ' + (status.success || 0) + ' 篇，失败 ' + (status.failed || 0) + ' 篇',
                                 (status.success > 0) ? 'ok' : 'warn');
+                            // 批量完成后刷新页面以更新所有分数
+                            setTimeout(function() { location.reload(); }, 1500);
                         }
                         return;
                     }

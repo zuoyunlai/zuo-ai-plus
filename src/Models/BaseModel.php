@@ -362,7 +362,7 @@ abstract class BaseModel
             // 完整错误记入日志（仅key名，用于排查），对外显示通用提示
             error_log("AI Plus API Error [{$this->name}] HTTP {$code}: " . json_encode(array_keys($body)) . " | msg: " . mb_substr((string)($body['error']['message'] ?? $body['error'] ?? $body['message'] ?? ''), 0, 200));
             $userMsg = !empty($error) && is_string($error)
-                ? ("AI服务返回错误 (" . intval($code) . "): " . esc_html(mb_substr(wp_strip_all_tags($error), 0, 200)))
+                ? ("AI服务返回错误 (" . intval($code) . "): 模型服务暂时不可用，请稍后重试或切换模型")
                 : ("AI服务返回异常 (" . intval($code) . ")，请稍后重试");
             throw new \Exception(esc_html($userMsg));
         }

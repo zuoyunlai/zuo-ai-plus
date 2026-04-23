@@ -88,12 +88,12 @@ class UtilityController extends BaseController
         $targetLang = sanitize_text_field($request->get_param('target_lang') ?: 'zh');
 
         if (empty($content)) {
-            return $this->error('内容不能为空');
+            return $this->error(__('内容不能为空', 'zuo-ai-plus'));
         }
 
         $model = $this->getModel($modelName);
         if (!$model) {
-            return $this->error('未配置该模型或API Key');
+            return $this->error(__('未配置该模型或API Key', 'zuo-ai-plus'));
         }
 
         try {
@@ -125,7 +125,7 @@ class UtilityController extends BaseController
         $content = sanitize_textarea_field($request->get_param('content') ?: '');
 
         if (empty($title) && empty($content)) {
-            return $this->error('标题或内容不能为空');
+            return $this->error(__('标题或内容不能为空', 'zuo-ai-plus'));
         }
 
         $text = $title ?: mb_substr($content, 0, 100);
@@ -142,12 +142,12 @@ class UtilityController extends BaseController
         $content   = sanitize_textarea_field($request->get_param('content') ?: '');
 
         if (empty($content)) {
-            return $this->error('文章内容不能为空');
+            return $this->error(__('文章内容不能为空', 'zuo-ai-plus'));
         }
 
         $model = $this->getModel($modelName);
         if (!$model) {
-            return $this->error('未配置该模型或API Key');
+            return $this->error(__('未配置该模型或API Key', 'zuo-ai-plus'));
         }
 
         $prompt = $this->buildSummarizePrompt($content);
@@ -168,12 +168,12 @@ class UtilityController extends BaseController
         $content   = sanitize_textarea_field($request->get_param('content') ?: '');
 
         if (empty($content)) {
-            return $this->error('文章内容不能为空');
+            return $this->error(__('文章内容不能为空', 'zuo-ai-plus'));
         }
 
         $model = $this->getModel($modelName);
         if (!$model) {
-            return $this->error('未配置该模型或API Key');
+            return $this->error(__('未配置该模型或API Key', 'zuo-ai-plus'));
         }
 
         $prompt = $this->buildKeywordsPrompt($content);
@@ -282,7 +282,7 @@ class UtilityController extends BaseController
         $final_desc    = $chinese_desc ?: ('图片展示了' . ($post_title ?: '相关内容'));
 
         if (empty($imageUrl)) {
-            return $this->error('图片URL不能为空');
+            return $this->error(__('图片URL不能为空', 'zuo-ai-plus'));
         }
         if (!$post_id) {
             return $this->error('无法获取文章ID');

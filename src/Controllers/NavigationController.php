@@ -114,7 +114,7 @@ class NavigationController extends BaseController
     {
         $url = esc_url_raw($request->get_param('url'));
         if (!$url) {
-            return $this->error('URL不能为空');
+            return $this->error(__('URL不能为空', 'zuo-ai-plus'));
         }
 
         $result = $this->curlFetch($url);
@@ -568,7 +568,7 @@ class NavigationController extends BaseController
         }
 
         // 速率限制：同一IP对同一文章每分钟最多1次点击
-        $clientIp = sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
+        $clientIp = $this->getRealIp();
         $rateKey = 'nav_rate_' . md5($clientIp . '_' . $postId);
         if (get_transient($rateKey)) {
             return new \WP_REST_Response(['success' => true, 'clicks' => (int) get_post_meta($postId, 'nav_clicks', true), 'throttled' => true], 200);
@@ -1134,11 +1134,18 @@ class NavigationController extends BaseController
             }
         }
 
-        $prompt = "你是一个标签生成工具。根据网站信息直接输出3-8个标签，用逗号分隔，不要任何解释、编号、前缀或思考过程。\n"
+        $prompt = "你是一个符合统一SEO标准的网站标签生成助手。请根据网站信息生成标签。\n\n【统一SEO标签标准】\n"
+            . "- 数量：3-5个，推荐4个\n"
+            . "- 长度：每个标签2-6个汉字，禁止单个汉字或过长词汇\n"
+            . "- 质量：必须是含义完整的中文名词词组（如：AI工具、在线写作、办公效率），不能是句子片段\n"
+            . "- SEO友好：核心关键词优先，避免宽泛词（如：工具、技术、免费）\n"
+            . "- 禁止：品牌名、公司名、日期、无意义词\n"
+            . "- 禁止以结构助词开头/结尾（的、了、在、和、与）\n\n"
             . "网站名称：{$name}\n"
             . "网站URL：{$url}\n"
-            . "网站描述：{$desc}\n"
-            . "输出示例：AI工具,在线写作,办公效率\n"
+            . "网站描述：{$desc}\n\n"
+            . "【输出格式】\n直接输出标签词汇，用中文逗号「，」分隔，不要任何解释、编号、前缀或思考过程。\n"
+            . "输出示例：AI工具,在线写作,办公效率,智能助手\n"
             . "直接输出标签：";
 
         $chatMessages = [

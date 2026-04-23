@@ -908,7 +908,6 @@ function handleKeyword() {
                     }
                 }).then(function(data) {
                     setLoading(false);
-                    // 防御性：兼容两种响应格式（直接返回 data 或 {code,data} 包装）
                     var raw = (data.data !== undefined) ? data.data : data;
                     var code = data.code || (data.data || {}).code;
                     if (code !== 'success' && code !== true) {
@@ -922,7 +921,6 @@ function handleKeyword() {
                         setTimeout(function() { window.location.reload(); }, 1200);
                     } else {
                         setGlobalResult({ type: 'warn', text: '⚠️ 特色图设置失败：未返回附件ID\n响应：' + JSON.stringify(data).substring(0, 200) });
-                        console.warn('featured-image-set unexpected response:', data);
                     }
                 }).catch(function(err) {
                     setLoading(false);
@@ -932,6 +930,215 @@ function handleKeyword() {
             }).catch(function(e) {
                 setLoading(false);
                 setGlobalResult({ type: 'err', text: '❌ 请求失败：' + e.message });
+            });
+        }
+
+        // ── 一键全量生成 ──────────────────────────────────────────────
+        function handleFullGenerate() {
+            var postId = 0, title = '';
+            try {
+                postId = wp.data.select('core/editor').getEditedPostAttribute('id') || 0;
+                title  = wp.data.select('core/editor').getEditedPostAttribute('title') || '';
+            } catch (e) {}
+
+            if (!title) {
+                setGlobalResult({ type: 'warn', text: '⚠️ 请先输入文章标题' });
+                return;
+            }
+            if (!postId) {
+                // 先保存草稿获取 ID
+                try {
+                    wp.data.dispatch('core/editor').autosave();
+                } catch(e) {}
+                setGlobalResult({ type: 'warn', text: '⚠️ 请先保存文章草稿（获取文章ID后才能全量生成）' });
+                return;
+            }
+
+            var steps = [
+                { name: '生成文章', icon: '✏️' },
+                { name: '生成摘要', icon: '📋' },
+                { name: '提取标签', icon: '🏷️' },
+                { name: '生成别名', icon: '🔗' },
+                { name: '生成特色图', icon: '🖼️' },
+            ];
+            var currentStep = 0;
+            var results = [];
+
+            function updateProgress(stepIdx, status, detail) {
+                var lines = [];
+                for (var i = 0; i < steps.length; i++) {
+                    var s = steps[i];
+                    if (i < stepIdx) {
+                        lines.push('✅ ' + s.icon + ' ' + s.name + (results[i] ? ' — ' + results[i] : ''));
+                    } else if (i === stepIdx) {
+                        lines.push((status === 'running' ? '⏳' : status === 'err' ? '❌' : '✅') + ' ' + s.icon + ' ' + s.name + (detail ? ' — ' + detail : ''));
+                    } else {
+                        lines.push('⬜ ' + s.icon + ' ' + s.name);
+                    }
+                }
+                return lines.join('\n');
+            }
+
+            setLoading(true);
+            setGlobalResult({ type: 'info', text: updateProgress(0, 'running', '开始…') });
+
+            // Step 1: 生成文章
+            console.log('Step 1: generating article with title:', title);
+            apiRequest('generate', {
+                model: model, action: 'generate',
+                content: title, extra_prompt: extraPrompt, post_id: postId
+            }).then(function(r) {
+                console.log('Step 1 API response:', r);
+                if (r.code !== 'success' || !((r.data || {}).content)) {
+                    console.error('Step 1 failed:', r);
+                    results[0] = '失败';
+                    setGlobalResult({ type: 'err', text: updateProgress(0, 'err', '生成文章失败') });
+                    setLoading(false); return;
+                }
+                var articleContent = r.data.content;
+                console.log('Step 1 got content length:', articleContent.length, 'chars');
+                console.log('Content preview (first 200 chars):', articleContent.substring(0, 200));
+                // 写入编辑器 - 直接更新编辑器内容并保存
+                try {
+                    // 获取当前内容
+                    var cur = wp.data.select('core/editor').getEditedPostContent() || '';
+                    console.log('Current editor content length:', cur.length);
+                    var merged = cur.trim() ? (cur + '\n\n' + articleContent) : articleContent;
+                    console.log('Merged content length:', merged.length);
+                    
+                    // 更新内容
+                    wp.data.dispatch('core/editor').editPost({ content: merged });
+                    console.log('editPost called');
+                    
+                    // 检查编辑器是否更新
+                    setTimeout(function() {
+                        var newContent = wp.data.select('core/editor').getEditedPostContent() || '';
+                        console.log('After editPost, editor content length:', newContent.length);
+                        console.log('Content equal to merged?', newContent === merged);
+                    }, 50);
+                    
+                    // 立即保存（异步，但不等待）
+                    setTimeout(function() {
+                        try { 
+                            wp.data.dispatch('core/editor').savePost(); 
+                            console.log('savePost called'); 
+                        } catch(e) { console.error('savePost error:', e); }
+                    }, 100);
+                } catch(e) {
+                    console.error('Content update failed:', e);
+                }
+                results[0] = articleContent.length + '字';
+                currentStep = 1;
+                setGlobalResult({ type: 'info', text: updateProgress(1, 'running', '生成摘要中…') });
+
+                // Step 2: 生成摘要
+                return apiRequest('generate', {
+                    model: model, action: 'summarize',
+                    content: title, post_id: postId
+                });
+            }).then(function(r) {
+                if (!r) return; // 上一部失败
+                if (r.code === 'success' && ((r.data || {}).content)) {
+                    try { wp.data.dispatch('core/editor').editPost({ excerpt: r.data.content }); } catch(e) {}
+                    results[1] = r.data.content.substring(0, 30) + '…';
+                } else {
+                    results[1] = '失败';
+                }
+                currentStep = 2;
+                setGlobalResult({ type: 'info', text: updateProgress(2, 'running', '提取标签中…') });
+
+                // Step 3: 提取标签
+                return apiRequest('generate', {
+                    model: model, action: 'keyword',
+                    content: title, post_id: postId
+                });
+            }).then(function(r) {
+                if (!r) return;
+                var tagStr = ((r.data || {}).content || '').trim();
+                if (r.code === 'success' && tagStr) {
+                    var tagArray = tagStr.split(/[,，、]/).map(function(t){return t.trim();}).filter(Boolean);
+                    results[2] = tagArray.length + '个：' + tagArray.join('、');
+                    // 保存标签到文章
+                    return wp.apiFetch({
+                        path: '/ai-plus/v1/tags-save', method: 'POST',
+                        data: { post_id: postId, tags: tagStr }
+                    }).then(function() { return tagStr; });
+                } else {
+                    results[2] = '失败';
+                    return null;
+                }
+            }).then(function(tagStr) {
+                if (tagStr === undefined) return; // 链断裂
+                currentStep = 3;
+                setGlobalResult({ type: 'info', text: updateProgress(3, 'running', '生成别名中…') });
+
+                // Step 4: 生成别名
+                return apiRequest('generate', {
+                    model: model, action: 'slug', content: title
+                }).then(function(r) {
+                    var slug = ((r.data || {}).content || '').trim();
+                    if (r.code === 'success' && slug) {
+                        try { wp.data.dispatch('core/editor').editPost({ slug: slug }); } catch(e) {}
+                        results[3] = slug;
+                    } else {
+                        results[3] = '失败';
+                    }
+                    currentStep = 4;
+                    setGlobalResult({ type: 'info', text: updateProgress(4, 'running', '生成特色图中…') });
+
+                    // Step 5: 生成特色图
+                    return apiRequest('generate', {
+                        model: model, action: 'featured_image',
+                        content: '文章标题：' + title, extra_prompt: extraPrompt
+                    });
+                });
+            }).then(function(r) {
+                if (r === undefined) return; // 链断裂
+                if (r && r.code === 'success') {
+                    var d = r.data || {};
+                    var imageUrl = d.url || '';
+                    var prompt = d.image_prompt || d.content || '';
+                    if (imageUrl) {
+                        // 设置特色图
+                        return wp.apiFetch({
+                            path: '/ai-plus/v1/featured-image-set', method: 'POST',
+                            data: {
+                                post_id: postId, image_url: imageUrl,
+                                post_title: title, image_prompt: prompt,
+                                alt_text: (d.chinese_alt || d.chinese_desc || ''),
+                                chinese_desc: (d.chinese_desc || ''),
+                                chinese_alt:  (d.chinese_alt || ''),
+                            }
+                        }).then(function(data) {
+                            var raw = (data.data !== undefined) ? data.data : data;
+                            var code = data.code || (data.data || {}).code;
+                            if (code === 'success' && raw.attachment_id) {
+                                results[4] = '已设置';
+                            } else {
+                                results[4] = '设置失败';
+                            }
+                            return true;
+                        }).catch(function() { results[4] = '设置失败'; return true; });
+                    } else {
+                        results[4] = '未生成图片';
+                        return true;
+                    }
+                } else {
+                    results[4] = '失败';
+                    return true;
+                }
+            }).then(function(done) {
+                // 最终汇总
+                setLoading(false);
+                // 先保存文章
+                try { wp.data.dispatch('core/editor').savePost(); } catch(e) {}
+                var failed = results.filter(function(r) { return r === '失败' || r === '设置失败'; }).length;
+                var type = failed === 0 ? 'ok' : (failed < 3 ? 'warn' : 'err');
+                setGlobalResult({ type: type, text: updateProgress(4, type === 'ok' ? 'done' : 'done', failed > 0 ? (failed + '项失败') : '全部完成') + '\n\n⏳ 2秒后自动刷新页面…' });
+                setTimeout(function() { window.location.reload(); }, 2000);
+            }).catch(function(e) {
+                setLoading(false);
+                setGlobalResult({ type: 'err', text: updateProgress(currentStep, 'err', e.message || '未知错误') });
             });
         }
 
@@ -996,6 +1203,24 @@ function handleKeyword() {
                                 placeholder: '💬 附加要求（可选），如：语言风格、字数、重点强调…',
                                 style: inputStyle,
                             })
+                        )
+                    ),
+
+                    // ── 一键全量生成（突出卡片） ────────────────────
+                    wp.element.createElement('div', { style: Object.assign({}, cardStyle(), { border: '1px solid #059669', boxShadow: '0 2px 8px rgba(5,150,105,0.2)' }) },
+                        wp.element.createElement('div', { style: cardHeadStyle(true) },
+                            wp.element.createElement('span', { style: { fontSize: '14px' } }, '🚀'),
+                            wp.element.createElement('p', { style: Object.assign({}, cardHeadLabelStyle, { color: C.green }) }, '一键全量生成')
+                        ),
+                        wp.element.createElement('div', { style: cardBodyStyle },
+                            wp.element.createElement('p', { style: { fontSize: '11px', color: C.gray500, margin: '0 0 10px', lineHeight: '1.5' } },
+                                '根据文章标题，自动按顺序完成：生成文章 → 生成摘要 → 提取标签 → 生成别名 → 生成特色图'
+                            ),
+                            wp.element.createElement('button', {
+                                className: 'ai-plus-btn',
+                                style: Object.assign({}, btnGreen, { width: '100%', justifyContent: 'center', padding: '9px 16px', fontSize: '13px', fontWeight: '600' }),
+                                onClick: handleFullGenerate, disabled: loading,
+                            }, '🚀 一键全量生成')
                         )
                     ),
 
