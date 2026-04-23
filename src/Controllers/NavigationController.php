@@ -109,6 +109,9 @@ class NavigationController extends BaseController
      * POST /ai-plus/v1/nav/fetch
      * Body: { url: "https://..." }
      * 返回: { name, keywords, description, logo, screenshot }
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
      */
     public function fetchUrl(\WP_REST_Request $request): \WP_REST_Response
     {
@@ -129,6 +132,9 @@ class NavigationController extends BaseController
      * POST /ai-plus/v1/nav/ai-summary
      * Body: { url, name, description }
      * 用 AI 生成一句话摘要
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
      */
     public function generateAiSummary(\WP_REST_Request $request): \WP_REST_Response
     {
@@ -338,7 +344,7 @@ class NavigationController extends BaseController
         $filepath = $navDir . '/' . $filename;
 
         // 已存在且不超过7天，直接返回
-        if (file_exists($filepath) && (time() - filemtime($filepath)) < 7 * DAY_IN_SECONDS) {
+        if (file_exists($filepath) && (time() - filemtime($filepath)) < \ZuoAIPlus\Utils\Constants::CACHE_TTL_SCREENSHOT) {
             // 检查是否已注册为附件
             $att_id = $this->findAttachmentByFile($filepath);
             return ['url' => $uploadDir['baseurl'] . '/nav-screenshots/' . $filename, 'attachment_id' => $att_id];
@@ -356,6 +362,9 @@ class NavigationController extends BaseController
             . ' 2>/dev/null';
 
         \exec($cmd, $output, $retcode);
+        if ($retcode !== 0 && defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[ZuoAI] Chrome screenshot failed. cmd: ' . $cmd . ', output: ' . implode("\n", (array) $output) . ', retcode: ' . $retcode);
+        }
 
         // Chrome 的 --screenshot 默认保存为 screenshot.png，需要检查
         // 如果原文件没生成，检查当前目录的 screenshot.png
@@ -366,7 +375,7 @@ class NavigationController extends BaseController
             }
         }
 
-        if (!file_exists($filepath) || filesize($filepath) < 1000) {
+        if (!file_exists($filepath) || filesize($filepath) < \ZuoAIPlus\Utils\Constants::SCREENSHOT_MIN_SIZE) {
             @unlink($filepath);
             return []; // 截图失败
         }
@@ -388,13 +397,37 @@ class NavigationController extends BaseController
     }
 
     /**
-     * 根据文件路径查找已注册的附件ID
+     * 根据文件绝对路径查找已注册的附件ID
+     *
+     * @param string $filepath 文件绝对路径
+     * @return int 附件ID，未找到返回 0
      */
     private function findAttachmentByFile(string $filepath): int
     {
         global $wpdb;
-        $guid = str_replace(ABSPATH, site_url('/') , $filepath);
-        $id = $wpdb->get_var($wpdb->prepare("SELECT ID FROM $wpdb->posts WHERE guid = %s AND post_type = 'attachment' LIMIT 1", $guid));
+
+        // 将文件路径转换为 WordPress 附件 URL（兼容 Windows/Unix 路径分隔符）
+        $uploadDir = wp_upload_dir();
+        $basedir   = wp_normalize_path($uploadDir['basedir']);
+        $baseurl   = $uploadDir['baseurl'];
+
+        // 计算文件相对于 basedir 的路径
+        $filepathNorm = wp_normalize_path($filepath);
+        $relativePath = str_replace($basedir, '', $filepathNorm);
+        $relativePath = ltrim($relativePath, '/\\');
+
+        if ($relativePath && $relativePath !== $filepathNorm) {
+            $guid = $baseurl . '/' . str_replace(DIRECTORY_SEPARATOR, '/', $relativePath);
+        } else {
+            // 回退：直接用文件路径作为 GUID（Windows 路径无法正确构造 URL）
+            $guid = $filepath;
+        }
+
+        $id = $wpdb->get_var($wpdb->prepare(
+            "SELECT ID FROM $wpdb->posts WHERE guid = %s AND post_type = 'attachment' LIMIT 1",
+            $guid
+        ));
+
         return (int) $id;
     }
 
@@ -484,6 +517,9 @@ class NavigationController extends BaseController
     /**
      * GET /ai-plus/v1/nav/weight?domain=example.com
      * 代理 5118 权重查询，缓存 24 小时
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
      */
     public function getSeoWeight(\WP_REST_Request $request): \WP_REST_Response
     {
@@ -551,7 +587,7 @@ class NavigationController extends BaseController
         $output = ['weights' => $weights, 'raw' => $result];
 
         // 缓存结果
-        set_transient($cacheKey, $output, DAY_IN_SECONDS);
+        set_transient($cacheKey, $output, \ZuoAIPlus\Utils\Constants::CACHE_TTL_SEO_WEIGHT);
 
         return new \WP_REST_Response(['success' => true, 'data' => $output, 'cached' => false]);
     }
@@ -559,6 +595,9 @@ class NavigationController extends BaseController
     /**
      * POST /ai-plus/v1/nav/click
      * 记录网站点击
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
      */
     public function recordClick(\WP_REST_Request $request): \WP_REST_Response
     {
@@ -573,7 +612,7 @@ class NavigationController extends BaseController
         if (get_transient($rateKey)) {
             return new \WP_REST_Response(['success' => true, 'clicks' => (int) get_post_meta($postId, 'nav_clicks', true), 'throttled' => true], 200);
         }
-        set_transient($rateKey, 1, 60); // 60秒冷却
+        set_transient($rateKey, 1, \ZuoAIPlus\Utils\Constants::RATE_LIMIT_NAV_CLICK_WINDOW);
 
         // 获取当前点击数
         $clicks = (int) get_post_meta($postId, 'nav_clicks', true);
@@ -595,6 +634,9 @@ class NavigationController extends BaseController
     /**
      * GET /ai-plus/v1/nav/popular
      * 获取热门网站
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
      */
     public function getPopularSites(\WP_REST_Request $request): \WP_REST_Response
     {
@@ -617,23 +659,25 @@ class NavigationController extends BaseController
             'order'          => 'DESC',
         ]);
 
-        // 预加载所有 post meta，避免 N+1 查询
+        // 批量预加载所有 post meta，避免 N+1 查询
         if ($query->have_posts()) {
-            update_postmeta_cache($query->posts);
-            update_object_term_cache($query->posts, 'nav_site');
+            $postIds = wp_list_pluck($query->posts, 'ID');
+            update_meta_cache('post', $postIds);
+            update_object_term_cache($postIds, 'nav_site');
         }
 
         while ($query->have_posts()) {
             $query->the_post();
             $postId = get_the_ID();
-            // 直接使用 get_post_meta 单字段查询（已缓存）
+            // 从已缓存的 meta 中取值，不再逐个查询
+            $meta = get_post_meta($postId);
             $sites[] = [
                 'id'     => $postId,
                 'title'  => get_the_title(),
-                'url'    => get_post_meta($postId, 'nav_url', true),
-                'logo'   => get_post_meta($postId, 'nav_logo', true),
-                'desc'   => get_post_meta($postId, 'nav_description', true),
-                'clicks' => (int) get_post_meta($postId, 'nav_clicks', true),
+                'url'    => $meta['nav_url'][0] ?? '',
+                'logo'   => $meta['nav_logo'][0] ?? '',
+                'desc'   => $meta['nav_description'][0] ?? '',
+                'clicks' => (int) ($meta['nav_clicks'][0] ?? 0),
                 'link'   => get_permalink(),
             ];
         }
@@ -648,15 +692,20 @@ class NavigationController extends BaseController
                 'orderby'        => 'date',
                 'order'          => 'DESC',
             ]);
+            if ($query->have_posts()) {
+                $postIds = wp_list_pluck($query->posts, 'ID');
+                update_meta_cache('post', $postIds);
+            }
             while ($query->have_posts()) {
                 $query->the_post();
-                $meta = \ZuoAIPlus\Models\NavigationSite::getMeta(get_the_ID());
+                $postId = get_the_ID();
+                $meta = get_post_meta($postId);
                 $sites[] = [
-                    'id'     => get_the_ID(),
+                    'id'     => $postId,
                     'title'  => get_the_title(),
-                    'url'    => $meta['url'],
-                    'logo'   => $meta['logo'],
-                    'desc'   => $meta['description'],
+                    'url'    => $meta['nav_url'][0] ?? '',
+                    'logo'   => $meta['nav_logo'][0] ?? '',
+                    'desc'   => $meta['nav_description'][0] ?? '',
                     'clicks' => 0,
                     'link'   => get_permalink(),
                 ];
@@ -664,7 +713,7 @@ class NavigationController extends BaseController
             wp_reset_postdata();
         }
 
-        set_transient($cacheKey, $sites, HOUR_IN_SECONDS);
+        set_transient($cacheKey, $sites, \ZuoAIPlus\Utils\Constants::CACHE_TTL_POPULAR_SITES);
 
         // 同时清理旧缓存键（兼容性）
         delete_transient('nav_popular_sites_' . $limit);
@@ -675,6 +724,9 @@ class NavigationController extends BaseController
     /**
      * GET /ai-plus/v1/nav/check-status
      * 检查网站状态
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
      */
     public function checkSiteStatus(\WP_REST_Request $request): \WP_REST_Response
     {
@@ -721,7 +773,7 @@ class NavigationController extends BaseController
 
         // 保存状态
         update_post_meta($postId, 'nav_status_check', $status);
-        set_transient($cacheKey, $status, 6 * HOUR_IN_SECONDS); // 缓存6小时
+        set_transient($cacheKey, $status, \ZuoAIPlus\Utils\Constants::CACHE_TTL_SITE_STATUS);
 
         // 同时清理旧缓存键（兼容性）
         delete_transient('nav_status_' . $postId);
@@ -732,6 +784,9 @@ class NavigationController extends BaseController
     /**
      * GET /ai-plus/v1/nav/sites
      * 分页获取网站列表
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
      */
     public function getSites(\WP_REST_Request $request): \WP_REST_Response
     {
@@ -790,6 +845,9 @@ class NavigationController extends BaseController
     /**
      * POST /ai-plus/v1/nav/rate
      * 提交评分
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
      */
     public function submitRating(\WP_REST_Request $request): \WP_REST_Response
     {
@@ -800,8 +858,11 @@ class NavigationController extends BaseController
         // 获取客户端 IP 和 User-Agent 用于防刷
         $ip = $this->getClientIp();
         $ua = sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'] ?? ''));
-        
-        // 生成更可靠的标识（IP + UA + visitorId）
+
+        // visitorId 由前端 localStorage 传入，空时用 UUID 标记
+        if ($visitorId === '' || strlen($visitorId) < 8) {
+            $visitorId = wp_generate_uuid4();
+        }
         $uniqueId = md5($ip . '|' . $ua . '|' . $visitorId);
 
         if (!$postId || $rating < 1 || $rating > 5) {
@@ -821,7 +882,7 @@ class NavigationController extends BaseController
         if ($ipCount === false) {
             $ipCount = 0;
         }
-        if ($ipCount >= 5) {
+        if ($ipCount >= \ZuoAIPlus\Utils\Constants::RATE_LIMIT_RATING_MAX_PER_IP) {
             return new \WP_REST_Response(['success' => false, 'message' => '评分过于频繁，请稍后再试'], 429);
         }
 
@@ -841,11 +902,12 @@ class NavigationController extends BaseController
         update_post_meta($postId, $ratedKey, $rating);
 
         // 更新 IP 评分计数（1小时过期）
-        set_transient($ipKey, $ipCount + 1, HOUR_IN_SECONDS);
+        set_transient($ipKey, $ipCount + 1, \ZuoAIPlus\Utils\Constants::RATE_LIMIT_RATING_WINDOW);
 
         return new \WP_REST_Response([
-            'success' => true,
-            'data'    => $ratings,
+            'success'    => true,
+            'data'       => $ratings,
+            'visitor_id' => $visitorId, // 若为空则返回新生成的 UUID，客户端应存入 localStorage
         ]);
     }
 
@@ -870,6 +932,9 @@ class NavigationController extends BaseController
     /**
      * GET /ai-plus/v1/nav/rating
      * 获取评分
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
      */
     public function getRating(\WP_REST_Request $request): \WP_REST_Response
     {
@@ -900,6 +965,9 @@ class NavigationController extends BaseController
     /**
      * POST /ai-plus/v1/nav/bulk-check-status
      * 批量检查网站状态（管理员）
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
      */
     public function bulkCheckStatus(\WP_REST_Request $request): \WP_REST_Response
     {
@@ -923,7 +991,7 @@ class NavigationController extends BaseController
                 ],
                 [
                     'key'     => 'nav_status_check',
-                    'value'   => time() - 6 * HOUR_IN_SECONDS,
+                    'value'   => time() - \ZuoAIPlus\Utils\Constants::CACHE_TTL_SITE_STATUS,
                     'compare' => '<',
                     'type'    => 'NUMERIC',
                 ],
@@ -958,7 +1026,7 @@ class NavigationController extends BaseController
             ];
 
             update_post_meta($site->ID, 'nav_status_check', $status);
-            set_transient('nav_status_' . $site->ID, $status, 6 * HOUR_IN_SECONDS);
+            set_transient('nav_status_' . $site->ID, $status, \ZuoAIPlus\Utils\Constants::CACHE_TTL_SITE_STATUS);
 
             $results[] = [
                 'id'       => $site->ID,
@@ -978,6 +1046,9 @@ class NavigationController extends BaseController
      * POST /ai-plus/v1/nav/download-image
      * Body: { image_url: "https://...", filename?: "xxx.png" }
      * 下载远程图片到媒体库，返回 attachment_id 和 URL
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
      */
     public function downloadImage(\WP_REST_Request $request): \WP_REST_Response
     {
@@ -1033,6 +1104,9 @@ class NavigationController extends BaseController
      * POST /ai-plus/v1/nav/screenshot
      * Body: { url: "https://..." }
      * 使用 Chrome Headless 截取网站截图，保存到媒体库
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
      */
     public function takeScreenshot(\WP_REST_Request $request): \WP_REST_Response
     {
@@ -1074,6 +1148,9 @@ class NavigationController extends BaseController
         $output = [];
         $return_code = 0;
         \exec($cmd, $output, $return_code);
+        if ($return_code !== 0 && defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[ZuoAI] takeScreenshot Chrome exec failed. cmd: ' . $cmd . ', output: ' . implode("\n", (array) $output) . ', return_code: ' . $return_code);
+        }
         @\exec('rm -rf ' . escapeshellarg($user_data_dir));
 
         if ($return_code !== 0 || !file_exists($tmp_file)) {
@@ -1113,6 +1190,9 @@ class NavigationController extends BaseController
      * POST /ai-plus/v1/nav/ai-tags
      * Body: { post_id, name, url?, description? }
      * 调用 AI 根据网站名称/URL/描述生成导航标签，并直接写入 post
+     *
+     * @param \WP_REST_Request $request
+     * @return \WP_REST_Response
      */
     public function generateAiTags(\WP_REST_Request $request): \WP_REST_Response
     {

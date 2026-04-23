@@ -93,7 +93,7 @@ class SeoController extends BaseController
     public function handleSeo(\WP_REST_Request $request): \WP_REST_Response
     {
         // 速率限制：SEO分析每分钟10次
-        if ($err = $this->checkRateLimit('seo_analysis', 10, 60)) {
+        if ($err = $this->checkRateLimit('seo_analysis', \ZuoAIPlus\Utils\Constants::RATE_LIMIT_SEO_ANALYSIS_REQUESTS, \ZuoAIPlus\Utils\Constants::RATE_LIMIT_SEO_ANALYSIS_WINDOW)) {
             return $err;
         }
 
@@ -141,7 +141,7 @@ class SeoController extends BaseController
     public function handleBatchOptimize(\WP_REST_Request $request): \WP_REST_Response
     {
         // 速率限制：批量优化每小时3次
-        if ($err = $this->checkRateLimit('seo_batch_optimize', 3, 3600)) {
+        if ($err = $this->checkRateLimit('seo_batch_optimize', \ZuoAIPlus\Utils\Constants::RATE_LIMIT_SEO_BATCH_REQUESTS, \ZuoAIPlus\Utils\Constants::RATE_LIMIT_SEO_BATCH_WINDOW)) {
             return $err;
         }
 
@@ -187,7 +187,7 @@ class SeoController extends BaseController
     {
         $jobId = sanitize_text_field($request->get_param('job_id') ?: '');
         if (empty($jobId)) {
-            return $this->error('缺少 job_id 参数');
+            return $this->error(__('缺少 job_id 参数', 'zuo-ai-plus'));
         }
 
         $job = get_transient('ai_plus_batch_job_' . $jobId);
@@ -227,7 +227,7 @@ class SeoController extends BaseController
     {
         $jobId = sanitize_text_field($request->get_param('job_id'));
         if (empty($jobId)) {
-            return $this->error('缺少 job_id');
+            return $this->error(__('缺少 job_id', 'zuo-ai-plus'));
         }
 
         $this->processBatchChunk($jobId);
@@ -374,7 +374,7 @@ class SeoController extends BaseController
     public function handleOptimizePost(\WP_REST_Request $request): \WP_REST_Response
     {
         // 速率限制：单篇文章优化每分钟5次
-        if ($err = $this->checkRateLimit('seo_optimize_post', 5, 60)) {
+        if ($err = $this->checkRateLimit('seo_optimize_post', \ZuoAIPlus\Utils\Constants::RATE_LIMIT_SEO_POST_REQUESTS, \ZuoAIPlus\Utils\Constants::RATE_LIMIT_SEO_POST_WINDOW)) {
             return $err;
         }
 

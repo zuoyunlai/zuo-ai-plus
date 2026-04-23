@@ -85,10 +85,15 @@ class Admin_Init
                 'customModel' => is_array($saved) ? ($saved['model'] ?? '') : '',
             ];
         }
+        // 只传 {id, name}，不暴露 Base URL（安全）
+        $modelsPublic = [];
+        foreach ($this->models as $k => $m) {
+            $modelsPublic[$k] = ['name' => $m['name']];
+        }
         \wp_localize_script('ai-plus-gutenberg-sidebar', 'aiPlusConfig', [
             'apiUrl'       => \rest_url('ai-plus/v1/'),
             'nonce'        => \wp_create_nonce('wp_rest'),
-            'models'       => $this->models,
+            'models'       => $modelsPublic,
             'apiKeys'      => $apiKeysConfigured,
             'defaultModel' => $defModel,
         ]);

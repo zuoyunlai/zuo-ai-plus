@@ -34,14 +34,14 @@ class ContentController extends BaseController
         // 速率限制检查
         $action = sanitize_text_field($request->get_param('action'));
         $rateLimitConfig = [
-            'generate'       => ['max' => 15, 'window' => 60],    // 文章生成：每分钟15次
-            'expand'         => ['max' => 25, 'window' => 60],   // 扩写：每分钟25次
-            'rewrite'        => ['max' => 25, 'window' => 60],   // 改写：每分钟25次
-            'summarize'      => ['max' => 20, 'window' => 60],   // 摘要：每分钟20次
-            'keyword'        => ['max' => 20, 'window' => 60],   // 关键词：每分钟20次
-            'slug'           => ['max' => 30, 'window' => 60],   // slug：每分钟30次
-            'featured_image' => ['max' => 3, 'window' => 60],    // 特色图：每分钟3次
-            'image'          => ['max' => 3, 'window' => 60],    // 文生图：每分钟3次
+            'generate'       => ['max' => \ZuoAIPlus\Utils\Constants::RATE_LIMIT_GENERATE_REQUESTS, 'window' => \ZuoAIPlus\Utils\Constants::RATE_LIMIT_GENERATE_WINDOW],
+            'expand'         => ['max' => \ZuoAIPlus\Utils\Constants::RATE_LIMIT_EXPAND_REQUESTS, 'window' => \ZuoAIPlus\Utils\Constants::RATE_LIMIT_EXPAND_WINDOW],
+            'rewrite'        => ['max' => \ZuoAIPlus\Utils\Constants::RATE_LIMIT_REWRITE_REQUESTS, 'window' => \ZuoAIPlus\Utils\Constants::RATE_LIMIT_REWRITE_WINDOW],
+            'summarize'      => ['max' => \ZuoAIPlus\Utils\Constants::RATE_LIMIT_SUMMARIZE_REQUESTS, 'window' => \ZuoAIPlus\Utils\Constants::RATE_LIMIT_SUMMARIZE_WINDOW],
+            'keyword'        => ['max' => \ZuoAIPlus\Utils\Constants::RATE_LIMIT_KEYWORD_REQUESTS, 'window' => \ZuoAIPlus\Utils\Constants::RATE_LIMIT_KEYWORD_WINDOW],
+            'slug'           => ['max' => \ZuoAIPlus\Utils\Constants::RATE_LIMIT_SLUG_REQUESTS, 'window' => \ZuoAIPlus\Utils\Constants::RATE_LIMIT_SLUG_WINDOW],
+            'featured_image' => ['max' => \ZuoAIPlus\Utils\Constants::RATE_LIMIT_IMAGE_REQUESTS, 'window' => \ZuoAIPlus\Utils\Constants::RATE_LIMIT_IMAGE_WINDOW],
+            'image'          => ['max' => \ZuoAIPlus\Utils\Constants::RATE_LIMIT_IMAGE_REQUESTS, 'window' => \ZuoAIPlus\Utils\Constants::RATE_LIMIT_IMAGE_WINDOW],
         ];
 
         if (isset($rateLimitConfig[$action])) {
@@ -68,7 +68,7 @@ class ContentController extends BaseController
         $modelName = $modelInfo['name'];
 
         if (!$model) {
-            return $this->error('未配置该模型或API Key');
+            return $this->error(__('未配置该模型或API Key', 'zuo-ai-plus'));
         }
 
         $prompt    = $this->buildPrompt($action, $content, $extraPrompt);
@@ -109,11 +109,11 @@ class ContentController extends BaseController
                 $text = trim($text);
                 // 预检：拒绝含思考/prompt 内容
                 if (preg_match('/then the|wait:|output format says|we should not|just output|should not include/i', $text)) {
-                    return $this->error('标题生成失败（模型输出了内部思考内容），请重试或切换模型', 422);
+                    return $this->error(__('标题生成失败（模型输出了内部思考内容），请重试或切换模型', 'zuo-ai-plus'), 422);
                 }
                 // 必须含中文
                 if (!preg_match('/[\x{4e00}-\x{9fa5}]/u', $text)) {
-                    return $this->error('标题生成失败（未检测到中文），请重试', 422);
+                    return $this->error(__('标题生成失败（未检测到中文），请重试', 'zuo-ai-plus'), 422);
                 }
                 // 清理残余格式词（如"新标题："前缀）
                 $text = preg_replace('/^(?:新)?标题[：:]\s*/u', '', $text);
@@ -191,7 +191,7 @@ class ContentController extends BaseController
                     $valid[] = $tag;
                 }
                 if (empty($valid)) {
-                    return $this->error('标签生成失败（模型输出了无效内容），请重试', 422);
+                    return $this->error(__('标签生成失败（模型输出了无效内容），请重试', 'zuo-ai-plus'), 422);
                 }
                 $result['content'] = implode('，', array_slice($valid, 0, 4));
             }
@@ -215,7 +215,7 @@ class ContentController extends BaseController
 
         $model = $this->getModel($modelName);
         if (!$model) {
-            return $this->error('未配置该模型或API Key');
+            return $this->error(__('未配置该模型或API Key', 'zuo-ai-plus'));
         }
 
         // 同 featured_image 一样生成带中文元数据的提示词，统一解析
@@ -226,7 +226,7 @@ class ContentController extends BaseController
             $metaResult = $model->completion($rawPrompt, ['max_tokens' => 1024]);
             $rawText = trim($metaResult['content'] ?? $metaResult['text'] ?? (is_string($metaResult) ? $metaResult : ''));
         } catch (\Exception $e) {
-            return $this->error('生成提示词失败：' . $e->getMessage(), 500);
+            return $this->error(__('生成提示词失败：', 'zuo-ai-plus') . $e->getMessage(), 500);
         }
 
         // 统一解析中文图片元数据
@@ -354,7 +354,7 @@ class ContentController extends BaseController
         }
 
         if (!$imgModel) {
-            return $this->error('图片模型未配置，请在后台设置里配置特色图片模型');
+            return $this->error(__('图片模型未配置，请在后台设置里配置特色图片模型', 'zuo-ai-plus'));
         }
 
         // 统一解析中文图片元数据
@@ -383,7 +383,7 @@ class ContentController extends BaseController
                 ]);
             }
         } catch (\Throwable $imgErr) {
-            return $this->error('图片生成失败：' . $imgErr->getMessage());
+            return $this->error(__('图片生成失败：', 'zuo-ai-plus') . $imgErr->getMessage());
         }
 
         return $this->success([
@@ -619,13 +619,13 @@ class ContentController extends BaseController
     private function getCacheTtlForAction(string $action): int
     {
         return match ($action) {
-            'generate', 'expand', 'rewrite'  => 86400,  // 24小时
-            'summarize'                         => 86400,  // 24小时
-            'keyword'                          => 3600,   // 1小时
-            'slug'                             => 0,      // 不缓存
-            'title_optimize'                   => 86400,  // 24小时
-            'featured_image', 'image'          => 604800, // 7天
-            default                            => 3600,   // 默认1小时
+            'generate', 'expand', 'rewrite'  => \ZuoAIPlus\Utils\Constants::CACHE_TTL_CONTENT_GENERATE,
+            'summarize'                         => \ZuoAIPlus\Utils\Constants::CACHE_TTL_SUMMARIZE,
+            'keyword'                          => \ZuoAIPlus\Utils\Constants::CACHE_TTL_KEYWORD,
+            'slug'                             => \ZuoAIPlus\Utils\Constants::CACHE_TTL_SLUG,
+            'title_optimize'                   => \ZuoAIPlus\Utils\Constants::CACHE_TTL_TITLE_OPTIMIZE,
+            'featured_image', 'image'          => \ZuoAIPlus\Utils\Constants::CACHE_TTL_IMAGE,
+            default                            => \ZuoAIPlus\Utils\Constants::CACHE_TTL_DEFAULT,
         };
     }
 }
