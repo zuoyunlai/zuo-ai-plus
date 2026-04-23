@@ -146,8 +146,6 @@
             return;
         }
 
-        
-
         // 只有纯文本（非HTML）才包裹为<p>段落；AI返回的HTML（以<开头）直接使用
         if (!merged.trim().match(/^</)) {
             merged = '<p>' + merged.replace(/\n\n+/g, '</p><p>').replace(/\n/g, '<br/>') + '</p>';
@@ -271,7 +269,6 @@
         if (!newBlocks && wp.blockEditor && wp.blockEditor.parse) {
             try {
                 newBlocks = wp.blockEditor.parse(merged);
-                
             } catch(e) {
                 parseErr = e;
             }
@@ -720,10 +717,28 @@ var setGlobalResult = function(){};
 
         function handleGenerate() {
             doAction('generate', {}, function(r) {
-                
                 if (r.content) {
-                    
-                    insertContent(0, r.content);
+                    // Use insertContent via the reliable editPost path for generate (bypass block parsing)
+                    var current = '';
+                    try { current = wp.data.select('core/editor').getEditedPostContent() || ''; } catch(e) {}
+                    var merged = current.trim() ? (current + '\n\n' + r.content) : r.content;
+                    try {
+                        var ed = wp.data.dispatch('core/editor');
+                        if (ed) {
+                            ed.editPost({ content: merged });
+                            var saveDone = function() { setGlobalResult({ type: 'ok', text: '✅ 已写入编辑器！' }); };
+                            var sr = ed.savePost && ed.savePost();
+                            if (sr && typeof sr.then === 'function') {
+                                sr.then(saveDone).catch(function() { setTimeout(saveDone, 800); });
+                            } else {
+                                setTimeout(saveDone, 800);
+                            }
+                        } else {
+                            setGlobalResult({ type: 'warn', text: '⚠️ 编辑器写入失败，请手动粘贴' });
+                        }
+                    } catch(e) {
+                        setGlobalResult({ type: 'err', text: '❌ 写入失败：' + e.message });
+                    }
                 } else {
                     
                     setGlobalResult({ type: 'warn', text: '⚠️ AI 未返回文章内容（content为空），请尝试切换模型' });

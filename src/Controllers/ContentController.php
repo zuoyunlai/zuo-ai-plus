@@ -129,6 +129,34 @@ class ContentController extends BaseController
                 $result['content'] = $text;
             }
 
+            // summarize（摘要）后验：过滤推理过程文字，只保留纯摘要
+            if ($action === 'summarize') {
+                $text = trim($text);
+                // 检测是否为推理过程文字（含大量英文、字符计数、"We have X characters" 等特征）
+                $hasReasoning = preg_match('/[a-zA-Z]{10,}/', $text) // 含大量英文单词
+                    && (preg_match('/We (have|need|can|must|should|will)|Let\'s (count|try|produce)|Thus|Therfore|The user wants|The summary should|I need to|I should|Simplify|Shorter|above \d+|below \d+|within \d+-\d+/i', $text)
+                        || preg_match('/["\']{3,}/', $text)); // 多引号
+
+                if ($hasReasoning) {
+                    // 尝试提取纯中文摘要段（最后一个含中文的连续段落）
+                    $paragraphs = preg_split('/\n\n+/', $text);
+                    $chinesePara = '';
+                    foreach (array_reverse($paragraphs) as $p) {
+                        $p = trim($p);
+                        if (preg_match('/[\x{4e00}-\x{9fa5}]{10,}/u', $p) && mb_strlen($p, 'utf-8') < 300) {
+                            $chinesePara = $p;
+                            break;
+                        }
+                    }
+                    // 如果找到纯中文段落，用它；否则清空
+                    $text = $chinesePara ?: '';
+                }
+                // 清理前缀标记
+                $text = preg_replace('/^(?:摘要[：:]?\s*|Summary[：:]?\s*)/ui', '', $text);
+                $text = trim($text);
+                $result['content'] = $text;
+            }
+
             // keyword（标签提取）后验：过滤无意义标签，只保留完整独立词汇
             if ($action === 'keyword') {
                 $tags_raw = array_map('trim', preg_split('/[,，、\n]+/u', trim($text)));
@@ -503,6 +531,8 @@ class ContentController extends BaseController
                 . "- 语言精炼，准确概括文章核心内容\n"
                 . "- 直接输出摘要，不要任何前缀、编号或解释\n"
                 . "- 不要换行，不要包含引号\n"
+                . "- 绝对不要输出任何思考过程、计数过程、英文说明或内部提示\n"
+                . "- 只输出纯中文摘要内容，不要其他任何文字\n"
                 . "文章正文：{$content}",
 
             'keyword' => $this->buildKeywordPrompt($content),
