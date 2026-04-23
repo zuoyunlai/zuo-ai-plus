@@ -681,23 +681,40 @@ var aiPlusLicense = (function() {
 
 
     function saveKey(key) {
-        // 通过 admin-ajax 保存（后台页面最可靠的方式）
-        var formData = new FormData();
-        formData.append('action', 'ai_plus_save_license_key');
-        formData.append('nonce', (typeof aiPlusAdmin !== 'undefined' && aiPlusAdmin.ajaxNonce) ? aiPlusAdmin.ajaxNonce : '');
-        formData.append('license_key', key);
-        fetch(ajaxurl, {method: 'POST', body: formData})
-            .then(function(r){ return r.json(); })
-            .then(function(r){
-                if (r.success) {
+        // 通过 REST API 保存（wp.apiFetch 自动处理 nonce）
+        if (typeof wp !== 'undefined' && wp.apiFetch) {
+            wp.apiFetch({
+                path: '/ai-plus/v1/save-license-key',
+                method: 'POST',
+                data: { license_key: key }
+            }).then(function(r) {
+                if (r.code === 'success') {
                     info('✅ License Key 保存成功', '#0d6efd');
                 } else {
-                    info('⚠️ Key 保存失败，请手动在「文本模型」页面保存设置', '#856404');
+                    info('⚠️ Key 保存失败：' + (r.message || '未知错误'), '#856404');
                 }
-            })
-            .catch(function(){
+            }).catch(function() {
                 info('⚠️ Key 保存失败（网络问题），请刷新重试', '#856404');
             });
+        } else {
+            // fallback: admin-ajax
+            var formData = new FormData();
+            formData.append('action', 'ai_plus_save_license_key');
+            formData.append('nonce', (typeof aiPlusAdmin !== 'undefined' && aiPlusAdmin.ajaxNonce) ? aiPlusAdmin.ajaxNonce : '');
+            formData.append('license_key', key);
+            fetch(ajaxurl, {method: 'POST', body: formData})
+                .then(function(r){ return r.json(); })
+                .then(function(r){
+                    if (r.success) {
+                        info('✅ License Key 保存成功', '#0d6efd');
+                    } else {
+                        info('⚠️ Key 保存失败，请手动在「文本模型」页面保存设置', '#856404');
+                    }
+                })
+                .catch(function(){
+                    info('⚠️ Key 保存失败（网络问题），请刷新重试', '#856404');
+                });
+        }
     }
 
     function showError(msg) {
