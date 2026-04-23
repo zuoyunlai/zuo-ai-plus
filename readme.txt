@@ -4,7 +4,7 @@ Tags: ai, content generator, translation, seo, image generator, navigation
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 8.1
-Stable tag: 1.5.13
+Stable tag: 1.5.19
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: zuo-ai-plus
@@ -18,11 +18,11 @@ Zuo AI Plus brings powerful AI capabilities directly to your WordPress dashboard
 
 = Supported Models =
 
-* **Zhipu GLM** (glm-5, glm-5-turbo, glm-4.7-flashx, cogview-3) — text + image generation
+* **Zhipu GLM** (glm-5, glm-5-turbo, glm-4.7-flashx, glm-4-flash, cogview-3) — text + image generation
 * **Alibaba Tongyi Qianwen** (qwen3.6-plus, wanx2.1-image) — text + image generation
 * **MiniMax** (MiniMax-M2.7, MiniMax-M2.7-highspeed) — text + image generation
 * **Kimi / Moonshot** (kimi-k2.5, moonshot-v1-8k) — long-context tasks
-* **DeepSeek** (deepseek-v3.2, deepseek-coder) — coding and reasoning
+* **DeepSeek** (deepseek-v3.2, deepseek-coder, deepseek-chat) — coding and reasoning
 * **DashScope** (glm-5.1) — via Alibaba Cloud platform
 * **Custom OpenAI-compatible endpoint** — bring your own model
 
@@ -41,9 +41,9 @@ Zuo AI Plus brings powerful AI capabilities directly to your WordPress dashboard
 * **Knowledge Base** — Background knowledge for AI to reference your brand/product
 * **Translation** — 12 languages, translate directly in Gutenberg editor
 
-**AI Navigation Module (New!):**
+**AI Navigation Module:**
 * **AI Full Fetch** — Enter a URL, auto-fetch name/keywords/description/logo/screenshot
-* **Auto Screenshot → Featured Image** — Chrome Headless captures screenshot, registers as WordPress attachment, auto-sets as featured image with AI-generated alt/caption/description
+* **Auto Screenshot → Featured Image** — Chrome Headless captures screenshot, registers as WordPress attachment, auto-sets as featured image with AI-generated alt/caption/description + smart Chinese metadata fallback
 * **AI Generated Summary** — 300-500 word detailed site introduction
 * **AI Tag Extraction** — Extract nav_tag taxonomy tags, auto-write to WordPress native tag box
 * **SEO Weight Capsules** — Display search engine rankings (Baidu/360/Sogou/Toutiao/Mobile) as colored capsules
@@ -67,6 +67,12 @@ Zuo AI Plus brings powerful AI capabilities directly to your WordPress dashboard
 * **Playground** — Chat interface for testing all models
 * **Usage Statistics** — Track tokens, operations, model distribution
 * **Quick Model Switch** — Switch AI models anywhere in admin
+
+= Screenshot Strategy (3-Tier) =
+
+1. **og:image** — Target site's own preview image (fastest, zero cost)
+2. **Chrome Headless** — Local screenshot saved to `uploads/nav-screenshots/` (7-day cache), registered as WordPress media attachment
+3. **thum.io** — Online fallback screenshot service
 
 = Requirements =
 
@@ -97,6 +103,10 @@ Create a new nav_site post, enter a URL, click "AI Full Fetch" — the plugin au
 The plugin uses a 3-tier screenshot strategy: 1) og:image from the target site, 2) local Chrome Headless screenshot saved to uploads/nav-screenshots/ (7-day cache), 3) thum.io fallback. Screenshots are registered as WordPress media attachments with AI-generated metadata.
 
 == Changelog ==
+
+= 1.5.19 =
+* Fix: Featured image Chinese metadata smart fallback — when AI doesn't return Chinese metadata, automatically generates from post title + content
+* Fix: Frontend double-wrapper property access bug in featured-image-set JavaScript
 
 = 1.5.13 =
 * New: Navigation module — AI-powered website directory with full fetch, summary, tags
