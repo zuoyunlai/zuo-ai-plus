@@ -748,8 +748,9 @@ var setGlobalResult = function(){};
 
         function handleExpand() {
             doAction('expand', {}, function(r) {
-                // expand 续写 = 替换全文（AI 返回的是续写后的完整内容）
-                if (r.content) insertContent(0, r.content, true);
+                if (!r.content) { setGlobalResult({ type: 'warn', text: '⚠️ 未返回内容，请重试' }); return; }
+                var ed = wp.data.dispatch('core/editor');
+                if (ed) { ed.editPost({ content: r.content }); var sr = ed.savePost && ed.savePost(); if (sr && typeof sr.then === 'function') { sr.then(function(){ setGlobalResult({ type: 'ok', text: '✅ 续写完成！' }); }).catch(function(){ setTimeout(function(){ setGlobalResult({ type: 'ok', text: '✅ 续写完成！' }); }, 800); }); } else { setTimeout(function(){ setGlobalResult({ type: 'ok', text: '✅ 续写完成！' }); }, 800); } } else { setGlobalResult({ type: 'warn', text: '⚠️ 写入失败' }); }
             });
         }
 
@@ -757,8 +758,9 @@ var setGlobalResult = function(){};
             var content = getCurrentContent();
             if (!content) { setGlobalResult({ type: 'warn', text: '⚠️ 请先输入文章内容再改写' }); return; }
             doAction('rewrite', {}, function(r) {
-                // rewrite 和 expand 必须用 replaceMode=true（替换全文），不能用追加
-                if (r.content) insertContent(0, r.content, true);
+                if (!r.content) { setGlobalResult({ type: 'warn', text: '⚠️ 未返回内容，请重试' }); return; }
+                var ed = wp.data.dispatch('core/editor');
+                if (ed) { ed.editPost({ content: r.content }); var sr = ed.savePost && ed.savePost(); if (sr && typeof sr.then === 'function') { sr.then(function(){ setGlobalResult({ type: 'ok', text: '✅ 改写完成！' }); }).catch(function(){ setTimeout(function(){ setGlobalResult({ type: 'ok', text: '✅ 改写完成！' }); }, 800); }); } else { setTimeout(function(){ setGlobalResult({ type: 'ok', text: '✅ 改写完成！' }); }, 800); } } else { setGlobalResult({ type: 'warn', text: '⚠️ 写入失败' }); }
             });
         }
 
@@ -795,26 +797,19 @@ function handleKeyword() {
                     method: 'POST',
                     data: { post_id: postId, tags: tagStr }
                 }).then(function(resp) {
-                    return { ok: true, data: resp };
-                }).catch(function(err) {
-                    // wp.apiFetch 会自动重试 nonce，过滤掉自动重试后的最终错误
-                    console.error('tags-save error:', err);
-                    return { ok: false, data: { code: 'error', message: err.message || '保存失败' } };
-                })
-                .then(function(resp) {
-                    if (resp.ok && resp.data.code === 'success') {
-                        // 优先使用后端过滤后的标签名（与实际写入的一致）
-                        var savedTagStr = (resp.data.tag_names && resp.data.tag_names.length > 0)
-                            ? resp.data.tag_names.join('，')
-                            : tagStr;
-                        setGlobalResult({ type: 'ok', text: '✅ 标签已写入（' + (resp.data.tag_ids ? resp.data.tag_ids.length : 0) + '个）：' + savedTagStr + '\n\n⏳ 页面将自动刷新…' });
-                        // 后端已写库，reload 让 Tags 面板获取最新数据
-                        setTimeout(function() { window.location.reload(); }, 1000);
-                    } else {
-                        setGlobalResult({ type: 'warn', text: '标签已生成：' + tagStr + ' (保存失败：' + (resp.data.message || resp.data.error || '未知原因') + ')' });
+                    // wp.apiFetch 返回 {code, data} 格式，直接使用
+                    var inner = (resp.data !== undefined) ? resp.data : resp;
+                    if (resp.code !== 'success' && resp.code !== true) {
+                        setGlobalResult({ type: 'warn', text: '标签已生成：' + tagStr + ' (保存失败：' + (resp.message || '未知原因') + ')' });
+                        return;
                     }
-                })
-                .catch(function() {
+                    var savedTagStr = (inner.tag_names && inner.tag_names.length > 0)
+                        ? inner.tag_names.join('，')
+                        : tagStr;
+                    setGlobalResult({ type: 'ok', text: '✅ 标签已写入（' + (inner.tag_ids ? inner.tag_ids.length : 0) + '个）：' + savedTagStr + '\n\n⏳ 页面将自动刷新…' });
+                    setTimeout(function() { window.location.reload(); }, 1000);
+                }).catch(function(err) {
+                    console.error('tags-save error:', err);
                     setGlobalResult({ type: 'warn', text: '标签已生成：' + tagStr + ' (网络错误)' });
                 });
             });
@@ -836,7 +831,8 @@ function handleKeyword() {
                 _content_for_translate: content
             }, function(r) {
                 if (r.content) {
-                    insertContent(0, r.content, true); // replace mode：覆盖编辑器内容
+                    var ed = wp.data.dispatch('core/editor');
+                    if (ed) { ed.editPost({ content: r.content }); var sr = ed.savePost && ed.savePost(); if (sr && typeof sr.then === 'function') { sr.then(function(){ setGlobalResult({ type: 'ok', text: '✅ 翻译完成！' }); }).catch(function(){ setTimeout(function(){ setGlobalResult({ type: 'ok', text: '✅ 翻译完成！' }); }, 800); }); } else { setTimeout(function(){ setGlobalResult({ type: 'ok', text: '✅ 翻译完成！' }); }, 800); } } else { setGlobalResult({ type: 'warn', text: '⚠️ 写入失败' }); }
                 }
             });
         }
