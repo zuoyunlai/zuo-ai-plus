@@ -271,6 +271,6 @@ abstract class BaseController
             default           => __('License 无效或未激活，请联系：17854779@qq.com', 'zuo-ai-plus'),
         };
 
-        return $this->error($msg, 403);
+        return $this->error(__($msg, 'zuo-ai-plus'), 403);
     }
 }

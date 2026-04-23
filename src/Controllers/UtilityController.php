@@ -193,7 +193,7 @@ class UtilityController extends BaseController
     {
         $name = sanitize_text_field($request->get_param('name') ?: '');
         if (empty($name)) {
-            return $this->error('标签名称为空');
+            return $this->error(__('标签名称为空', 'zuo-ai-plus'));
         }
 
         $result = wp_insert_term($name, 'post_tag');
@@ -210,14 +210,14 @@ class UtilityController extends BaseController
         $tags_raw = $request->get_param('tags') ?: '';
 
         if (!$post_id) {
-            return $this->error('无法获取文章ID');
+            return $this->error(__('无法获取文章ID', 'zuo-ai-plus'));
         }
 
         $term_ids = $this->resolveTagIds($request);
 
         $post = get_post($post_id);
         if (!$post) {
-            return $this->error('文章不存在 (ID=' . $post_id . ')');
+            return $this->error(sprintf(__('文章不存在 (ID=%d)', 'zuo-ai-plus'), $post_id));
         }
 
         if (empty($term_ids)) {
@@ -285,7 +285,7 @@ class UtilityController extends BaseController
             return $this->error(__('图片URL不能为空', 'zuo-ai-plus'));
         }
         if (!$post_id) {
-            return $this->error('无法获取文章ID');
+            return $this->error(__('无法获取文章ID', 'zuo-ai-plus'));
         }
 
         require_once ABSPATH . 'wp-admin/includes/file.php';
@@ -305,7 +305,7 @@ class UtilityController extends BaseController
         }
 
         if (wp_remote_retrieve_response_code($response) !== 200) {
-            return $this->error('下载图片失败: HTTP ' . wp_remote_retrieve_response_code($response));
+            return $this->error(sprintf(__('下载图片失败: HTTP %d', 'zuo-ai-plus'), wp_remote_retrieve_response_code($response)));
         }
 
         // 用中文描述作为文件名（中文转拼音）

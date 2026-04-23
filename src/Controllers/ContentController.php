@@ -124,7 +124,7 @@ class ContentController extends BaseController
                 // 最终检查：长度 6-30 字
                 $len = mb_strlen($text, 'utf-8');
                 if ($len < 6 || $len > 30) {
-                    return $this->error("标题长度不符（{$len}字），请重试", 422);
+                    return $this->error(sprintf(__("标题长度不符（%d字），请重试", "zuo-ai-plus"), $len), 422);
                 }
                 $result['content'] = $text;
             }

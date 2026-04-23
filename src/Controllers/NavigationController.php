@@ -122,7 +122,7 @@ class NavigationController extends BaseController
 
         $result = $this->curlFetch($url);
         if (!$result['success']) {
-            return $this->error($result['message'] ?? '抓取失败');
+            return $this->error($result['message'] ?? __('抓取失败', 'zuo-ai-plus'));
         }
         unset($result['success']);
         return $this->success($result);

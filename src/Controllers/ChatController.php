@@ -25,12 +25,12 @@ class ChatController extends BaseController
         $messages  = $request->get_param('messages');
 
         if (!is_array($messages) || empty($messages)) {
-            return $this->error('参数错误');
+            return $this->error(__('参数错误', 'zuo-ai-plus'));
         }
 
         foreach ($messages as $m) {
             if (!is_array($m) || !isset($m['role'], $m['content'])) {
-                return $this->error('消息格式错误');
+                return $this->error(__('消息格式错误', 'zuo-ai-plus'));
             }
         }
 
@@ -39,7 +39,7 @@ class ChatController extends BaseController
 
         $model = $this->getModel($modelName);
         if (!$model) {
-            return $this->error('未配置该模型或API Key');
+            return $this->error(__('未配置该模型或API Key', 'zuo-ai-plus'));
         }
 
         $chatMessages = $messages;
