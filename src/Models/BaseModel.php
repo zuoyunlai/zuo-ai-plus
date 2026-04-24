@@ -36,6 +36,21 @@ abstract class BaseModel
             $content = $response['choices'][0]['message']['reasoning_content'] ?? '';
         }
 
+        // 统一清理推理模型的思考过程标签
+        $content = preg_replace('/<think[\s\S]*?<\/think>/iu', '', $content);
+        $content = preg_replace('/\{\{thinking\}\}[\s\S]*?\{\{\/thinking\}\}/iu', '', $content);
+        $content = preg_replace('/<reasoning[\s\S]*?<\/reasoning>/iu', '', $content);
+
+        // 清理无标签的英文思考过程（推理模型可能直接输出英文分析到content）
+        // 检测：如果开头有长段英文（>30字符），且后面有中文内容，则截掉英文前缀
+        if (preg_match('/[\x{4e00}-\x{9fff}]/u', $content)) {
+            if (preg_match('/^[^\x{4e00}-\x{9fff}]{30,}/u', $content, $m)) {
+                $content = preg_replace('/^[^\x{4e00}-\x{9fff}]{30,}/u', '', $content);
+            }
+        }
+
+        $content = trim($content);
+
         return [
             'content' => $content,
             'usage'   => $response['usage'] ?? [],

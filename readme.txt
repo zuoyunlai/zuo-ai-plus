@@ -4,7 +4,7 @@ Tags: ai, content generator, translation, seo, image generator, navigation
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 8.1
-Stable tag: 1.5.19
+Stable tag: 1.5.20
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: zuo-ai-plus
@@ -103,6 +103,19 @@ Create a new nav_site post, enter a URL, click "AI Full Fetch" — the plugin au
 The plugin uses a 3-tier screenshot strategy: 1) og:image from the target site, 2) local Chrome Headless screenshot saved to uploads/nav-screenshots/ (7-day cache), 3) thum.io fallback. Screenshots are registered as WordPress media attachments with AI-generated metadata.
 
 == Changelog ==
+
+= 1.5.20 =
+* Fix: Admin model settings page — all models now pass connection test with correct default IDs and token limits
+* Fix: MiniMax default model ID corrected to MiniMax-M2.7 (was MiniMax-Text-01, an image model)
+* Fix: Empty modelName fallback protection added for MiniMax, Kimi, DeepSeek, and Custom models
+* Fix: AJAX test connection max_tokens increased from 20 to 500 to prevent truncation during thinking-tag responses
+* Fix: PHP 8.5 UTF-8 multibyte trimming bug in tag extraction — removed destructive trim/preg_replace before mb_split
+* Fix: Sidebar tag extraction now correctly renders in Gutenberg panel with 2-6 character filter
+* Fix: Classic theme default block styles dequeued to prevent ugly black buttons in frontend
+* Fix: Gutenberg block frontend styling unified (buttons, quotes, pullquotes, separators, embeds, cover, columns, groups)
+* Fix: Dark mode support added for all Gutenberg blocks with consistent glass-morphism button style
+* Enhancement: Image generation quality boosted for Tongyi Wanxiang, Zhipu CogView, and MiniMax models
+* Enhancement: Added quality tags (masterpiece, best quality, 8k) and prompt_optimizer for image generation
 
 = 1.5.19 =
 * Fix: Featured image Chinese metadata smart fallback — when AI doesn't return Chinese metadata, automatically generates from post title + content

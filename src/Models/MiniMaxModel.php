@@ -41,6 +41,20 @@ class MiniMaxModel extends BaseModel
             $text = $response['choices'][0]['message']['reasoning_content'] ?? '';
         }
 
+        // 清理推理模型的思考过程标签
+        $text = preg_replace('/<think[\s\S]*?<\/think>/iu', '', $text);
+        $text = preg_replace('/\{\{thinking\}\}[\s\S]*?\{\{\/thinking\}\}/iu', '', $text);
+        $text = preg_replace('/<reasoning[\s\S]*?<\/reasoning>/iu', '', $text);
+
+        // 清理无标签的英文思考过程（MiniMax-M2.7 可能直接输出英文分析）
+        if (preg_match('/[\x{4e00}-\x{9fff}]/u', $text)) {
+            if (preg_match('/^[^\x{4e00}-\x{9fff}]{30,}/u', $text, $m)) {
+                $text = preg_replace('/^[^\x{4e00}-\x{9fff}]{30,}/u', '', $text);
+            }
+        }
+
+        $text = trim($text);
+
         return [
             'content' => $text,
             'usage' => $response['usage'] ?? [],

@@ -322,26 +322,35 @@ class SeoOptimizer
             if ($excerpt) $prompt .= "摘要：" . mb_substr($excerpt, 0, 100, 'utf-8') . PHP_EOL;
             $prompt .= "内容要点：" . mb_substr($content_snippet, 0, 100, 'utf-8') . PHP_EOL;
             $prompt .= PHP_EOL;
+            $titleMin = self::SEO_STANDARDS['title']['min_chars'];
+            $titleMax = self::SEO_STANDARDS['title']['max_chars'];
             if ($need_title) $prompt .= "【新标题生成规则】必须严格遵守以下所有规则：\n" .
-                "规则1-长度：新标题必须恰好30-60个汉字（不得少于30字，也不得超过60字）\n" .
+                "规则1-长度：新标题必须恰好{$titleMin}-{$titleMax}个汉字（不得少于{$titleMin}字，也不得超过{$titleMax}字）\n" .
                 "规则2-结构：在标题前加入搜索意图词（指南/教程/方案/推荐/评测/对比/怎么/如何/哪个等），核心关键词靠前\n" .
                 "规则3-质量：必须包含文章核心关键词，语言自然流畅，不堆砌关键词\n" .
-                "规则4-格式：不要【】、『】、《】「」等特殊符号，不要（X字）提示，不要星号*\n" .
+                "规则4-格式：不要【】、『】、《》、「」等特殊符号，不要（X字）提示，不要星号*\n" .
                 "规则5-输出：只输出标题内容，不要任何前缀、编号、引号、解释或思考过程\n" .
-                "⚠️ 警告：标题字数必须恰好30-60字，不足30字或超过60字的内容将被判定为不合格\n" . PHP_EOL;
+                "⚠️ 警告：标题字数必须恰好{$titleMin}-{$titleMax}字，不足{$titleMin}字或超过{$titleMax}字的内容将被判定为不合格\n" . PHP_EOL;
+            $tagMinCount = self::SEO_STANDARDS['tags']['min_count'];
+            $tagMaxCount = self::SEO_STANDARDS['tags']['max_count'];
+            $tagPreferred = self::SEO_STANDARDS['tags']['preferred_count'];
+            $tagMinChars = self::SEO_STANDARDS['tags']['min_chars_per_tag'];
+            $tagMaxChars = self::SEO_STANDARDS['tags']['max_chars_per_tag'];
             if ($need_tags) $prompt .= "【标签生成规则】必须严格遵守以下所有规则：\n" .
-                "规则1-数量：必须输出3-5个标签，推荐4个\n" .
-                "规则2-长度：每个标签2-6个汉字，禁止单个汉字，禁止超过6字\n" .
-                "规则3-质量：必须是含义完整的中文名词词组（如：智能家居、极简设计、衣柜收纳），不能是句子片段\n" .
-                "规则4-禁止：不要单个汉字，不要太宽泛的词（技术/方法/产品），不要品牌名、公司名、日期、无意义词\n" .
+                "规则1-数量：必须输出{$tagMinCount}-{$tagMaxCount}个标签，推荐{$tagPreferred}个\n" .
+                "规则2-长度：每个标签{$tagMinChars}-{$tagMaxChars}个汉字，禁止单个汉字，禁止超过{$tagMaxChars}字\n" .
+                "规则3-质量：必须是含义完整的中文名词词组（如：智能家居、极简设计、衣柜收纳），不能是句子片段或虚词\n" .
+                "规则4-禁止：不要单个汉字，不要虚词（的/了/着/等），不要句子片段（会被/作为/各有等），不要太宽泛的词（技术/方法/产品），不要品牌名、公司名、日期、无意义词\n" .
                 "规则5-输出：只输出标签词汇，用中文逗号「，」分隔，不要编号、不要前缀、不要任何解释\n" .
-                "⚠️ 警告：标签数量必须3-5个，每个标签2-6字，不合格将被判定为无效\n" . PHP_EOL;
+                "⚠️ 警告：标签数量必须{$tagMinCount}-{$tagMaxCount}个，每个标签{$tagMinChars}-{$tagMaxChars}字，不合格将被判定为无效\n" . PHP_EOL;
+            $descMin = self::SEO_STANDARDS['excerpt']['min_chars'];
+            $descMax = self::SEO_STANDARDS['excerpt']['max_chars'];
             if ($need_desc) $prompt .= "【摘要生成规则】必须严格遵守以下所有规则：\n" .
-                "规则1-长度：摘要必须恰好80-120个汉字（不得少于80字，也不得超过120字）\n" .
+                "规则1-长度：摘要必须恰好{$descMin}-{$descMax}个汉字（不得少于{$descMin}字，也不得超过{$descMax}字）\n" .
                 "规则2-结构：必须包含（1）文章核心关键词（2）文章价值点（3）行动引导（如：本文将详细分析.../您将了解.../让我们一起来探讨...）\n" .
                 "规则3-格式：直接输出摘要，不要任何前缀、编号、引号、解释或思考过程，不要换行\n" .
                 "规则4-输出：只输出纯中文摘要内容，不要其他任何文字\n" .
-                "⚠️ 警告：摘要字数必须恰好80-120字，不足80字或超过120字的内容将被判定为不合格\n" . PHP_EOL;
+                "⚠️ 警告：摘要字数必须恰好{$descMin}-{$descMax}字，不足{$descMin}字或超过{$descMax}字的内容将被判定为不合格\n" . PHP_EOL;
         } else {
             // 无需强制优化，但也标记为已处理，避免重复触发
             update_post_meta($post_id, self::META_OPTIMIZED, true);
@@ -479,37 +488,44 @@ class SeoOptimizer
         }
 
         // ── 后处理：校验并补足长度（确保符合统一SEO标准）───────────────
+        $titleMin = self::SEO_STANDARDS['title']['min_chars'];
+        $titleMax = self::SEO_STANDARDS['title']['max_chars'];
+        $descMin = self::SEO_STANDARDS['excerpt']['min_chars'];
+        $descMax = self::SEO_STANDARDS['excerpt']['max_chars'];
+
         // 标题长度校验：要求30-60字
         if (!empty($updates['title'])) {
             $title_len = mb_strlen($updates['title'], 'utf-8');
-            if ($title_len < 30) {
-                // 标题太短，补足到30-40字：循环追加合适的词语直到达标
-                $suffix_pool = ['全面指南', '完整攻略', '深度解析', '实用技巧', '优化方案', '高效方法', '专业建议', '核心要点', '实战技巧', '一文读懂'];
-                $shuffle = $suffix_pool; shuffle($shuffle);
-                while (mb_strlen($updates['title'], 'utf-8') < 30) {
-                    $updates['title'] .= $shuffle[count($shuffle) - 1];
+            if ($title_len < $titleMin) {
+                // 标题太短，补足到30-40字：依次追加不同后缀（不重复追加同一个词）
+                $suffix_pool = ['全面指南', '深度解析', '实用技巧', '优化方案', '高效方法', '专业建议', '核心要点', '实战技巧', '一文读懂', '完整攻略'];
+                $suffix_idx = 0;
+                while (mb_strlen($updates['title'], 'utf-8') < $titleMin && $suffix_idx < count($suffix_pool)) {
+                    $updates['title'] .= $suffix_pool[$suffix_idx];
+                    $suffix_idx++;
                 }
+                // 如果仍不足30字，不要再追加，保留当前结果（避免无意义重复）
             }
-            if (mb_strlen($updates['title'], 'utf-8') > 60) {
+            if (mb_strlen($updates['title'], 'utf-8') > $titleMax) {
                 // 标题过长，截断到60字以内
-                $updates['title'] = mb_substr($updates['title'], 0, 60, 'utf-8');
+                $updates['title'] = mb_substr($updates['title'], 0, $titleMax, 'utf-8');
             }
         }
         // 摘要长度校验：要求80-120字
         if (!empty($updates['description'])) {
             $desc_len = mb_strlen($updates['description'], 'utf-8');
-            if ($desc_len < 80) {
+            if ($desc_len < $descMin) {
                 // 摘要太短，补足到80字：追加价值点+行动引导
-                $shortage = 80 - $desc_len;
+                $shortage = $descMin - $desc_len;
                 $append = '本文将深入分析并提供实用方案，帮助您快速掌握核心要点。';
                 if ($shortage > mb_strlen($append, 'utf-8')) {
                     $append = mb_substr($append, 0, $shortage, 'utf-8');
                 }
                 $updates['description'] .= $append;
             }
-            if (mb_strlen($updates['description'], 'utf-8') > 120) {
+            if (mb_strlen($updates['description'], 'utf-8') > $descMax) {
                 // 摘要过长，截断到120字以内
-                $updates['description'] = mb_substr($updates['description'], 0, 120, 'utf-8');
+                $updates['description'] = mb_substr($updates['description'], 0, $descMax, 'utf-8');
                 // 确保以完整的句子结束
                 if (substr($updates['description'], -1) !== '。') {
                     $last_period = mb_strrpos($updates['description'], '。', 0, 'utf-8');
@@ -658,11 +674,16 @@ class SeoOptimizer
                     $pattern = "#[[:punct:]]|\s|\"|'|\"\"|''|（|）|【|】|《|》#u";
                     $t = preg_replace($pattern, '', $t);
                     $len = mb_strlen($t, 'utf-8');
-                    // 保留含义完整的标签：纯中文2-10字，中英混合可达15字（不截断完整词汇）
-                    if ($len < 2) continue;
-                    if ($len > 15) continue;
+                    // 标签长度：2-6字（严格符合SEO标准）
+                    if ($len < self::SEO_STANDARDS['tags']['min_chars_per_tag'] || $len > self::SEO_STANDARDS['tags']['max_chars_per_tag']) continue;
                     // 跳过无中文的标签
                     if (!preg_match('/[\x{4e00}-\x{9fa5}]/u', $t)) continue;
+                    // 跳过虚词/句子片段（不以名词性词组结尾的）
+                    if (preg_match('/^(的|了|在|和|与|或|被|把|从|向|到|由|给|对|为|是|有|将|会|能|可|也|都|就|才|又|还|已|曾|将|着|过|得|地|般|之|其|这|那|些|某|每|各|该|此|它|他|她|我|你)/u', $t)) continue;
+                    // 跳过动词/谓语开头的句子片段
+                    if (preg_match('/^(会被|作为|应当|需要|可以|能够|应该|属于|分为|成为|用于|适用|适合|提供|支持|包含|涵盖|代表|体现|反映|表明|说明|证明|意味着|相当于)/u', $t)) continue;
+                    // 跳过含虚词链的句子片段（如"各有其独特的"）
+                    if (preg_match('/的$|了$|着$|过$|得$|地$|也是|或是|而是|还是|各有|均为|均可|均可|两种|多个|几种/u', $t)) continue;
                     $tags[] = $t;
                 }
                 $result['tags'] = array_slice(array_values(array_unique($tags)), 0, 4);

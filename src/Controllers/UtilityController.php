@@ -410,15 +410,16 @@ class UtilityController extends BaseController
      */
     private function generateSlug(string $title): string
     {
-        $apiKeys  = \ZuoAIPlus\Utils\Crypto::decryptApiKeys((array)\get_option('ai_plus_api_keys', []));
-        $zhipuKey = is_array($apiKeys['zhipu'] ?? null) ? ($apiKeys['zhipu']['api_key'] ?? '') : ($apiKeys['zhipu'] ?? '');
+        $apiKeys = \ZuoAIPlus\Utils\Crypto::decryptApiKeys((array)\get_option('ai_plus_api_keys', []));
+        $defaultModel = \get_option('ai_plus_default_model', 'minimax');
+        $model = $this->createModelInstance($apiKeys, $defaultModel);
 
-        if (!$zhipuKey) {
+        if (!$model) {
             return $this->titleToPinyin($title);
         }
 
         try {
-            $fallback = new \ZuoAIPlus\Models\ZhipuModel($zhipuKey, 'glm-4-flash');
+            $fallback = $model;
             $result = $fallback->completion(
                 "Give me a short URL slug for this title, lowercase letters and hyphens only, no explanation. Title: {$title}",
                 ['max_tokens' => 20, 'temperature' => 0.7]
@@ -555,12 +556,12 @@ class UtilityController extends BaseController
 
     private function tryFallbackSlug(string $prompt): string
     {
-        $apiKeys  = \ZuoAIPlus\Utils\Crypto::decryptApiKeys((array)\get_option('ai_plus_api_keys', []));
-        $zhipuKey = $apiKeys['zhipu'] ?? '';
+        $apiKeys = \ZuoAIPlus\Utils\Crypto::decryptApiKeys((array)\get_option('ai_plus_api_keys', []));
+        $defaultModel = \get_option('ai_plus_default_model', 'minimax');
+        $model = $this->createModelInstance($apiKeys, $defaultModel);
 
-        if ($zhipuKey) {
-            $fallback = new \ZuoAIPlus\Models\ZhipuModel($zhipuKey, 'glm-4-flash');
-            $result   = $fallback->completion($prompt, ['max_tokens' => 64, 'temperature' => 0.3]);
+        if ($model) {
+            $result = $model->completion($prompt, ['max_tokens' => 64, 'temperature' => 0.3]);
             return $result['content'] ?? '';
         }
         return '';
@@ -653,5 +654,41 @@ class UtilityController extends BaseController
         }
 
         return [];
+    }
+
+    /**
+     * 根据默认模型设置创建模型实例（统一模型选择逻辑）
+     */
+    private function createModelInstance(array $apiKeys, string $defaultModel): ?object
+    {
+        $modelConfig = $apiKeys[$defaultModel] ?? null;
+        if (!$modelConfig || empty($modelConfig['api_key'])) {
+            // 回退：尝试任何已配置的模型
+            foreach (['minimax', 'zhipu', 'tongyi', 'deepseek', 'kimi'] as $fallback) {
+                $cfg = $apiKeys[$fallback] ?? null;
+                $key = is_array($cfg) ? ($cfg['api_key'] ?? '') : (is_string($cfg) ? $cfg : '');
+                if ($key) {
+                    $defaultModel = $fallback;
+                    $modelConfig = is_array($cfg) ? $cfg : ['api_key' => $cfg];
+                    break;
+                }
+            }
+            if (empty($modelConfig['api_key'])) return null;
+        }
+
+        $apiKey  = is_array($modelConfig) ? ($modelConfig['api_key'] ?? '') : (is_string($modelConfig) ? $modelConfig : '');
+        $modelId = is_array($modelConfig) ? ($modelConfig['model'] ?? '') : '';
+
+        switch ($defaultModel) {
+            case 'minimax': return new \ZuoAIPlus\Models\MiniMaxModel($apiKey, $modelId ?: 'MiniMax-M2.7-highspeed');
+            case 'zhipu':   return new \ZuoAIPlus\Models\ZhipuModel($apiKey, $modelId ?: 'glm-4-flash');
+            case 'tongyi':  return new \ZuoAIPlus\Models\TongyiModel($apiKey, $modelId ?: 'qwen-turbo');
+            case 'deepseek': return new \ZuoAIPlus\Models\DeepSeekModel($apiKey, $modelId ?: 'deepseek-chat');
+            case 'kimi':    return new \ZuoAIPlus\Models\KimiModel($apiKey, $modelId ?: 'kimi-k2.5');
+            default:
+                $baseUrl = is_array($modelConfig) ? ($modelConfig['base_url'] ?? '') : '';
+                if (empty($baseUrl)) return null;
+                return new \ZuoAIPlus\Models\CustomModel($apiKey, $modelId, $baseUrl);
+        }
     }
 }

@@ -71,36 +71,48 @@ class Model_Init
             return '';
         }
 
+        $content = '';
+
         // 标准 content 字段
         if (isset($result['choices'][0]['message']['content'])) {
             $c = trim($result['choices'][0]['message']['content']);
-            if ($c !== '') return $c;
+            if ($c !== '') $content = $c;
         }
 
-        // 推理模型：内容在 reasoning_content
-        if (isset($result['choices'][0]['message']['reasoning_content'])) {
+        // 推理模型：内容在 reasoning_content（仅当 content 为空时使用）
+        if ($content === '' && isset($result['choices'][0]['message']['reasoning_content'])) {
             $c = trim($result['choices'][0]['message']['reasoning_content']);
-            if ($c !== '') return $c;
+            if ($c !== '') $content = $c;
         }
 
         // 直接 content 字段
-        if (!empty($result['content'])) {
-            return $result['content'];
+        if ($content === '' && !empty($result['content'])) {
+            $content = $result['content'];
         }
 
         // OpenAI text 字段
-        if (!empty($result['text'])) {
-            return $result['text'];
+        if ($content === '' && !empty($result['text'])) {
+            $content = $result['text'];
         }
 
         // choices 为 null 或空（API 错误另一种表现）
-        if (isset($result['choices']) && empty($result['choices'])) {
+        if ($content === '' && isset($result['choices']) && empty($result['choices'])) {
             return '';
         }
 
-        // 无法解析时返回空串（不泄漏 API 响应内容）
-        error_log('AI Plus extractContent: unexpected response format - ' . json_encode(array_keys($result)));
-        return '';
+        // 统一过滤推理模型的思考过程标签
+        if ($content !== '') {
+            $content = preg_replace('/<think[\s\S]*?<\/think>/iu', '', $content);
+            $content = preg_replace('/\{\{thinking\}\}[\s\S]*?\{\{\/thinking\}\}/iu', '', $content);
+            $content = preg_replace('/<reasoning[\s\S]*?<\/reasoning>/iu', '', $content);
+            $content = trim($content);
+        }
+
+        if ($content === '') {
+            error_log('AI Plus extractContent: unexpected response format - ' . json_encode(array_keys($result)));
+        }
+
+        return $content;
     }
 
     /**

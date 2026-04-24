@@ -718,21 +718,45 @@ var setGlobalResult = function(){};
         function handleGenerate() {
             doAction('generate', {}, function(r) {
                 if (r.content) {
-                    // Use insertContent via the reliable editPost path for generate (bypass block parsing)
-                    var current = '';
-                    try { current = wp.data.select('core/editor').getEditedPostContent() || ''; } catch(e) {}
-                    var merged = current.trim() ? (current + '\n\n' + r.content) : r.content;
+                    // 使用 insertBlocks/insertContent 而非 editPost({content})，确保 Gutenberg 正确渲染
                     try {
                         var ed = wp.data.dispatch('core/editor');
                         if (ed) {
-                            ed.editPost({ content: merged });
-                            var saveDone = function() { setGlobalResult({ type: 'ok', text: '✅ 已写入编辑器！' }); };
-                            var sr = ed.savePost && ed.savePost();
-                            if (sr && typeof sr.then === 'function') {
-                                sr.then(saveDone).catch(function() { setTimeout(saveDone, 800); });
+                            // 先清空编辑器（如果是空文章）再插入内容
+                            var current = '';
+                            try { current = wp.data.select('core/editor').getEditedPostContent() || ''; } catch(e) {}
+                            if (current.trim()) {
+                                // 已有内容：追加
+                                var blocks = wp.blocks.parse(r.content);
+                                if (blocks && blocks.length) {
+                                    ed.insertBlocks(blocks);
+                                } else {
+                                    // 解析失败时回退到 editPost
+                                    ed.editPost({ content: current + '\n\n' + r.content });
+                                }
                             } else {
-                                setTimeout(saveDone, 800);
+                                // 空编辑器：直接写入
+                                var blocks = wp.blocks.parse(r.content);
+                                if (blocks && blocks.length) {
+                                    ed.resetEditorBlocks(blocks);
+                                } else {
+                                    ed.editPost({ content: r.content });
+                                }
                             }
+                            // 等待状态更新后再保存
+                            setTimeout(function() {
+                                try {
+                                    var sr = ed.savePost && ed.savePost();
+                                    if (sr && typeof sr.then === 'function') {
+                                        sr.then(function() { setGlobalResult({ type: 'ok', text: '✅ 已写入编辑器！' }); })
+                                          .catch(function() { setGlobalResult({ type: 'ok', text: '✅ 已写入编辑器！' }); });
+                                    } else {
+                                        setGlobalResult({ type: 'ok', text: '✅ 已写入编辑器！' });
+                                    }
+                                } catch(e2) {
+                                    setGlobalResult({ type: 'ok', text: '✅ 已写入编辑器！' });
+                                }
+                            }, 500);
                         } else {
                             setGlobalResult({ type: 'warn', text: '⚠️ 编辑器写入失败，请手动粘贴' });
                         }
@@ -740,7 +764,6 @@ var setGlobalResult = function(){};
                         setGlobalResult({ type: 'err', text: '❌ 写入失败：' + e.message });
                     }
                 } else {
-                    
                     setGlobalResult({ type: 'warn', text: '⚠️ AI 未返回文章内容（content为空），请尝试切换模型' });
                 }
             });
@@ -997,33 +1020,24 @@ function handleKeyword() {
                 }
                 var articleContent = r.data.content;
                 console.log('Step 1 got content length:', articleContent.length, 'chars');
-                console.log('Content preview (first 200 chars):', articleContent.substring(0, 200));
-                // 写入编辑器 - 直接更新编辑器内容并保存
+                // 写入编辑器 - 使用 parse + resetEditorBlocks 确保 Gutenberg 正确渲染
                 try {
-                    // 获取当前内容
-                    var cur = wp.data.select('core/editor').getEditedPostContent() || '';
-                    console.log('Current editor content length:', cur.length);
-                    var merged = cur.trim() ? (cur + '\n\n' + articleContent) : articleContent;
-                    console.log('Merged content length:', merged.length);
-                    
-                    // 更新内容
-                    wp.data.dispatch('core/editor').editPost({ content: merged });
-                    console.log('editPost called');
-                    
-                    // 检查编辑器是否更新
+                    var blocks = wp.blocks.parse(articleContent);
+                    if (blocks && blocks.length) {
+                        wp.data.dispatch('core/editor').resetEditorBlocks(blocks);
+                        console.log('resetEditorBlocks called with', blocks.length, 'blocks');
+                    } else {
+                        // 解析失败回退
+                        wp.data.dispatch('core/editor').editPost({ content: articleContent });
+                        console.log('Fallback to editPost for content');
+                    }
+                    // 等待 500ms 让 Gutenberg 状态更新后再保存
                     setTimeout(function() {
-                        var newContent = wp.data.select('core/editor').getEditedPostContent() || '';
-                        console.log('After editPost, editor content length:', newContent.length);
-                        console.log('Content equal to merged?', newContent === merged);
-                    }, 50);
-                    
-                    // 立即保存（异步，但不等待）
-                    setTimeout(function() {
-                        try { 
-                            wp.data.dispatch('core/editor').savePost(); 
-                            console.log('savePost called'); 
+                        try {
+                            wp.data.dispatch('core/editor').savePost();
+                            console.log('savePost called');
                         } catch(e) { console.error('savePost error:', e); }
-                    }, 100);
+                    }, 500);
                 } catch(e) {
                     console.error('Content update failed:', e);
                 }

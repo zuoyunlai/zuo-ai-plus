@@ -460,30 +460,79 @@ class NavigationController extends BaseController
 
     private function callAi(string $prompt): string
     {
-        // 获取智谱 API Key
         $apiKeys = \ZuoAIPlus\Utils\Crypto::decryptApiKeys((array)\get_option('ai_plus_api_keys', []));
-        $zk = $apiKeys['zhipu'] ?? null;
-        $zhipuKey = is_array($zk) ? ($zk['api_key'] ?? '') : (is_string($zk) ? $zk : '');
-        
-        if (!$zhipuKey) {
-            // 尝试其他模型
-            $deepseekKey = $apiKeys['deepseek']['api_key'] ?? '';
-            if ($deepseekKey) {
-                $model = new \ZuoAIPlus\Models\DeepSeekModel($deepseekKey);
-            } else {
-                return '';
+        $defaultModel = \get_option('ai_plus_default_model', 'minimax');
+
+        // 短文本任务优先使用非推理模型（与 ContentController 统一策略）
+        // MiniMax-M2.7 等推理模型会将思考过程写入content，污染短文本输出
+        // 智谱/通义为非推理模型，输出干净，适合简介/标签等短文本
+        $preferNonReasoning = ['zhipu', 'tongyi'];
+        foreach ($preferNonReasoning as $m) {
+            $cfg = $apiKeys[$m] ?? null;
+            $key = is_array($cfg) ? ($cfg['api_key'] ?? '') : (is_string($cfg) ? $cfg : '');
+            if ($key) {
+                $defaultModel = $m;
+                $modelConfig = is_array($cfg) ? $cfg : ['api_key' => $cfg];
+                break;
             }
-        } else {
-            $model = new \ZuoAIPlus\Models\ZhipuModel($zhipuKey, 'glm-4-flash');
         }
+
+        if (!isset($modelConfig) || empty($modelConfig['api_key'])) {
+            $modelConfig = $apiKeys[$defaultModel] ?? null;
+        }
+
+        if (!$modelConfig || empty($modelConfig['api_key'])) {
+            // 回退：尝试任何已配置的模型
+            foreach (['minimax', 'zhipu', 'tongyi', 'deepseek', 'kimi'] as $fallback) {
+                $cfg = $apiKeys[$fallback] ?? null;
+                $key = is_array($cfg) ? ($cfg['api_key'] ?? '') : (is_string($cfg) ? $cfg : '');
+                if ($key) {
+                    $defaultModel = $fallback;
+                    $modelConfig = is_array($cfg) ? $cfg : ['api_key' => $cfg];
+                    break;
+                }
+            }
+            if (empty($modelConfig['api_key'])) return '';
+        }
+
+        $apiKey  = is_array($modelConfig) ? ($modelConfig['api_key'] ?? '') : (is_string($modelConfig) ? $modelConfig : '');
+        $modelId = is_array($modelConfig) ? ($modelConfig['model'] ?? '') : '';
+
+        $model = null;
+        switch ($defaultModel) {
+            case 'minimax':
+                $model = new \ZuoAIPlus\Models\MiniMaxModel($apiKey, $modelId ?: 'MiniMax-M2.7-highspeed'); break;
+            case 'zhipu':
+                $model = new \ZuoAIPlus\Models\ZhipuModel($apiKey, $modelId ?: 'glm-4-flash'); break;
+            case 'tongyi':
+                $model = new \ZuoAIPlus\Models\TongyiModel($apiKey, $modelId ?: 'qwen-turbo'); break;
+            case 'deepseek':
+                $model = new \ZuoAIPlus\Models\DeepSeekModel($apiKey, $modelId ?: 'deepseek-chat'); break;
+            case 'kimi':
+                $model = new \ZuoAIPlus\Models\KimiModel($apiKey, $modelId ?: 'kimi-k2.5'); break;
+            default:
+                $baseUrl = is_array($modelConfig) ? ($modelConfig['base_url'] ?? '') : '';
+                if (empty($baseUrl)) return '';
+                $model = new \ZuoAIPlus\Models\CustomModel($apiKey, $modelId, $baseUrl); break;
+        }
+
+        if (!$model) return '';
 
         try {
             $resp = $model->chat([
+                ['role' => 'system', 'content' => '你必须只输出纯中文内容。绝对禁止输出任何思考过程、推理过程、分析过程、英文内容。直接输出最终结果，不要任何解释。'],
                 ['role' => 'user', 'content' => $prompt]
+            ], [
+                'temperature' => 0.7,
+                'max_tokens' => 2048,
             ]);
-            return trim($resp['content'] ?? '');
+            $text = trim($resp['content'] ?? '');
+            
+            // 清理推理模型的思考过程（包含无标签英文思考）
+            $text = $this->cleanAiOutput($text);
+            
+            return $text;
         } catch (\Throwable $e) {
-            // 记录 AI 调用错误
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 error_log('AI Plus Nav - AI call failed: ' . $e->getMessage());
             }
@@ -491,26 +540,105 @@ class NavigationController extends BaseController
         }
     }
 
+    /**
+     * 清理 AI 输出中的思考过程、英文分析等非正文内容
+     * 解决推理模型（MiniMax-M2.7等）将思考过程直接写入content的问题
+     */
+    private function cleanAiOutput(string $text): string
+    {
+        if (empty($text)) return '';
+
+        // 1. 清理带标签的思考过程
+        $text = preg_replace('/<think[\s\S]*?<\/think>/iu', '', $text);
+        $text = preg_replace('/\{\{thinking\}\}[\s\S]*?\{\{\/thinking\}\}/iu', '', $text);
+        $text = preg_replace('/<reasoning[\s\S]*?<\/reasoning>/iu', '', $text);
+
+        // 2. 智能截取：找到第一个以中文为主的行（中文字符占比>50%），从该行开始截取正文
+        //    思考过程中可能引用少量中文（如"中文字符"），但中文占比低；正文行中文占比高
+        $lines = explode("\n", $text);
+        $firstContentLine = -1;
+        for ($i = 0; $i < count($lines); $i++) {
+            $line = $lines[$i];
+            $cn = preg_match_all('/[\x{4e00}-\x{9fff}]/u', $line);
+            $en = preg_match_all('/[a-zA-Z]/', $line);
+            $total = $cn + $en;
+            // 中文占比>50% 且至少3个中文字符，才认为是正文行
+            if ($total > 0 && $cn / $total > 0.5 && $cn >= 3) {
+                $firstContentLine = $i;
+                break;
+            }
+        }
+        if ($firstContentLine > 0) {
+            // 开头有非正文行，截掉
+            $lines = array_slice($lines, $firstContentLine);
+            $text = implode("\n", $lines);
+        }
+
+        // 3. 逐行过滤：移除中间插入的英文思考片段
+        $lines = explode("\n", $text);
+        $cleaned = [];
+        $englishStreak = 0;
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '') {
+                $englishStreak = 0;
+                $cleaned[] = $line;
+                continue;
+            }
+            // 判断是否主要是英文行
+            $englishChars = preg_match_all('/[a-zA-Z]/', $trimmed);
+            $chineseChars = preg_match_all('/[\x{4e00}-\x{9fff}]/u', $trimmed);
+            $isMostlyEnglish = ($englishChars > $chineseChars && $englishChars > 5);
+            if ($isMostlyEnglish) {
+                $englishStreak++;
+                // 连续2行以上纯英文视为思考过程，跳过
+                // 单行英文如果是思考关键词也跳过
+                if ($englishStreak >= 2) continue;
+                if (preg_match('/^(?:The |Let |We |I |Now|Also|Make |Thus|However|Therefore|Paragraph|Section|Note|Step|First|Second|Next|Then|Based|According|Should|Could|Would|Will|Can|Must|Might|Better|Need|Want|Going|Try|Check|Ensure|Remember|Consider)/i', $trimmed)) {
+                    continue;
+                }
+                $cleaned[] = $line;
+            } else {
+                $englishStreak = 0;
+                $cleaned[] = $line;
+            }
+        }
+        $text = implode("\n", $cleaned);
+
+        // 4. 清理残余的英文思考关键词行
+        $text = preg_replace('/^(?:The user|Let me|We need|I\'ll|We\'ll|I need|Thus|Therefore|However|Now |Also |Make sure|Let\'s|Based on|According to)[^\n]*$/imu', '', $text);
+
+        // 5. 清理多余空行
+        $text = preg_replace('/\n{3,}/', "\n\n", $text);
+
+        return trim($text);
+    }
+
     // AI 生成简介（300-500字）
     private function generateAiContent(string $name, string $url, string $description): string
     {
         if (!$name) return '';
         
-        $prompt = "你是一个网站内容分析师。请根据以下信息，写一篇300-500字的网站详细介绍：
+        $prompt = "你是一个网站内容分析师。请根据以下信息，写一篇300-500字的网站详细介绍。
+
 网站名称：{$name}
 网址：{$url}
 网站描述：{$description}
 
-要求：
-1. 300-500字（中文字符）
-2. 介绍网站的主要功能、特点、优势
-3. 语言通顺，结构清晰
-4. 必须分段输出，每段之间用空行分隔
-5. 编号列表项每项独占一行
-6. 直接返回文章，不要开头结尾的任何说明文字"
+【严格规则】
+1. 只输出纯中文文章正文，300-500字
+2. 绝对禁止输出任何思考过程、推理过程、分析过程
+3. 绝对禁止输出任何英文内容（英文单词、英文句子、英文分析）
+4. 绝对禁止输出类似「The user wants」等英文思考分析
+5. 介绍网站的主要功能、特点、优势
+6. 语言通顺，结构清晰
+7. 必须分段输出，每段之间用空行分隔
+8. 编号列表项每项独占一行
+9. 直接返回中文文章，不要开头结尾的任何说明文字"
         ;
         
         $result = $this->callAi($prompt);
+        $result = $this->cleanAiOutput($result);
         return trim($result);
     }
 
@@ -1236,7 +1364,22 @@ class NavigationController extends BaseController
         // 使用插件现有的加密 API Key + Model 类
         $apiKeys = \ZuoAIPlus\Utils\Crypto::decryptApiKeys((array)\get_option('ai_plus_api_keys', []));
         $defaultModel = \get_option('ai_plus_default_model', 'minimax');
-        $modelConfig = $apiKeys[$defaultModel] ?? null;
+
+        // 短文本任务优先使用非推理模型（与 callAi 统一策略）
+        $preferNonReasoning = ['zhipu', 'tongyi'];
+        foreach ($preferNonReasoning as $m) {
+            $cfg = $apiKeys[$m] ?? null;
+            $key = is_array($cfg) ? ($cfg['api_key'] ?? '') : (is_string($cfg) ? $cfg : '');
+            if ($key) {
+                $defaultModel = $m;
+                $modelConfig = is_array($cfg) ? $cfg : ['api_key' => $cfg];
+                break;
+            }
+        }
+        if (!isset($modelConfig) || empty($modelConfig['api_key'])) {
+            $modelConfig = $apiKeys[$defaultModel] ?? null;
+        }
+
         if (!$modelConfig || empty($modelConfig['api_key'])) {
             return new \WP_REST_Response(['success' => false, 'message' => '未配置 AI API Key'], 400);
         }
@@ -1250,6 +1393,9 @@ class NavigationController extends BaseController
             case 'zhipu':
                 $modelInstance = new \ZuoAIPlus\Models\ZhipuModel($modelConfig['api_key'], $modelConfig['model'] ?? 'glm-4-flash');
                 break;
+            case 'tongyi':
+                $modelInstance = new \ZuoAIPlus\Models\TongyiModel($modelConfig['api_key'], $modelConfig['model'] ?? 'qwen-turbo');
+                break;
             case 'deepseek':
                 $modelInstance = new \ZuoAIPlus\Models\DeepSeekModel($modelConfig['api_key'], $modelConfig['model'] ?? 'deepseek-chat');
                 break;
@@ -1257,9 +1403,12 @@ class NavigationController extends BaseController
                 $modelInstance = new \ZuoAIPlus\Models\KimiModel($modelConfig['api_key'], $modelConfig['model'] ?? 'kimi-k2.5');
                 break;
             default:
-                // custom 或其他：使用 DeepSeekModel（兼容 OpenAI 格式）
-                $baseUrl = $modelConfig['base_url'] ?? 'https://api.deepseek.com/v1';
-                $modelInstance = new \ZuoAIPlus\Models\CustomModel($modelConfig['api_key'], $modelConfig['model'] ?? 'deepseek-chat', $baseUrl);
+                // custom 或其他：使用 CustomModel（兼容 OpenAI 格式）
+                $baseUrl = $modelConfig['base_url'] ?? '';
+                if (empty($baseUrl)) {
+                    return new \WP_REST_Response(['success' => false, 'message' => '自定义模型未配置 Base URL'], 400);
+                }
+                $modelInstance = new \ZuoAIPlus\Models\CustomModel($modelConfig['api_key'], $modelConfig['model'] ?? '', $baseUrl);
                 break;
         }
 
@@ -1275,6 +1424,8 @@ class NavigationController extends BaseController
         }
 
         $content = trim($content);
+        // 清理推理模型的思考过程（包含无标签的英文思考）
+        $content = $this->cleanAiOutput($content);
         $content = trim(preg_replace('/^```(?:\w+)?\s*/', '', $content));
         $content = trim(preg_replace('/\s*```$/', '', $content));
         // 去掉 AI 可能返回的前缀说明（如"标签："、"可能的标签："等）

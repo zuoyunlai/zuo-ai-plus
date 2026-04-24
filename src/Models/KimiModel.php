@@ -42,6 +42,12 @@ class KimiModel extends BaseModel
             $content = $response['choices'][0]['message']['reasoning_content'] ?? '';
         }
 
+        // 清理推理模型的思考过程标签
+        $content = preg_replace('/<think[\\s\\S]*?<\\/think>/iu', '', $content);
+        $content = preg_replace('/\\{\\{thinking\\}\\}[\\s\\S]*?\\{\\{\\/thinking\\}\\}/iu', '', $content);
+        $content = preg_replace('/<reasoning[\\s\\S]*?<\\/reasoning>/iu', '', $content);
+        $content = trim($content);
+
         return [
             'content' => $content,
             'usage'   => $response['usage'] ?? [],

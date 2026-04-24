@@ -90,6 +90,12 @@ class CustomModel extends BaseModel
             $content = $response['data'][0]['text'] ?? '';
         }
 
+        // 清理推理模型的思考过程标签
+        $content = preg_replace('/<think[\\s\\S]*?<\\/think>/iu', '', $content);
+        $content = preg_replace('/\\{\\{thinking\\}\\}[\\s\\S]*?\\{\\{\\/thinking\\}\\}/iu', '', $content);
+        $content = preg_replace('/<reasoning[\\s\\S]*?<\\/reasoning>/iu', '', $content);
+        $content = trim($content);
+
         return [
             'content' => $content,
             'usage' => [
