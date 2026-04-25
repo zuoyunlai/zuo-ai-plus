@@ -43,7 +43,7 @@
 
         // 浮窗客服：读取当前文章上下文（PHP 写入 hidden input）
         var ctxInput = document.getElementById('ai-chat-article-context');
-        var articleContext = ctxInput ? (ctxInput.value || '') : '';
+	var articleContext = ctxInput ? atob(ctxInput.textContent.trim()) : '';
 
         // 渲染用户消息
         addMessageEl(container, msg, 'user');

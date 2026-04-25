@@ -30,10 +30,29 @@ abstract class BaseController
     }
 
     /**
+     * 安全响应 Headers：防止 XSS、点击劫持、MIME 嗅探
+     */
+    protected function setSecurityHeaders(): void
+    {
+        // 防止点击劫持
+        header('X-Frame-Options: DENY');
+        
+        // MIME 类型嗅探保护
+        header('X-Content-Type-Options: nosniff');
+        
+        // XSS 保护
+        header('X-XSS-Protection: 1; mode=block');
+        
+        // Referrer Policy
+        header('Referrer-Policy: strict-origin-when-cross-origin');
+    }
+
+    /**
      * 返回成功响应
      */
     protected function success(array $data = [], int $status = 200): \WP_REST_Response
     {
+        $this->setSecurityHeaders();
         return new \WP_REST_Response(['code' => 'success', 'data' => $data], $status);
     }
 
@@ -42,6 +61,7 @@ abstract class BaseController
      */
     protected function error(string $message, int $status = 400): \WP_REST_Response
     {
+        $this->setSecurityHeaders();
         return new \WP_REST_Response(['code' => 'error', 'message' => $message], $status);
     }
 

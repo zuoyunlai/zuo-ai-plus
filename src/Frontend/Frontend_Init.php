@@ -64,7 +64,7 @@ class Frontend_Init
         <div id="ai-plus-chat-btn" onclick="toggleAiChat()">💬</div>
 
         <div id="ai-plus-chat-window" style="display:none;">
-            <input type="hidden" id="ai-chat-article-context" value="<?php echo \esc_attr($articleText); ?>">
+            <script id="ai-chat-article-context" type="text/plain"><?php echo base64_encode($articleText); ?></script>
             <div class="ai-chat-header">
                 <span>AI 客服</span>
                 <button onclick="toggleAiChat()" style="margin-left:auto;background:none;border:none;color:#fff;cursor:pointer;font-size:16px;">✕</button>
