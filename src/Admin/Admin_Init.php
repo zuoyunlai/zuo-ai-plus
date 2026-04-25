@@ -108,7 +108,7 @@ class Admin_Init
         \add_submenu_page('ai_plus', '🔍 SEO 诊断', 'SEO 诊断', 'manage_options', 'ai_plus_seo', [$this, 'renderPage']);
         \add_submenu_page('ai_plus', '📊 统计', '统计', 'manage_options', 'ai_plus_stats', [$this, 'renderPage']);
         \add_submenu_page('ai_plus', '💬 对话历史', '对话历史', 'manage_options', 'ai_plus_chat_history', [$this, 'renderPage']);
-        \add_submenu_page('ai_plus', '授权管理', '授权管理', 'manage_options', 'ai_plus_license', [$this, 'renderPage']);
+        \add_submenu_page('ai_plus', '支持开发者', '支持开发者', 'manage_options', 'ai_plus_license', [$this, 'renderPage']);
         \add_submenu_page('ai_plus', '关于', '关于', 'manage_options', 'ai_plus_about', [$this, 'renderPage']);
         // 重命名重复的顶层菜单项为「模型设置」（不删除，否则顶级链接会指向下一个子菜单）
         global $submenu;
@@ -197,7 +197,7 @@ class Admin_Init
                 <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_seo', 'ai_plus_admin')); ?>" class="nav-tab <?php echo  $tab==='ai_plus_seo' ? 'nav-tab-active' : '' ?>">🔍 SEO 诊断</a>
                 <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_stats', 'ai_plus_admin')); ?>"   class="nav-tab <?php echo  $tab==='ai_plus_stats'   ? 'nav-tab-active' : '' ?>">📊 统计</a>
                 <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_chat_history', 'ai_plus_admin')); ?>" class="nav-tab <?php echo  $tab==='ai_plus_chat_history' ? 'nav-tab-active' : '' ?>">💬 对话历史</a>
-                <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_license', 'ai_plus_admin')); ?>" class="nav-tab <?php echo  $tab==='ai_plus_license' ? 'nav-tab-active' : '' ?>">授权管理</a>
+                <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_license', 'ai_plus_admin')); ?>" class="nav-tab <?php echo  $tab==='ai_plus_license' ? 'nav-tab-active' : '' ?>">支持开发者</a>
                 <a href="<?php echo esc_url(wp_nonce_url('?page=ai_plus_about', 'ai_plus_admin')); ?>"  class="nav-tab <?php echo  $tab==='ai_plus_about'  ? 'nav-tab-active' : '' ?>">关于</a>
             </h2>
 
@@ -538,11 +538,11 @@ placeholder="例如：本公司专业生产铝合金衣柜，产品特点包括�
 
         <?php elseif ($tab === 'ai_plus_license'): ?>
 <div class="wrap ai-plus-settings" style="max-width:700px;">
-    <h1>🔐 AI Plus 授权管理</h1>
-    <p style="color:#555;margin:8px 0 24px;">输入 License Key 激活插件正版授权，激活后可正常使用全部功能。</p>
+    <h1>🔐 AI Plus 支持开发者</h1>
+    <p style="color:#555;margin:8px 0 24px;">本插件所有功能免费可用。输入 License Key 可作为对开发者的支持标识，不会影响任何功能。</p>
 
     <div style="background:#fff;border:1px solid #dcdcde;border-radius:6px;padding:24px;">
-        <h2 style="font-size:14px;margin-bottom:16px;border-bottom:2px solid #2271b1;padding-bottom:6px;display:inline-block;">License 激活</h2>
+        <h2 style="font-size:14px;margin-bottom:16px;border-bottom:2px solid #2271b1;padding-bottom:6px;display:inline-block;">支持标识（可选）</h2>
 
         <table style="width:100%;font-size:14px;">
             <tr>
@@ -580,7 +580,7 @@ placeholder="例如：本公司专业生产铝合金衣柜，产品特点包括�
         </div>
         <p id="license_msg" style="margin-top:10px;font-size:13px;min-height:20px;"></p>
         <p style="margin-top:8px;color:#72777c;font-size:12px;">
-            💡 提示：License Key 由插件购买后获得。注销后可重新绑定其他域名。
+            💡 提示：License Key 为可选捐赠标识，不输入不影响任何功能。如需支持开发者，可通过页面底部链接联系。
         </p>
     </div>
 

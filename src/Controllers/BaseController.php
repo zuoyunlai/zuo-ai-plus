@@ -205,72 +205,14 @@ abstract class BaseController
      *
      * 网络异常时：连续失败超过 3 次才放宽限制（防止服务器宕机时完全无法使用）
      */
+    /**
+     * License 检查（已放宽：所有功能免费可用）
+     *
+     * WordPress.org 插件目录要求：插件不得要求激活码才能使用核心功能。
+     * 本方法保留用于向后兼容，始终返回 null（放行）。
+     */
     protected function checkLicense(): ?\WP_REST_Response
     {
-        $key = trim((string) get_option('ai_plus_license_key', ''));
-        if (empty($key)) {
-            return $this->error(__('图片功能需要激活正版授权，请在「授权管理」页面输入 License Key', 'zuo-ai-plus'), 403);
-        }
-
-        // 连续失败计数，超限则放行
-        $fail_count = (int) get_transient('ai_plus_license_fail_count');
-        if ($fail_count >= 3) {
-            return null; // 许可证服务器连续故障，宽容处理
-        }
-
-        // 验证结果本地缓存5分钟，减少远程调用频率
-        $cached = get_transient('ai_plus_license_verified');
-        if ($cached !== false) {
-            return null; // 已验证，直接放行
-        }
-
-        $server_url = trim((string) get_option('ai_plus_license_server_url', ''));
-        if ($server_url === '') {
-            $server_url = 'https://www.yily.top/licenses/api.php';
-        }
-        $domain = isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] !== ''
-            ? sanitize_text_field(wp_unslash($_SERVER['HTTP_HOST']))
-            : wp_parse_url(home_url(), PHP_URL_HOST);
-        $verify_url = add_query_arg([
-            'action' => 'verify',
-            'key'    => urlencode($key),
-            'domain' => urlencode($domain),
-        ], $server_url);
-
-        $resp = wp_remote_get($verify_url, [
-            'timeout'    => 8,
-            'sslverify'  => true,
-            'user-agent' => 'ZuoAIPlus/' . AI_PLUS_VERSION . '; ' . home_url(),
-        ]);
-
-        if (is_wp_error($resp)) {
-            // 网络异常 → 计数 +1，连续 3 次失败后放宽
-            $fail_count++;
-            set_transient('ai_plus_license_fail_count', $fail_count, HOUR_IN_SECONDS);
-            if ($fail_count >= 3) {
-                return null; // 宽容
-            }
-            return $this->error(__('许可证服务器连接失败', 'zuo-ai-plus') . '（' . $resp->get_error_message() . '），' . __('请稍后重试', 'zuo-ai-plus'), 503);
-        }
-
-        // 连接成功 → 重置失败计数
-        delete_transient('ai_plus_license_fail_count');
-
-        $body = json_decode(wp_remote_retrieve_body($resp), true);
-        $st   = $body['status'] ?? 'unknown';
-
-        if ($st === 'valid') {
-            // 验证成功，缓存5分钟（避免每次生成图片都远程验证一次）
-            set_transient('ai_plus_license_verified', '1', 5 * MINUTE_IN_SECONDS);
-            return null;
-        }
-
-        $msg = match ($st) {
-            'expired'        => __('License 已过期，请联系续费：17854779@qq.com', 'zuo-ai-plus'),
-            'domain_mismatch' => __('License 域名不匹配，请在该域名下激活', 'zuo-ai-plus'),
-            default           => __('License 无效或未激活，请联系：17854779@qq.com', 'zuo-ai-plus'),
-        };
-
-        return $this->error(esc_html($msg), 403);
+        return null;
     }
 }
