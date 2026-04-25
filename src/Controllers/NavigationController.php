@@ -155,13 +155,47 @@ class NavigationController extends BaseController
         return $this->success(['content' => $content]);
     }
 
+    /**
+     * URL 安全验证：防止 SSRF（内网/本地地址访问）
+     * @return string|null 错误消息，null 表示验证通过
+     */
+    private function validateUrl(string $url): ?string
+    {
+        if (!preg_match('/^https?:\/\//i', $url)) {
+            return 'URL 必须以 http:// 或 https:// 开头';
+        }
+
+        $host = wp_parse_url($url, PHP_URL_HOST);
+        if (!$host) {
+            return 'URL 格式无效';
+        }
+
+        // 禁止本地主机名
+        $blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0', '::1'];
+        if (in_array(strtolower($host), $blockedHosts, true)) {
+            return '不允许访问本地地址';
+        }
+
+        // 禁止内网/保留 IP 段
+        if (filter_var($host, FILTER_VALIDATE_IP) &&
+            !filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+            return '不允许访问内网地址';
+        }
+
+        return null;
+    }
+
     private function curlFetch(string $url): array
     {
+        if ($err = $this->validateUrl($url)) {
+            return ['success' => false, 'message' => $err];
+        }
+
         $response = wp_remote_get($url, [
-            'timeout'   => 15,
+            'timeout'    => 15,
             'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-            'sslverify' => false,
-            'headers'  => ['Accept' => 'text/html,application/xhtml+xml'],
+            'sslverify'  => true,
+            'headers'    => ['Accept' => 'text/html,application/xhtml+xml'],
         ]);
 
         if (is_wp_error($response)) {
@@ -1182,15 +1216,18 @@ class NavigationController extends BaseController
      */
     public function downloadImage(\WP_REST_Request $request): \WP_REST_Response
     {
-        // 加载 WordPress admin 文件（REST API 上下文不会自动加载）
-        require_once ABSPATH . 'wp-admin/includes/file.php';
-        require_once ABSPATH . 'wp-admin/includes/media.php';
-        require_once ABSPATH . 'wp-admin/includes/image.php';
-
         $imageUrl = esc_url_raw($request->get_param('image_url'));
         if (!$imageUrl) {
             return new \WP_REST_Response(['success' => false, 'message' => '缺少图片地址'], 400);
         }
+        if ($err = $this->validateUrl($imageUrl)) {
+            return new \WP_REST_Response(['success' => false, 'message' => $err], 400);
+        }
+
+        // 加载 WordPress admin 文件（REST API 上下文不会自动加载）
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/media.php';
+        require_once ABSPATH . 'wp-admin/includes/image.php';
 
         // 下载到临时目录
         $tmp = download_url($imageUrl, 30);
@@ -1243,6 +1280,9 @@ class NavigationController extends BaseController
         $url = esc_url_raw($request->get_param('url'));
         if (!$url) {
             return new \WP_REST_Response(['success' => false, 'message' => 'URL无效'], 400);
+        }
+        if ($err = $this->validateUrl($url)) {
+            return new \WP_REST_Response(['success' => false, 'message' => $err], 400);
         }
 
         $chrome = '/usr/bin/google-chrome';
