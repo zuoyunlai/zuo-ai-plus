@@ -1,6 +1,6 @@
 === Zuo AI Plus ===
 Contributors: zuoyunlai
-Tags: ai, content generator, translation, seo, image generator, navigation
+Tags: ai, content generator, seo, image generator, navigation
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 8.1
@@ -10,7 +10,7 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: zuo-ai-plus
 Domain Path: /languages
 
-Integrate powerful AI models into WordPress. Generate articles, translate content, optimize SEO, power an AI chatbot, and manage a smart navigation directory.
+Integrate AI models into WordPress for content generation, SEO optimization, AI chatbot, and smart navigation directory.
 
 == Description ==
 

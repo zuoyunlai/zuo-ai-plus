@@ -345,7 +345,7 @@ class NavigationController extends BaseController
         $uploadDir = wp_upload_dir();
         $navDir = $uploadDir['basedir'] . '/nav-screenshots';
         if (!is_dir($navDir)) {
-            mkdir($navDir, 0755, true);
+            wp_mkdir_p($navDir);
         }
 
         $filename = sanitize_file_name($host . '.png');
@@ -379,7 +379,13 @@ class NavigationController extends BaseController
         if (!file_exists($filepath)) {
             $fallback = ABSPATH . 'screenshot.png';
             if (file_exists($fallback)) {
-                @rename($fallback, $filepath);
+                require_once ABSPATH . 'wp-admin/includes/file.php';
+                WP_Filesystem();
+                global $wp_filesystem;
+                if (!$wp_filesystem || !$wp_filesystem->move($fallback, $filepath)) {
+                    /* phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename */
+                    @rename($fallback, $filepath);
+                }
             }
         }
 
@@ -892,7 +898,7 @@ class NavigationController extends BaseController
 
         $status = [
             'url'       => $url,
-            'checked_at' => date('Y-m-d H:i:s'),
+            'checked_at' => gmdate('Y-m-d H:i:s'),
             'is_online' => false,
             'http_code' => 0,
             'message'   => '',
@@ -1143,7 +1149,7 @@ class NavigationController extends BaseController
 
             $status = [
                 'url'        => $url,
-                'checked_at' => date('Y-m-d H:i:s'),
+                'checked_at' => gmdate('Y-m-d H:i:s'),
                 'is_online'  => $isOnline,
                 'http_code'  => $httpCode,
                 'message'    => $isOnline ? '正常' : (is_wp_error($response) ? $response->get_error_message() : "HTTP $httpCode"),
@@ -1281,7 +1287,15 @@ class NavigationController extends BaseController
             return new \WP_REST_Response(['success' => false, 'message' => '截图失败，Chrome返回码: ' . $return_code], 500);
         }
 
-        if (!@rename($tmp_file, $filepath)) {
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        WP_Filesystem();
+        global $wp_filesystem;
+        $moved = $wp_filesystem && $wp_filesystem->move($tmp_file, $filepath);
+        if (!$moved) {
+            /* phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename */
+            $moved = @rename($tmp_file, $filepath);
+        }
+        if (!$moved) {
             wp_delete_file($tmp_file);
             return new \WP_REST_Response(['success' => false, 'message' => '文件保存失败'], 500);
         }
