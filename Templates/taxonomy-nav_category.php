@@ -57,7 +57,7 @@ $query = new \WP_Query($queryArgs);
             $tags = get_the_terms(get_the_ID(), 'nav_tag');
             $cats = get_the_terms(get_the_ID(), 'nav_category');
         ?>
-        <article class="nav-card" data-post-id="<?php echo get_the_ID(); ?>">
+        <article class="nav-card" data-post-id="<?php echo esc_attr(get_the_ID()); ?>">
             <?php if ($meta['status'] === 'featured'): ?>
             <div class="nav-card-badge">⭐</div>
             <?php endif; ?>
@@ -92,7 +92,7 @@ $query = new \WP_Query($queryArgs);
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </div>
-                <a href="<?php echo esc_url($url); ?>" target="_blank" rel="noopener" class="nav-card-togo" title="直达" onclick="recordNavClick(<?php echo get_the_ID(); ?>)">
+                <a href="<?php echo esc_url($url); ?>" target="_blank" rel="noopener" class="nav-card-togo" title="直达" onclick="recordNavClick(<?php echo esc_js(get_the_ID()); ?>)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="7" y1="17" x2="17" y2="7"></line>
                         <polyline points="7 7 17 7 17 17"></polyline>
@@ -107,10 +107,10 @@ $query = new \WP_Query($queryArgs);
     <?php if ($query->max_num_pages > 1): ?>
     <div class="nav-pagination">
         <?php
-        echo paginate_links([
+        echo wp_kses_post(paginate_links([
             'total'   => $query->max_num_pages,
             'current' => max(1, get_query_var('paged')),
-        ]);
+        ]));
         ?>
     </div>
     <?php endif; ?>

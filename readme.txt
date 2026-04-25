@@ -4,7 +4,7 @@ Tags: ai, content generator, translation, seo, image generator, navigation
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 8.1
-Stable tag: 1.5.20
+Stable tag: 1.5.32
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: zuo-ai-plus
@@ -103,6 +103,13 @@ Create a new nav_site post, enter a URL, click "AI Full Fetch" — the plugin au
 The plugin uses a 3-tier screenshot strategy: 1) og:image from the target site, 2) local Chrome Headless screenshot saved to uploads/nav-screenshots/ (7-day cache), 3) thum.io fallback. Screenshots are registered as WordPress media attachments with AI-generated metadata.
 
 == Changelog ==
+
+= 1.5.32 =
+* Fix: SEO batch endpoint exposed without auth (`__return_true` → `canEdit`)
+* Fix: Markdown link syntax leaking into SEO titles (`[text](url)` now stripped)
+* Enhancement: Loader classmap — replaced glob scans with static file list for zero IO overhead
+* Enhancement: ContentController refactored — title/summarize/keyword post-processing extracted into dedicated private methods
+* Enhancement: Model layer deduplicated — BaseModel default `image()` and inherited `completion()` removed from DeepSeek/Custom/MiniMax/Tongyi
 
 = 1.5.20 =
 * Fix: Admin model settings page — all models now pass connection test with correct default IDs and token limits

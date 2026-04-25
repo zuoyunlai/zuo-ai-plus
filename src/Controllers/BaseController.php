@@ -230,7 +230,7 @@ abstract class BaseController
         }
         $domain = isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] !== ''
             ? sanitize_text_field(wp_unslash($_SERVER['HTTP_HOST']))
-            : parse_url(home_url(), PHP_URL_HOST);
+            : wp_parse_url(home_url(), PHP_URL_HOST);
         $verify_url = add_query_arg([
             'action' => 'verify',
             'key'    => urlencode($key),
@@ -271,6 +271,6 @@ abstract class BaseController
             default           => __('License 无效或未激活，请联系：17854779@qq.com', 'zuo-ai-plus'),
         };
 
-        return $this->error(__($msg, 'zuo-ai-plus'), 403);
+        return $this->error(esc_html($msg), 403);
     }
 }

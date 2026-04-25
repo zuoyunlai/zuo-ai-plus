@@ -6,6 +6,7 @@
 namespace ZuoAIPlus\Controllers;
 
 if (!defined('ABSPATH')) exit;
+use ZuoAIPlus\Utils\Logger;
 
 class NavigationController extends BaseController
 {
@@ -38,6 +39,13 @@ class NavigationController extends BaseController
         register_rest_route($this->namespace, '/nav/click', [
             'methods'  => 'POST',
             'callback' => [$this, 'recordClick'],
+            'permission_callback' => '__return_true',
+        ]);
+
+        // 访问量统计（公开访问，缓存5分钟）
+        register_rest_route($this->namespace, '/nav/views', [
+            'methods'  => 'GET',
+            'callback' => [$this, 'getViewStats'],
             'permission_callback' => '__return_true',
         ]);
 
@@ -213,7 +221,7 @@ class NavigationController extends BaseController
         if ($name) {
             $imageAlt = $name . ' 网站截图';
             $imageCaption = $name . ' 网站预览';
-            $imageDescription = $name . ' 官方网站截图预览，来源：' . parse_url($url, PHP_URL_HOST);
+            $imageDescription = $name . ' 官方网站截图预览，来源：' . wp_parse_url($url, PHP_URL_HOST);
         }
 
         // 更新附件的 alt/标题/描述
@@ -278,7 +286,7 @@ class NavigationController extends BaseController
 
     private function extractLogo(string $html, string $url): string
     {
-        $base = parse_url($url, PHP_URL_SCHEME) . '://' . parse_url($url, PHP_URL_HOST);
+        $base = wp_parse_url($url, PHP_URL_SCHEME) . '://' . wp_parse_url($url, PHP_URL_HOST);
 
         // og:image
         if (preg_match('/<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']/i', $html, $m)) {
@@ -304,7 +312,7 @@ class NavigationController extends BaseController
      */
     private function extractScreenshot(string $html, string $url): array
     {
-        $base = parse_url($url, PHP_URL_SCHEME) . '://' . parse_url($url, PHP_URL_HOST);
+        $base = wp_parse_url($url, PHP_URL_SCHEME) . '://' . wp_parse_url($url, PHP_URL_HOST);
 
         // 1. 优先使用 og:image（网站首页快照）
         if (preg_match('/<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']/i', $html, $m)) {
@@ -322,7 +330,7 @@ class NavigationController extends BaseController
         }
 
         // 3. fallback: thum.io（加 allowJPG 提高成功率）
-        $host = parse_url($url, PHP_URL_HOST);
+        $host = wp_parse_url($url, PHP_URL_HOST);
         return ['url' => 'https://image.thum.io/allowJPG/wait/3/getwidth/800/' . $host, 'attachment_id' => 0];
     }
 
@@ -331,7 +339,7 @@ class NavigationController extends BaseController
      */
     private function takeLocalScreenshot(string $url): array
     {
-        $host = parse_url($url, PHP_URL_HOST);
+        $host = wp_parse_url($url, PHP_URL_HOST);
         if (!$host) return [];
 
         $uploadDir = wp_upload_dir();
@@ -363,7 +371,7 @@ class NavigationController extends BaseController
 
         \exec($cmd, $output, $retcode);
         if ($retcode !== 0 && defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[ZuoAI] Chrome screenshot failed. cmd: ' . $cmd . ', output: ' . implode("\n", (array) $output) . ', retcode: ' . $retcode);
+            Logger::warning('Chrome screenshot failed', ['cmd' => $cmd, 'output' => implode("\n", (array) $output), 'retcode' => $retcode]);
         }
 
         // Chrome 的 --screenshot 默认保存为 screenshot.png，需要检查
@@ -371,12 +379,12 @@ class NavigationController extends BaseController
         if (!file_exists($filepath)) {
             $fallback = ABSPATH . 'screenshot.png';
             if (file_exists($fallback)) {
-                rename($fallback, $filepath);
+                @rename($fallback, $filepath);
             }
         }
 
         if (!file_exists($filepath) || filesize($filepath) < \ZuoAIPlus\Utils\Constants::SCREENSHOT_MIN_SIZE) {
-            @unlink($filepath);
+            wp_delete_file($filepath);
             return []; // 截图失败
         }
 
@@ -534,7 +542,7 @@ class NavigationController extends BaseController
             return $text;
         } catch (\Throwable $e) {
             if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('AI Plus Nav - AI call failed: ' . $e->getMessage());
+                Logger::warning('AI call failed', ['error' => $e->getMessage()]);
             }
             return '';
         }
@@ -748,7 +756,7 @@ class NavigationController extends BaseController
         update_post_meta($postId, 'nav_clicks', $clicks);
 
         // 记录点击日志（用于分析）
-        $today = date('Y-m-d');
+        $today = gmdate('Y-m-d');
         $clickLog = get_post_meta($postId, 'nav_click_log', true);
         if (!is_array($clickLog)) {
             $clickLog = [];
@@ -983,8 +991,14 @@ class NavigationController extends BaseController
         $rating = intval($request->get_param('rating'));
         $visitorId = sanitize_text_field($request->get_param('visitor_id') ?? '');
 
+        // nonce 校验（前端需传 X-WP-Nonce 头，可选兼容）
+        $nonce = $request->get_header('x_wp_nonce');
+        if ($nonce && !wp_verify_nonce($nonce, 'wp_rest')) {
+            return new \WP_REST_Response(['success' => false, 'message' => 'Nonce 验证失败'], 403);
+        }
+
         // 获取客户端 IP 和 User-Agent 用于防刷
-        $ip = $this->getClientIp();
+        $ip = $this->getRealIp();
         $ua = sanitize_text_field(wp_unslash($_SERVER['HTTP_USER_AGENT'] ?? ''));
 
         // visitorId 由前端 localStorage 传入，空时用 UUID 标记
@@ -1037,24 +1051,6 @@ class NavigationController extends BaseController
             'data'       => $ratings,
             'visitor_id' => $visitorId, // 若为空则返回新生成的 UUID，客户端应存入 localStorage
         ]);
-    }
-
-    /**
-     * 获取客户端真实 IP
-     */
-    private function getClientIp(): string
-    {
-        $keys = ['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'HTTP_X_FORWARDED', 'HTTP_X_CLUSTER_CLIENT_IP', 'HTTP_FORWARDED_FOR', 'HTTP_FORWARDED', 'REMOTE_ADDR'];
-        foreach ($keys as $key) {
-            if (!empty($_SERVER[$key])) {
-                $ips = explode(',', sanitize_text_field(wp_unslash($_SERVER[$key])));
-                $ip = trim($ips[0]);
-                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
-                    return $ip;
-                }
-            }
-        }
-        return sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0'));
     }
 
     /**
@@ -1196,7 +1192,7 @@ class NavigationController extends BaseController
             return new \WP_REST_Response(['success' => false, 'message' => '下载失败：' . $tmp->get_error_message()], 500);
         }
 
-        $filename = sanitize_file_name($request->get_param('filename') ?: basename(parse_url($imageUrl, PHP_URL_PATH)));
+        $filename = sanitize_file_name($request->get_param('filename') ?: basename(wp_parse_url($imageUrl, PHP_URL_PATH)));
         if (!preg_match('/\.(jpg|jpeg|png|gif|webp|svg|ico)$/i', $filename)) {
             $ext = 'png';
             $filename .= '.' . $ext;
@@ -1213,7 +1209,7 @@ class NavigationController extends BaseController
         ]);
 
         if (is_wp_error($attId)) {
-            @unlink($tmp);
+            wp_delete_file($tmp);
             return new \WP_REST_Response(['success' => false, 'message' => '保存失败：' . $attId->get_error_message()], 500);
         }
 
@@ -1277,7 +1273,7 @@ class NavigationController extends BaseController
         $return_code = 0;
         \exec($cmd, $output, $return_code);
         if ($return_code !== 0 && defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[ZuoAI] takeScreenshot Chrome exec failed. cmd: ' . $cmd . ', output: ' . implode("\n", (array) $output) . ', return_code: ' . $return_code);
+            Logger::warning('takeScreenshot Chrome exec failed', ['cmd' => $cmd, 'output' => implode("\n", (array) $output), 'return_code' => $return_code]);
         }
         @\exec('rm -rf ' . escapeshellarg($user_data_dir));
 
@@ -1285,15 +1281,15 @@ class NavigationController extends BaseController
             return new \WP_REST_Response(['success' => false, 'message' => '截图失败，Chrome返回码: ' . $return_code], 500);
         }
 
-        if (!rename($tmp_file, $filepath)) {
-            @unlink($tmp_file);
+        if (!@rename($tmp_file, $filepath)) {
+            wp_delete_file($tmp_file);
             return new \WP_REST_Response(['success' => false, 'message' => '文件保存失败'], 500);
         }
 
         // 注册为 WordPress 附件
         require_once ABSPATH . 'wp-admin/includes/image.php';
         $att_id = wp_insert_attachment([
-            'post_title'     => '网站截图 - ' . parse_url($url, PHP_URL_HOST),
+            'post_title'     => '网站截图 - ' . wp_parse_url($url, PHP_URL_HOST),
             'post_content'   => '',
             'post_status'    => 'inherit',
             'post_mime_type' => 'image/png',
@@ -1487,5 +1483,106 @@ class NavigationController extends BaseController
             'term_ids'  => $termIds,
             'saved'     => $hasPost,
         ]);
+    }
+
+    /**
+     * GET /ai-plus/v1/nav/views?post_id=123
+     * 返回近15天每日访问量统计（PC/移动/合计），缓存5分钟
+     */
+    public function getViewStats(\WP_REST_Request $request): \WP_REST_Response
+    {
+        $postId = intval($request->get_param('post_id'));
+        if (!$postId) {
+            return new \WP_REST_Response(['success' => false, 'message' => '缺少 post_id'], 400);
+        }
+
+        // 缓存5分钟
+        $cacheKey = 'ai_plus_nav_views_' . $postId;
+        $cached = get_transient($cacheKey);
+        if ($cached !== false) {
+            return new \WP_REST_Response($cached);
+        }
+
+        $viewLog = get_post_meta($postId, 'nav_view_log', true);
+        if (!is_array($viewLog)) {
+            $viewLog = [];
+        }
+
+        $stats = $this->buildDailyStatsV2($viewLog, 15);
+
+        $result = [
+            'success'     => true,
+            'stats'       => $stats,
+            'totalPc'     => array_sum(array_column($stats, 'pc')),
+            'totalMobile' => array_sum(array_column($stats, 'mobile')),
+            'totalAll'    => array_sum(array_column($stats, 'total')),
+        ];
+
+        set_transient($cacheKey, $result, 300);
+
+        return new \WP_REST_Response($result);
+    }
+
+    /**
+     * 从日志数组构建每日统计（PC/移动/合计）
+     */
+    private function buildDailyStatsV2(array $log, int $days = 15): array
+    {
+        $stats = [];
+        for ($i = $days - 1; $i >= 0; $i--) {
+            $date = gmdate('Y-m-d', strtotime("-$i days"));
+            $entry = $log[$date] ?? 0;
+            if (is_array($entry)) {
+                $stats[] = [
+                    'date'   => $date,
+                    'pc'     => intval($entry['pc'] ?? 0),
+                    'mobile' => intval($entry['mobile'] ?? 0),
+                    'total'  => intval($entry['total'] ?? 0),
+                ];
+            } else {
+                $count = intval($entry);
+                $stats[] = [
+                    'date'   => $date,
+                    'pc'     => $count,
+                    'mobile' => 0,
+                    'total'  => $count,
+                ];
+            }
+        }
+        return $stats;
+    }
+
+    /**
+     * 清理过期的访问日志（保留最近90天）
+     * 由 WordPress cron 调用
+     */
+    public static function cleanupOldLogs(): void
+    {
+        $cutoff = gmdate('Y-m-d', strtotime('-90 days'));
+        $meta_keys = ['nav_view_log', 'nav_click_log'];
+
+        foreach ($meta_keys as $key) {
+            global $wpdb;
+            $rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT meta_id, post_id, meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s AND LENGTH(meta_value) > 10",
+                $key
+            ));
+
+            foreach ($rows as $row) {
+                $log = maybe_unserialize($row->meta_value);
+                if (!is_array($log) || count($log) <= 90) continue;
+
+                $changed = false;
+                foreach ($log as $date => $val) {
+                    if ($date < $cutoff) {
+                        unset($log[$date]);
+                        $changed = true;
+                    }
+                }
+                if ($changed) {
+                    update_post_meta($row->post_id, $key, $log);
+                }
+            }
+        }
     }
 }

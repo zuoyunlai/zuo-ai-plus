@@ -4,6 +4,8 @@
  */
 namespace ZuoAIPlus\Utils;
 
+if (!defined('ABSPATH')) exit;
+
 class ErrorCodes
 {
     // 成功

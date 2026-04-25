@@ -217,6 +217,7 @@ class UtilityController extends BaseController
 
         $post = get_post($post_id);
         if (!$post) {
+            /* translators: %d: post ID */
             return $this->error(sprintf(__('文章不存在 (ID=%d)', 'zuo-ai-plus'), $post_id));
         }
 
@@ -305,6 +306,7 @@ class UtilityController extends BaseController
         }
 
         if (wp_remote_retrieve_response_code($response) !== 200) {
+            /* translators: %d: HTTP status code */
             return $this->error(sprintf(__('下载图片失败: HTTP %d', 'zuo-ai-plus'), wp_remote_retrieve_response_code($response)));
         }
 
@@ -341,8 +343,11 @@ class UtilityController extends BaseController
             update_post_meta($att_id, '_wp_attachment_image_alt', mb_substr($final_alt, 0, 200, 'utf-8'));
         }
 
-        // 自动设置文章特色图（在后端直接写库，最可靠）
-        update_post_meta($post_id, '_thumbnail_id', $att_id);
+        // 仅在明确要求时设置特色图（默认 true，兼容侧边栏助手面板；插图区块传 false）
+        $setFeatured = filter_var($request->get_param('set_featured') ?? true, FILTER_VALIDATE_BOOLEAN);
+        if ($setFeatured) {
+            update_post_meta($post_id, '_thumbnail_id', $att_id);
+        }
 
         return $this->success([
             'success'       => true,

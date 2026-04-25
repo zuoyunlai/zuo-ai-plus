@@ -6,6 +6,8 @@
  */
 namespace ZuoAIPlus\Utils;
 
+if (!defined('ABSPATH')) exit;
+
 class Logger
 {
     const LEVEL_DEBUG = 'DEBUG';

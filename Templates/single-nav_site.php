@@ -21,9 +21,36 @@ $aiSum = $meta['ai_summary'] ?: '';
 $tags  = get_the_terms(get_the_ID(), 'nav_tag');
 $cats  = get_the_terms(get_the_ID(), 'nav_category');
 
-// 浏览量
-$views = (int) $meta['views'] + 1;
-update_post_meta(get_the_ID(), 'nav_views', $views);
+// 浏览量（同一IP同一文章60秒内不重复计数）
+$clientIp = sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_CONNECTING_IP'] ?? $_SERVER['HTTP_X_REAL_IP'] ?? $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0'));
+$viewIpKey = 'nav_view_' . md5($clientIp . '_' . get_the_ID());
+if (!get_transient($viewIpKey)) {
+    set_transient($viewIpKey, 1, 60);
+    $views = (int) $meta['views'] + 1;
+    update_post_meta(get_the_ID(), 'nav_views', $views);
+
+    // 记录每日访问量日志（区分PC/移动）
+    $today = gmdate('Y-m-d');
+    $isMobile = wp_is_mobile();
+    $viewLog = get_post_meta(get_the_ID(), 'nav_view_log', true);
+    if (!is_array($viewLog)) {
+        $viewLog = [];
+    }
+    // 兼容旧格式：如果某天是纯数字，转为新格式数组
+    if (!isset($viewLog[$today]) || !is_array($viewLog[$today])) {
+        $oldCount = isset($viewLog[$today]) ? intval($viewLog[$today]) : 0;
+        $viewLog[$today] = ['pc' => $oldCount, 'mobile' => 0, 'total' => $oldCount];
+    }
+    if ($isMobile) {
+        $viewLog[$today]['mobile']++;
+    } else {
+        $viewLog[$today]['pc']++;
+    }
+    $viewLog[$today]['total']++;
+    update_post_meta(get_the_ID(), 'nav_view_log', $viewLog);
+} else {
+    $views = (int) $meta['views'];
+}
 
 // 评分数据（取真实值，无评分则不输出 AggregateRating）
 $ratings = get_post_meta(get_the_ID(), 'nav_ratings', true);
@@ -86,8 +113,8 @@ $bcItems[] = ['name' => $name, 'url' => get_permalink()];
 
             <!-- 右侧按钮 -->
             <div class="nav-single-actions">
-                <a href="<?php echo esc_url($url); ?>" class="nav-btn nav-btn-primary" target="_blank" rel="noopener" onclick="recordDetailClick(<?php echo get_the_ID(); ?>, '<?php echo esc_js($name); ?>', '<?php echo esc_js(get_permalink()); ?>', '<?php echo esc_js($logo); ?>')">访问网站</a>
-                <button type="button" class="nav-btn nav-btn-secondary nav-btn-icon" id="favBtn" onclick="toggleFavorite(<?php echo get_the_ID(); ?>)" title="收藏">
+                <a href="<?php echo esc_url($url); ?>" class="nav-btn nav-btn-primary" target="_blank" rel="noopener" onclick="recordDetailClick(<?php echo esc_js(get_the_ID()); ?>, '<?php echo esc_js($name); ?>', '<?php echo esc_js(get_permalink()); ?>', '<?php echo esc_js($logo); ?>')">访问网站</a>
+                <button type="button" class="nav-btn nav-btn-secondary nav-btn-icon" id="favBtn" onclick="toggleFavorite(<?php echo esc_js(get_the_ID()); ?>)" title="收藏">
                     <span id="favIcon">🤍</span> <span id="favText">收藏</span>
                 </button>
                 <button class="nav-btn nav-btn-secondary nav-btn-icon" onclick="showQrCode('<?php echo esc_js($url); ?>')" title="手机访问">📱</button>
@@ -134,7 +161,7 @@ $bcItems[] = ['name' => $name, 'url' => get_permalink()];
     <?php if ($desc): ?>
     <div class="nav-info-block">
         <h3>网站描述</h3>
-        <div class="content"><?php echo \ZuoAIPlus\Utils\MarkdownConverter::convert($desc); ?></div>
+        <div class="content"><?php echo wp_kses_post(\ZuoAIPlus\Utils\MarkdownConverter::convert($desc)); ?></div>
     </div>
     <?php endif; ?>
 
@@ -159,7 +186,7 @@ $bcItems[] = ['name' => $name, 'url' => get_permalink()];
             $text = preg_replace($pattern, "\n\n", $text);
         }
         $text = preg_replace('/(?<!\n)\s*(\*\*[^*]+：?\*\*)/', "\n\n$1", $text);
-        echo preg_replace('/<\/ol>\s*<ol>/', '', \ZuoAIPlus\Utils\MarkdownConverter::convert($text));
+        echo wp_kses_post(preg_replace('/<\/ol>\s*<ol>/', '', \ZuoAIPlus\Utils\MarkdownConverter::convert($text)));
         ?>
     </div>
     <?php endif; ?>
@@ -177,6 +204,21 @@ $bcItems[] = ['name' => $name, 'url' => get_permalink()];
         </div>
     </div>
     <?php endif; ?>
+
+    <!-- 访问量统计图表 -->
+    <div class="nav-visits-chart" id="navVisitsChart">
+        <div class="nav-visits-chart-header">
+            <h3>近半月访问量</h3>
+            <div class="nav-visits-chart-tabs" id="visitsChartTabs">
+                <button class="nav-visits-tab active" data-type="total">合计</button>
+                <button class="nav-visits-tab" data-type="pc">PC</button>
+                <button class="nav-visits-tab" data-type="mobile">移动</button>
+            </div>
+        </div>
+        <div class="nav-visits-chart-body">
+            <canvas id="visitsChartCanvas" width="400" height="180"></canvas>
+        </div>
+    </div>
 
     <!-- 评分系统 -->
     <div class="nav-rating-section" id="rating-section">
@@ -314,7 +356,7 @@ $bcItems[] = ['name' => $name, 'url' => get_permalink()];
             <?php foreach ($bcItems as $i => $item): ?>
             {
                 "@type": "ListItem",
-                "position": <?php echo $i + 1; ?>,
+                "position": <?php echo esc_js($i + 1); ?>,
                 "name": "<?php echo esc_js($item['name']); ?>",
                 "item": "<?php echo esc_js($item['url']); ?>"
             }<?php echo ($i < count($bcItems) - 1) ? ',' : ''; ?>

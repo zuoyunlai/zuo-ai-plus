@@ -104,97 +104,12 @@ class ContentController extends BaseController
                 $result['content'] = $text;
             }
 
-            // title_optimize 后验:确保返回干净的中文标题,拒绝思考内容
-            if ($action === 'title_optimize') {
-                $text = trim($text);
-                // 预检:拒绝含思考/prompt 内容
-                if (preg_match('/then the|wait:|output format says|we should not|just output|should not include/i', $text)) {
-                    return $this->error(__('标题生成失败(模型输出了内部思考内容),请重试或切换模型', 'zuo-ai-plus'), 422);
-                }
-                // 必须含中文
-                if (!preg_match('/[\x{4e00}-\x{9fa5}]/u', $text)) {
-                    return $this->error(__('标题生成失败(未检测到中文),请重试', 'zuo-ai-plus'), 422);
-                }
-                // 清理残余格式词(如"新标题:"前缀)
-                $text = preg_replace('/^(?:新)?标题[::]\s*/u', '', $text);
-                $text = trim($text);
-                // 清理"(X字)"等字数提示
-                $text = preg_replace('/[((][^)]*?[字个篇条][))]/u', '', $text);
-                $text = trim($text);
-                // 最终检查:长度 6-30 字
-                $len = mb_strlen($text, 'utf-8');
-                if ($len < 6 || $len > 30) {
-                    return $this->error(sprintf(__("标题长度不符(%d字),请重试", "zuo-ai-plus"), $len), 422);
-                }
-                $result['content'] = $text;
+            // 统一后验处理:title_optimize / summarize / keyword
+            $postResult = $this->applyPostProcessing($action, $text, $result);
+            if ($postResult instanceof \WP_REST_Response) {
+                return $postResult;
             }
-
-            // summarize(摘要)后验:过滤推理过程文字,只保留纯摘要
-            if ($action === 'summarize') {
-                $text = trim($text);
-                // 检测是否为推理过程文字(含大量英文、字符计数、"We have X characters" 等特征)
-                $hasReasoning = preg_match('/[a-zA-Z]{10,}/', $text) // 含大量英文单词
-                    && (preg_match('/We (have|need|can|must|should|will)|Let\'s (count|try|produce)|Thus|Therfore|The user wants|The summary should|I need to|I should|Simplify|Shorter|above \d+|below \d+|within \d+-\d+/i', $text)
-                        || preg_match('/["\']{3,}/', $text)); // 多引号
-
-                if ($hasReasoning) {
-                    // 尝试提取纯中文摘要段(最后一个含中文的连续段落)
-                    $paragraphs = preg_split('/\n\n+/', $text);
-                    $chinesePara = '';
-                    foreach (array_reverse($paragraphs) as $p) {
-                        $p = trim($p);
-                        if (preg_match('/[\x{4e00}-\x{9fa5}]{10,}/u', $p) && mb_strlen($p, 'utf-8') < 300) {
-                            $chinesePara = $p;
-                            break;
-                        }
-                    }
-                    // 如果找到纯中文段落,用它;否则清空
-                    $text = $chinesePara ?: '';
-                }
-                // 清理前缀标记
-                $text = preg_replace('/^(?:摘要[::]?\s*|Summary[::]?\s*)/ui', '', $text);
-                $text = trim($text);
-                $result['content'] = $text;
-            }
-
-            // keyword(标签提取)后验:过滤无意义标签,只保留完整独立词汇
-            if ($action === 'keyword') {
-                $tags_raw = array_map('trim', preg_split('/[,,、\n]+/u', trim($text)));
-                $valid = [];
-                foreach ($tags_raw as $tag) {
-                    // 移除所有标点、空格
-                    $tag = preg_replace('/[[:punct:]]/u', '', $tag);
-                    $tag = preg_replace('/\s+/', '', $tag);
-                    $tag = trim($tag);
-                    $len = mb_strlen($tag, 'utf-8');
-                    // 太短不要
-                    if ($len < 3) continue;
-                    // 太长不要(超过16字基本不是SEO友好标签)
-                    if ($len > 16) continue;
-                    // 必须含中文
-                    if (!preg_match('/[\x{4e00}-\x{9fa5}]/u', $tag)) continue;
-                    // 排除纯英文/数字
-                    if (preg_match('/^[a-zA-Z0-9\s]+$/', $tag)) continue;
-                    // 排除含英文+数字混合的乱码标签(如 "412Good")
-                    if (preg_match('/[a-zA-Z]{3,}[0-9]|[0-9][a-zA-Z]{2,}/', $tag)) continue;
-                    // 排除以句子结构词开头/结尾的碎片
-                    if (preg_match('/^[的了在和与为于把被从到上下前后里中外之所能以而且或但如果因为所以虽然以及通过进行能够应该]/u', $tag)) continue;
-                    if (preg_match('/[的了在和与为于把被从到上下前后里中外之所能以而且或但如果因为所以虽然以及通过进行能够应该句]$/u', $tag)) continue;
-                    // 排除标题型/说明型碎片词
-                    if (preg_match('/^(内容|文章|主题|要点|特点|优势|劣势|方法|原因|结果|问题|方案)/u', $tag)) continue;
-                    // 排除思考/prompt残留
-                    if (preg_match('/then the|wait:|output format|we should|should not|just output|newtitle|标签/i', $tag)) continue;
-                    // 跳过包含明确句子结构的
-                    if (preg_match('/作为|诞生|属于|用于|称为|由于|因此|然而|并且|以及|虽然|但是|可是/u', $tag)) continue;
-                    // 排除"的"在中间的长标签(如"年的服务器端"):名词+的+名词=碎片
-                    if (mb_strlen($tag, 'utf-8') > 4 && mb_strpos($tag, '的') !== false && mb_strpos($tag, '的') > 0) continue;
-                    $valid[] = $tag;
-                }
-                if (empty($valid)) {
-                    return $this->error(__('标签生成失败(模型输出了无效内容),请重试', 'zuo-ai-plus'), 422);
-                }
-                $result['content'] = implode(',', array_slice($valid, 0, 4));
-            }
+            $result = $postResult;
             // 记录操作历史
             $this->logHistory($action, $userModel, $result);
 
@@ -202,6 +117,126 @@ class ContentController extends BaseController
         } catch (\Exception $e) {
             return $this->error($e->getMessage(), 500);
         }
+    }
+
+    // ── 后验处理方法 ──────────────────────────────────────────────────────
+
+    /**
+     * 根据 action 分派到对应的后验处理方法
+     * @return array|\WP_REST_Response 处理后的 $result，或 error response
+     */
+    private function applyPostProcessing(string $action, string $text, array $result)
+    {
+        return match ($action) {
+            'title_optimize' => $this->postProcessTitle($text, $result),
+            'summarize'      => $this->postProcessSummarize($text, $result),
+            'keyword'        => $this->postProcessKeyword($text, $result),
+            default          => $result,
+        };
+    }
+
+    /**
+     * 标题后验: 确保返回干净的中文标题，拒绝思考内容
+     */
+    private function postProcessTitle(string $text, array $result)
+    {
+        $text = trim($text);
+        // 预检: 拒绝含思考/prompt 内容
+        if (preg_match('/then the|wait:|output format says|we should not|just output|should not include/i', $text)) {
+            return $this->error(__('标题生成失败(模型输出了内部思考内容),请重试或切换模型', 'zuo-ai-plus'), 422);
+        }
+        // 必须含中文
+        if (!preg_match('/[\x{4e00}-\x{9fa5}]/u', $text)) {
+            return $this->error(__('标题生成失败(未检测到中文),请重试', 'zuo-ai-plus'), 422);
+        }
+        // 清理 Markdown 链接 [text](url) → text
+        $text = preg_replace('/\[(.*?)\]\(.*?\)/u', '$1', $text);
+        $text = preg_replace('/https?:\/\/[^\s]+/u', '', $text);
+        $text = trim($text);
+        // 清理残余格式词(如"新标题:"前缀)
+        $text = preg_replace('/^(?:新)?标题[:：]\s*/u', '', $text);
+        $text = trim($text);
+        // 清理"(X字)"等字数提示
+        $text = preg_replace('/[((][^)]*?[字个篇条][))]/u', '', $text);
+        $text = trim($text);
+        // 最终检查: 长度 6-30 字
+        $len = mb_strlen($text, 'utf-8');
+        if ($len < 6 || $len > 30) {
+            /* translators: %d: title length */
+            return $this->error(sprintf(__("标题长度不符(%d字),请重试", "zuo-ai-plus"), $len), 422);
+        }
+        $result['content'] = $text;
+        return $result;
+    }
+
+    /**
+     * 摘要后验: 过滤推理过程文字，只保留纯中文摘要
+     */
+    private function postProcessSummarize(string $text, array $result)
+    {
+        $text = trim($text);
+        // 检测是否为推理过程文字
+        $hasReasoning = preg_match('/[a-zA-Z]{10,}/', $text)
+            && (preg_match('/We (have|need|can|must|should|will)|Let\'s (count|try|produce)|Thus|Therfore|The user wants|The summary should|I need to|I should|Simplify|Shorter|above \d+|below \d+|within \d+-\d+/i', $text)
+                || preg_match('/["\']{3,}/', $text));
+
+        if ($hasReasoning) {
+            // 尝试提取纯中文摘要段
+            $paragraphs = preg_split('/\n\n+/', $text);
+            $chinesePara = '';
+            foreach (array_reverse($paragraphs) as $p) {
+                $p = trim($p);
+                if (preg_match('/[\x{4e00}-\x{9fa5}]{10,}/u', $p) && mb_strlen($p, 'utf-8') < 300) {
+                    $chinesePara = $p;
+                    break;
+                }
+            }
+            $text = $chinesePara ?: '';
+        }
+        // 清理前缀标记
+        $text = preg_replace('/^(?:摘要[:：]?\s*|Summary[:：]?\s*)/ui', '', $text);
+        $text = trim($text);
+        $result['content'] = $text;
+        return $result;
+    }
+
+    /**
+     * 标签后验: 过滤无意义标签，只保留完整独立词汇
+     */
+    private function postProcessKeyword(string $text, array $result)
+    {
+        $tags_raw = array_map('trim', preg_split('/[,,、\n]+/u', trim($text)));
+        $valid = [];
+        foreach ($tags_raw as $tag) {
+            // 移除所有标点、空格
+            $tag = preg_replace('/[[:punct:]]/u', '', $tag);
+            $tag = preg_replace('/\s+/', '', $tag);
+            $tag = trim($tag);
+            $len = mb_strlen($tag, 'utf-8');
+            if ($len < 3) continue;
+            if ($len > 16) continue;
+            if (!preg_match('/[\x{4e00}-\x{9fa5}]/u', $tag)) continue;
+            if (preg_match('/^[a-zA-Z0-9\s]+$/', $tag)) continue;
+            // 排除含英文+数字混合的乱码标签
+            if (preg_match('/[a-zA-Z]{3,}[0-9]|[0-9][a-zA-Z]{2,}/', $tag)) continue;
+            // 排除以句子结构词开头/结尾的碎片
+            if (preg_match('/^[的了在和与为于把被从到上下前后里中外之所能以而且或但如果因为所以虽然以及通过进行能够应该]/u', $tag)) continue;
+            if (preg_match('/[的了在和与为于把被从到上下前后里中外之所能以而且或但如果因为所以虽然以及通过进行能够应该句]$/u', $tag)) continue;
+            // 排除标题型/说明型碎片词
+            if (preg_match('/^(内容|文章|主题|要点|特点|优势|劣势|方法|原因|结果|问题|方案)/u', $tag)) continue;
+            // 排除思考/prompt 残留
+            if (preg_match('/then the|wait:|output format|we should|should not|just output|newtitle|标签/i', $tag)) continue;
+            // 跳过包含明确句子结构的
+            if (preg_match('/作为|诞生|属于|用于|称为|由于|因此|然而|并且|以及|虽然|但是|可是/u', $tag)) continue;
+            // 排除"的"在中间的长标签
+            if (mb_strlen($tag, 'utf-8') > 4 && mb_strpos($tag, '的') !== false && mb_strpos($tag, '的') > 0) continue;
+            $valid[] = $tag;
+        }
+        if (empty($valid)) {
+            return $this->error(__('标签生成失败(模型输出了无效内容),请重试', 'zuo-ai-plus'), 422);
+        }
+        $result['content'] = implode(',', array_slice($valid, 0, 4));
+        return $result;
     }
 
     public function handleImage(\WP_REST_Request $request): \WP_REST_Response
@@ -281,20 +316,22 @@ class ContentController extends BaseController
 
     private function resolveModel(string $action, \WP_REST_Request $request, string $userModel): array
     {
-        // Slug/关键词/改写优先使用智谱(MiniMax reasoning 会污染输出)
-        // 但如果智谱未配置,回退到用户选择的模型
+        // Slug/关键词/改写优先使用非推理模型(MiniMax reasoning 会污染输出)
+        // 依次尝试智谱→通义，都不可用时回退到用户选择的模型
         if (in_array($action, ['slug', 'keyword', 'rewrite'], true)) {
-            $zhipuKey = '';
-            $apiKeys  = \ZuoAIPlus\Utils\Crypto::decryptApiKeys((array)\get_option('ai_plus_api_keys', []));
-            $zk = $apiKeys['zhipu'] ?? null;
-            $zhipuKey = is_array($zk) ? ($zk['api_key'] ?? '') : (is_string($zk) ? $zk : '');
-            if ($zhipuKey) {
-                return [
-                    'model' => new \ZuoAIPlus\Models\ZhipuModel($zhipuKey, 'glm-4-flash'),
-                    'name'  => 'zhipu',
-                ];
+            $apiKeys = \ZuoAIPlus\Utils\Crypto::decryptApiKeys((array)\get_option('ai_plus_api_keys', []));
+            // 优先非推理模型列表：通义优先（智谱经常429/余额不足）
+            foreach (['tongyi', 'zhipu'] as $preferred) {
+                $cfg = $apiKeys[$preferred] ?? null;
+                $key = is_array($cfg) ? ($cfg['api_key'] ?? '') : (is_string($cfg) ? $cfg : '');
+                if ($key) {
+                    $model = $this->getModel($preferred);
+                    if ($model) {
+                        return ['model' => $model, 'name' => $preferred];
+                    }
+                }
             }
-            // 智谱未配置,使用用户选择的模型,但调整参数减少 reasoning 污染
+            // 非推理模型均不可用,使用用户选择的模型
             $fallbackModel = $this->getModel($userModel);
             return [
                 'model' => $fallbackModel,
@@ -432,8 +469,8 @@ class ContentController extends BaseController
 
             // 提取图片说明(多种格式兜底)
             $descPatterns = [
-                '/图片说明[::]\s*\[?([^\]\n]{2,40}?)\]?\s*(?:\n|替代文本|$)/u',
-                '/说明[::]\s*\[?([^\]\n]{2,40}?)\]?\s*(?:\n|$)/u',
+                '/图片说明[:：]\s*\[?([^\]\n]{2,40}?)\]?\s*(?:\n|替代文本|$)/u',
+                '/说明[:：]\s*\[?([^\]\n]{2,40}?)\]?\s*(?:\n|$)/u',
                 '/\[([^\]]{2,40})\]\s*(?:\n|替代文本|$)/u',
             ];
             foreach ($descPatterns as $pattern) {
@@ -448,9 +485,9 @@ class ContentController extends BaseController
 
             // 提取替代文本(多种格式兜底)
             $altPatterns = [
-                '/替代文本[::]\s*\[?([^\]\n]{2,25}?)\]?\s*(?:\n|$)/u',
-                '/替代[::]\s*\[?([^\]\n]{2,25}?)\]?\s*(?:\n|$)/u',
-                '/alt[::]\s*\[?([^\]\n]{2,25}?)\]?\s*(?:\n|$)/ui',
+                '/替代文本[:：]\s*\[?([^\]\n]{2,25}?)\]?\s*(?:\n|$)/u',
+                '/替代[:：]\s*\[?([^\]\n]{2,25}?)\]?\s*(?:\n|$)/u',
+                '/alt[:：]\s*\[?([^\]\n]{2,25}?)\]?\s*(?:\n|$)/ui',
             ];
             foreach ($altPatterns as $pattern) {
                 if (preg_match($pattern, $metaBlock, $m)) {
@@ -465,7 +502,7 @@ class ContentController extends BaseController
 
         // 兜底:从全文中扫描图片说明(任意位置)
         if (!$chineseDesc) {
-            if (preg_match('/图片说明[::]\s*\[?([^\]\n\[]{2,40}?)\]?\s*(?:\n|$)/u', $rawText, $m)) {
+            if (preg_match('/图片说明[:：]\s*\[?([^\]\n\[]{2,40}?)\]?\s*(?:\n|$)/u', $rawText, $m)) {
                 $candidate = trim($m[1]);
                 if (preg_match('/[\x{4e00}-\x{9fa5}]/u', $candidate)) {
                     $chineseDesc = $candidate;
@@ -475,7 +512,7 @@ class ContentController extends BaseController
 
         // 兜底:从全文中扫描替代文本(任意位置)
         if (!$chineseAlt) {
-            if (preg_match('/替代文本[::]\s*\[?([^\]\n\[]{2,25}?)\]?\s*(?:\n|$)/u', $rawText, $m)) {
+            if (preg_match('/替代文本[:：]\s*\[?([^\]\n\[]{2,25}?)\]?\s*(?:\n|$)/u', $rawText, $m)) {
                 $candidate = trim($m[1]);
                 if (preg_match('/[\x{4e00}-\x{9fa5}]/u', $candidate)) {
                     $chineseAlt = $candidate;

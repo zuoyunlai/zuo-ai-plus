@@ -231,15 +231,7 @@
             msgsEl.innerHTML = '';
             messages.forEach(function (m) {
                 var div = document.createElement('div');
-                div.style.cssText = 'margin-bottom:8px;padding:8px 12px;border-radius:8px;font-size:14px;line-height:1.6;';
-                if (m.role === 'user') {
-                    div.style.background = '#e7f3ff';
-                    div.style.border = '1px solid #b3d7ff';
-                    div.style.textAlign = 'right';
-                } else {
-                    div.style.background = '#f5f5f5';
-                    div.style.border = '1px solid #e0e0e0';
-                }
+                div.className = 'ai-plus-msg ' + m.role;
                 if (m.role === 'assistant') {
                     try { div.innerHTML = parseMarkdown(m.content); } catch(e) { div.textContent = m.content; }
                 } else {

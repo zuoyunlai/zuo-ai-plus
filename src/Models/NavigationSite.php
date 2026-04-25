@@ -99,6 +99,9 @@ class NavigationSite
             'nav_screenshot'  => 'string',
             'nav_ai_summary'  => 'string',
             'nav_views'       => 'integer',
+            'nav_view_log'    => 'string',  // JSON: 每日页面访问量日志
+            'nav_click_log'   => 'string',  // JSON: 每日外链点击日志
+            'nav_clicks'      => 'integer',
             'nav_status'      => 'string', // featured | normal
         ];
 

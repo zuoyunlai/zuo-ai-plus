@@ -4,6 +4,8 @@
  */
 namespace ZuoAIPlus\Models;
 
+if (!defined('ABSPATH')) exit;
+
 class CustomModel extends BaseModel
 {
     protected string $name = '自定义';
@@ -105,11 +107,6 @@ class CustomModel extends BaseModel
             ],
             'raw' => $response,
         ];
-    }
-
-    public function completion(string $prompt, array $opts = []): array
-    {
-        return $this->chat([['role' => 'user', 'content' => $prompt]], $opts);
     }
 
     /**

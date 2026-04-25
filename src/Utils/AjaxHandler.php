@@ -301,9 +301,9 @@ add_action('wp_ajax_ai_plus_save_license_key', function () {
             $msg = 'API Key 无效或已过期';
         } elseif (stripos($msg, '403') !== false) {
             $msg = '无访问权限，请检查 Key 权限设置';
-        } elseif (stripos($msg, '429') !== false) {
-            $msg = '请求超限，请稍后重试';
-        } elseif (stripos($msg, 'timeout') !== false) {
+        } elseif (stripos($msg, '429') !== false || stripos($msg, 'rate') !== false || stripos($msg, '限') !== false) {
+            $msg = '⚠️ 模型当前访问量过大（429限流），免费模型较易触发，请稍后重试或切换付费模型';
+        } elseif (stripos($msg, 'timeout') !== false || stripos($msg, '超时') !== false) {
             $msg = '连接超时，请检查网络或 Base URL';
         } elseif (stripos($msg, 'cURL error') !== false) {
             $msg = '网络错误: ' . substr($msg, 0, 80);

@@ -54,11 +54,11 @@ class SeoController extends BaseController
             'permission_callback' => [$this, 'canManage'],
         ]);
 
-        // 批量优化后台处理端点（内部调用，跳过权限检查靠安全令牌）
+        // 批量优化后台处理端点（前端轮询驱动，需要登录权限）
         register_rest_route('ai-plus/v1', '/seo-batch-process/(?P<job_id>[a-zA-Z0-9_]+)', [
             'methods'             => 'POST',
             'callback'            => [$this, 'handleBatchProcess'],
-            'permission_callback' => '__return_true',
+            'permission_callback' => [$this, 'canEdit'],
         ]);
 
         // 单篇文章诊断

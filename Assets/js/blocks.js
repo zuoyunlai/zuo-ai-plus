@@ -11,9 +11,11 @@
     var Fragment = wp.element.Fragment;
     var registerBlockType = wp.blocks.registerBlockType;
     var InspectorControls = wp.blockEditor ? wp.blockEditor.InspectorControls : wp.editor.InspectorControls;
+    var useBlockProps = wp.blockEditor ? wp.blockEditor.useBlockProps : (wp.editor ? wp.editor.useBlockProps : null);
     var TextControl = wp.components.TextControl;
     var Button = wp.components.Button;
     var Placeholder = wp.components.Placeholder;
+    var apiFetch = wp.apiFetch;
 
     // ========== Chat Block ==========
     registerBlockType('ai-plus/chat', {
@@ -29,7 +31,15 @@
             chatLoading: { type: 'boolean', default: false },
             postContext: { type: 'string', default: '' },
         },
+        supports: {
+            lock: false,
+            removing: true,
+            customClassName: true,
+            reusable: true,
+            html: false,
+        },
         edit: function (props) {
+            var chatBlockProps = useBlockProps ? useBlockProps({ className: 'wp-block-ai-plus-chat' }) : { className: 'wp-block-ai-plus-chat' };
             var model = props.attributes.model || 'minimax';
             // 自动获取当前文章内容作为上下文
             if (!props.attributes.postContext) {
@@ -64,15 +74,15 @@
                 var postContext = props.attributes.postContext || '';
                 var fetchBody = { model: model, messages: newMessages, max_tokens: 2048 };
                 if (postContext) fetchBody.context = postContext;
-                fetch(window.aiPlusConfig.apiUrl + 'chat', {
+                apiFetch({
+                    path: 'ai-plus/v1/chat',
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': window.aiPlusConfig.nonce },
-                    body: JSON.stringify(fetchBody)
+                    data: fetchBody
                 })
-                .then(function (r) { return r.json(); })
-                .then(function (data) {
-                    var reply = (data.code === 'success' && data.data) ? (data.data.choices?.[0]?.message?.content || data.data.content || '') : '';
-                    if (data.code !== 'success') { reply = data.message || data.error || '无响应'; }
+                .then(function (resp) {
+                    var data = (resp && resp.code === 'success' && resp.data) ? resp.data : (resp || {});
+                    var reply = data.choices ? (data.choices[0] && data.choices[0].message && data.choices[0].message.content || data.content || '') : (data.content || '');
+                    if (resp && resp.code !== 'success') { reply = resp.message || resp.error || '无响应'; }
                     props.setAttributes({ chatLoading: false, messages: newMessages.concat([{ role: 'assistant', content: reply }]) });
                 })
                 .catch(function () {
@@ -80,7 +90,7 @@
                 });
             }
 
-            return el(Fragment, null,
+            return el('div', chatBlockProps,
                 el(InspectorControls, null,
                     el('div', { style: { padding: '16px' } },
                         el(TextControl, {
@@ -103,32 +113,80 @@
                         )
                     )
                 ),
-                el('div', { className: 'ai-plus-chat-block wp-block', style: { border: '1px solid #dcdcde', borderRadius: '4px', padding: '20px', background: '#fff', maxWidth: '840px', margin: '16px auto' } },
-                    title ? el('div', { style: { fontWeight: 'bold', marginBottom: '12px', fontSize: '15px' } }, title) : null,
-                    el('div', { style: { maxHeight: '300px', overflowY: 'auto', marginBottom: '12px' } },
+                el('div', { className: 'ai-plus-chat-block wp-block', style: { 
+                        border: '1px solid #e5e7eb', 
+                        borderRadius: '12px', 
+                        padding: '20px', 
+                        background: 'linear-gradient(180deg, #fff 0%, #f9fafb 100%)', 
+                        maxWidth: '700px', 
+                        margin: '20px auto',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+                    } },
+                    // 标题栏
+                    el('div', { style: { 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'space-between',
+                        borderBottom: '2px solid #f0f0f0',
+                        paddingBottom: '12px',
+                        marginBottom: '16px'
+                    } },
+                        title ? el('div', { style: { fontWeight: '600', fontSize: '16px', color: '#1a1a1a' } }, '💬 ' + title) : el('div', { style: { fontWeight: '600', fontSize: '16px', color: '#1a1a1a' } }, '💬 AI 助手'),
+                        el(Button, { 
+                            onClick: deleteBlock, 
+                            isDestructive: true, 
+                            isSmall: true,
+                            style: { padding: '4px 8px', fontSize: '12px' }
+                        }, '🗑️ 删除区块')
+                    ),
+                    // 消息区 - flex 布局，左右对齐
+                    el('div', { style: { 
+                        maxHeight: '320px', 
+                        overflowY: 'auto', 
+                        marginBottom: '16px',
+                        padding: '12px',
+                        background: '#f9fafb',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px'
+                    } },
                         messages.length === 0
-                            ? el('p', { style: { color: '#666', fontSize: '13px' } }, '输入内容开始对话...')
+                            ? el('p', { style: { color: '#9ca3af', fontSize: '14px', textAlign: 'center', padding: '40px 0', margin: '0' } }, '💬 输入内容开始对话...')
                             : messages.map(function (m, i) {
+                                // 用户消息右对齐蓝色，AI消息左对齐灰色
+                                var isUser = m.role === 'user';
                                 return el('div', {
                                     key: i,
                                     style: {
-                                        marginBottom: '8px',
-                                        padding: '8px 12px',
-                                        borderRadius: '8px',
-                                        background: m.role === 'user' ? '#e7f3ff' : '#f5f5f5',
-                                        border: m.role === 'user' ? '1px solid #b3d7ff' : '1px solid #e0e0e0',
+                                        maxWidth: '80%',
+                                        padding: '10px 14px',
+                                        borderRadius: isUser ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
+                                        background: isUser ? '#2271b1' : '#f0f0f0',
+                                        color: isUser ? '#fff' : '#333',
                                         fontSize: '14px',
-                                        lineHeight: '1.6'
+                                        lineHeight: '1.5',
+                                        alignSelf: isUser ? 'flex-end' : 'flex-start',
+                                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                                        wordBreak: 'break-word'
                                     }
                                 }, m.content);
                             })
                     ),
-                    loading ? el('span', { style: { color: '#2271b1' } }, '⏳ 生成中...') : null,
-                    el('div', { style: { display: 'flex', gap: '8px', marginTop: '8px' } },
+                    // Loading 指示
+                    loading ? el('div', { style: { 
+                        textAlign: 'center', 
+                        padding: '8px',
+                        marginBottom: '8px'
+                    } },
+                        el('span', { style: { color: '#2271b1', fontSize: '14px' } }, '⏳ AI 正在思考...')
+                    ) : null,
+                    // 输入区
+                    el('div', { style: { display: 'flex', gap: '10px', alignItems: 'flex-end' } },
                         el('textarea', {
                             value: input,
                             rows: 2,
-                            placeholder: '输入消息...',
+                            placeholder: '输入消息... (Enter 发送)',
                             onChange: function (e) { props.setAttributes({ chatInput: e.target.value }); },
                             onKeyDown: function (e) {
                                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -136,10 +194,23 @@
                                     sendMessage();
                                 }
                             },
-                            style: { resize: 'none', fontSize: '14px', padding: '8px' }
+                            style: { 
+                                flex: '1',
+                                resize: 'none', 
+                                fontSize: '14px', 
+                                padding: '10px 14px',
+                                border: '1px solid #dcdcde',
+                                borderRadius: '8px',
+                                lineHeight: '1.5',
+                                outline: 'none'
+                            }
                         }),
-                        el(Button, { onClick: sendMessage, isPrimary: true, disabled: loading }, '发送'),
-                        el(Button, { onClick: deleteBlock, isDestructive: true, isSmall: true, style: { marginLeft: '8px' } }, '🗑️ 删除')
+                        el(Button, { 
+                            onClick: sendMessage, 
+                            isPrimary: true, 
+                            disabled: loading,
+                            style: { padding: '10px 20px', fontSize: '14px', fontWeight: '500' }
+                        }, '发送')
                     )
                 )
             );
@@ -156,10 +227,12 @@
         category: 'media',
         apiVersion: 3,
         supports: {
-            // 允许通过工具栏删除
             lock: false,
-            // 允许在列表视图中操作
+            removing: true,
+            customClassName: true,
             className: true,
+            reusable: true,
+            html: false,
         },
         attributes: {
             prompt: { type: 'string', default: '' },
@@ -175,6 +248,18 @@
             align: { type: 'string', default: 'wide' },
         },
         edit: function (props) {
+            // ===== Hooks 必须在顶层调用，不能在条件分支内 =====
+            var blockProps = useBlockProps ? useBlockProps({ className: 'wp-block-ai-plus-image-generator' }) : { className: 'wp-block-ai-plus-image-generator' };
+            var inputRef = React.useRef(null);
+            var isComposing = React.useRef(false);
+            var localPromptState = React.useState(props.attributes.prompt || '');
+            var localPrompt = localPromptState[0];
+            var setLocalPrompt = localPromptState[1];
+            
+            React.useEffect(function() {
+                setLocalPrompt(props.attributes.prompt || '');
+            }, [props.attributes.prompt]);
+
             var prompt = props.attributes.prompt;
             var imageUrl = props.attributes.imageUrl;
             var imagePrompt = props.attributes.imagePrompt;
@@ -189,13 +274,14 @@
             function generate() {
                 if (!prompt.trim() || loading) return;
                 props.setAttributes({ imgLoading: true });
-                fetch(window.aiPlusConfig.apiUrl + 'generate', {
+                apiFetch({
+                    path: 'ai-plus/v1/image',
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': window.aiPlusConfig.nonce },
-                    body: JSON.stringify({ action: 'image', model: model, content: prompt })
+                    data: { model: model, prompt: prompt }
                 })
-                .then(function (r) { return r.json(); })
-                .then(function (data) {
+                .then(function (resp) {
+                    // wp.apiFetch 返回完整 REST 响应: { code: 'success', data: { ... } }
+                    var data = (resp && resp.code === 'success' && resp.data) ? resp.data : (resp || {});
                     var imgUrl = data.url || '';
                     // 优先使用中文元数据
                     var cDesc = data.chinese_desc || data.content || '';
@@ -229,19 +315,19 @@
                         image_prompt: ePrompt,   // 英文提示词
                         alt_text: cAlt,          // 中文替代文本
                         chinese_desc: cDesc,     // 中文描述
-                        chinese_alt: cAlt        // 中文替代文本
+                        chinese_alt: cAlt,       // 中文替代文本
+                        set_featured: false      // 插图不设置特色图
                     };
                     
                     console.log('[AI+] 保存到媒体库:', saveData);
                     
-                    fetch(window.aiPlusConfig.apiUrl + 'featured-image-set', {
+                    apiFetch({
+                        path: 'ai-plus/v1/featured-image-set',
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': window.aiPlusConfig.nonce },
-                        body: JSON.stringify(saveData)
-                    }).then(function(resp) {
-                        return resp.json();
+                        data: saveData
                     })
-                    .then(function(up) {
+                    .then(function(resp) {
+                        var up = (resp && resp.code === 'success' && resp.data) ? resp.data : (resp || {});
                         if (up.attachment_id) {
                             props.setAttributes({ 
                                 imageUrl: up.url || imgUrl, 
@@ -258,13 +344,14 @@
                 })
                 .catch(function (err) { 
                     console.error('[AI+] 生成图片失败:', err);
-                    props.setAttributes({ imgLoading: false }); 
+                    var errMsg = (err && err.message) ? err.message : '图片生成失败，请重试';
+                    props.setAttributes({ imgLoading: false, prompt: prompt ? '❌ ' + errMsg + '\n' + prompt : '❌ ' + errMsg }); 
                 });
             }
 
             // 已生成图片，显示图片 - 与其他区块保持一致 840px 居中
             if (imageUrl) {
-                return el(Fragment, null,
+                return el('div', blockProps,
                     el('figure', { 
                         className: 'wp-block-image alignwide',
                         style: { 
@@ -317,25 +404,15 @@
             }
 
             // 未生成，显示中央输入界面 - 与其他区块对齐 840px
-            // 使用 ref 和 state 处理输入法合成状态
-            var inputRef = React.useRef(null);
-            var isComposing = React.useRef(false);
-            var [localPrompt, setLocalPrompt] = React.useState(prompt || '');
-            
-            // 同步外部 prompt 变化到本地状态
-            React.useEffect(function() {
-                setLocalPrompt(prompt || '');
-            }, [prompt]);
-            
-            return el('div', { 
+            return el('div', Object.assign({}, blockProps, { 
                 style: { 
                     padding: '20px', 
                     background: '#f0f0f1', 
                     borderRadius: '4px',
                     maxWidth: '840px',
                     margin: '0 auto'
-                } 
-            },
+                }
+            }),
                 el('div', { style: { marginBottom: '16px' } },
                     el('label', { style: { display: 'block', marginBottom: '8px', fontWeight: '500' } }, '选择图片生成模型：'),
                     el('select', {
@@ -385,12 +462,24 @@
                         }
                     })
                 ),
-                el(Button, {
-                    onClick: generate,
-                    isPrimary: true,
-                    disabled: loading || !localPrompt.trim(),
-                    style: { width: '100%', justifyContent: 'center' }
-                }, loading ? '⏳ 生成中...' : '✨ 生成图片')
+                el('div', { style: { display: 'flex', gap: '8px' } },
+                    el(Button, {
+                        onClick: generate,
+                        isPrimary: true,
+                        disabled: loading || !localPrompt.trim(),
+                        style: { flex: 1, justifyContent: 'center' }
+                    }, loading ? '⏳ 生成中...' : '✨ 生成图片'),
+                    el(Button, {
+                        onClick: function () {
+                            var clientId = props.clientId;
+                            if (clientId && wp.data.dispatch('core/block-editor')) {
+                                wp.data.dispatch('core/block-editor').removeBlock(clientId);
+                            }
+                        },
+                        isDestructive: true,
+                        isSmall: true
+                    }, '🗑️ 删除区块')
+                )
             );
         },
         save: function (props) {

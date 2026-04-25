@@ -110,10 +110,10 @@ class Admin_Init
         \add_submenu_page('ai_plus', '💬 对话历史', '对话历史', 'manage_options', 'ai_plus_chat_history', [$this, 'renderPage']);
         \add_submenu_page('ai_plus', '授权管理', '授权管理', 'manage_options', 'ai_plus_license', [$this, 'renderPage']);
         \add_submenu_page('ai_plus', '关于', '关于', 'manage_options', 'ai_plus_about', [$this, 'renderPage']);
-        // 移除重复的顶层菜单项
+        // 重命名重复的顶层菜单项为「模型设置」（不删除，否则顶级链接会指向下一个子菜单）
         global $submenu;
         if (isset($submenu['ai_plus'][0])) {
-            unset($submenu['ai_plus'][0]);
+            $submenu['ai_plus'][0][0] = __('模型设置', 'zuo-ai-plus');
         }
     }
 

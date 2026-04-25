@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Zuo AI Plus
  * Description: 集成智谱GLM、阿里通义、MiniMax、Kimi等国内大模型，支持文章生成、SEO优化、文生图、网址导航、AI客服聊天等功能。
- * Version: 1.5.32
+ * Version: 1.5.19
  * Author: 左运来
  * Author URI: https://www.yily.top?from=wp-plugin
  * License: GPLv2 or later
@@ -15,7 +15,7 @@ if (!defined('ABSPATH')) exit;
 
 // ── 常量(插件常量检查防止重复加载)─────────────────────────────────────────
 if (!defined('AI_PLUS_VERSION')) {
-    define('AI_PLUS_VERSION', '1.5.31');
+    define('AI_PLUS_VERSION', '1.5.19');
 }
 if (!defined('AI_PLUS_PLUGIN_DIR')) {
     define('AI_PLUS_PLUGIN_DIR', plugin_dir_path(__FILE__));
@@ -160,8 +160,7 @@ if (get_option('ai_plus_nav_enabled', '1')) {
         if ($isNavTemplate) {
             add_action('wp_enqueue_scripts', function () {
                 wp_enqueue_style('zuo-nav-css', AI_PLUS_PLUGIN_URL . 'Assets/css/nav.v2.css', [], AI_PLUS_VERSION);
-                wp_enqueue_script('chart-js', AI_PLUS_PLUGIN_URL . 'Assets/vendor/chart.umd.min.js', [], '4.4.7', true);
-                wp_enqueue_script('zuo-nav-js', AI_PLUS_PLUGIN_URL . 'Assets/js/nav.js', ['chart-js'], AI_PLUS_VERSION, true);
+                wp_enqueue_script('zuo-nav-js', AI_PLUS_PLUGIN_URL . 'Assets/js/nav.js', [], AI_PLUS_VERSION, true);
                 // 注入动态配置（替代模板中的 PHP 变量）
                 $navConfig = [
                     'clickUrl'   => esc_url(rest_url('ai-plus/v1/nav/click')),
@@ -175,7 +174,6 @@ if (get_option('ai_plus_nav_enabled', '1')) {
                     'siteName'   => '',
                     'sitePermalink' => '',
                     'siteLogo'   => '',
-                    'viewStatsUrl' => '',
                 ];
                 // 详情页额外数据
                 if (is_singular('nav_site')) {
@@ -191,7 +189,6 @@ if (get_option('ai_plus_nav_enabled', '1')) {
                     $navConfig['siteName'] = $meta['name'] ?? get_the_title($postId);
                     $navConfig['sitePermalink'] = get_permalink($postId);
                     $navConfig['siteLogo'] = $meta['logo'] ?? '';
-                    $navConfig['viewStatsUrl'] = esc_url(rest_url('ai-plus/v1/nav/views?post_id=' . $postId));
                 }
                 wp_localize_script('zuo-nav-js', 'zuoNav', $navConfig);
             });
@@ -206,19 +203,11 @@ register_activation_hook(__FILE__, function () {
     if (!wp_next_scheduled('ai_plus_cleanup_cache')) {
         wp_schedule_event(time(), 'daily', 'ai_plus_cleanup_cache');
     }
-    // 设置导航日志清理任务（每天清理90天前的日志）
-    if (!wp_next_scheduled('ai_plus_nav_log_cleanup')) {
-        wp_schedule_event(time(), 'daily', 'ai_plus_nav_log_cleanup');
-    }
     \ZuoAIPlus\Utils\Activator::activate();
     flush_rewrite_rules();
 });
 
-// 导航日志清理回调
-add_action('ai_plus_nav_log_cleanup', [\ZuoAIPlus\Controllers\NavigationController::class, 'cleanupOldLogs']);
-
 register_deactivation_hook(__FILE__, function () {
-    wp_clear_scheduled_hook('ai_plus_nav_log_cleanup');
     flush_rewrite_rules();
 });
 
@@ -268,27 +257,30 @@ add_filter('the_content', function ($content) {
         $model    = esc_attr($block['attrs']['model'] ?? 'minimax');
         $messages = $block['attrs']['messages'] ?? [];
 
-        $chat_html .= '<div class="ai-plus-chat-rendered" data-model="' . $model . '" >';
+        $chat_html .= '<div class="ai-plus-chat-rendered" data-model="' . $model . '" style="border:1px solid #e5e7eb;border-radius:12px;padding:24px;margin:24px auto;background:#fff;max-width:700px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">';
         // 用隐藏 input 而非 data 属性:避免 HTML 转义破坏文章内容
         $chat_html .= '<input type="hidden" class="ai-article-context-val" value="' . esc_attr($articleText) . '">';
-        $chat_html .= '<div class="ai-plus-chat-title">' . $title . '</div>';
-        $chat_html .= '<div class="ai-plus-chat-messages">';
+        $chat_html .= '<div style="font-weight:600;margin-bottom:16px;font-size:16px;color:#1a1a1a;border-bottom:2px solid #f0f0f0;padding-bottom:12px;">' . $title . '</div>';
+        $chat_html .= '<div class="ai-plus-chat-messages" style="max-height:400px;overflow-y:auto;margin-bottom:16px;padding:12px;background:#f9fafb;border-radius:8px;">';
 
         if (empty($messages)) {
-            $chat_html .= '<p class="ai-plus-chat-empty">开始对话吧...</p>';
+            $chat_html .= '<p style="color:#9ca3af;font-size:14px;text-align:center;padding:40px 0;">开始对话吧...</p>';
         } else {
             foreach ($messages as $m) {
                 $role   = ($m['role'] ?? '') === 'user' ? 'user' : 'assistant';
                 $text   = esc_html($m['content'] ?? '');
-                $chat_html .= '<div class="ai-plus-msg ' . $role . '">' . nl2br($text) . '</div>';
+                $bg     = $role === 'user' ? '#e7f3ff' : '#f5f5f5';
+                $border = $role === 'user' ? '#b3d7ff' : '#e0e0e0';
+                $align  = $role === 'user' ? 'right' : 'left';
+                $chat_html .= '<div style="margin-bottom:12px;padding:12px 16px;border-radius:12px;background:' . $bg . ';border:1px solid ' . $border . ';font-size:14px;line-height:1.6;box-shadow:0 1px 2px rgba(0,0,0,0.05);">' . nl2br($text) . '</div>';
             }
         }
 
         $chat_html .= '</div>';
-        $chat_html .= '<div class="ai-plus-chat-bar">';
-        $chat_html .= '<textarea class="ai-plus-chat-input" rows="2" placeholder="输入消息... (Enter发送,Shift+Enter换行)" ></textarea>';
-        $chat_html .= '<button class="ai-plus-chat-send" >发送</button>';
-        $chat_html .= '<span class="ai-plus-chat-loading" >⏳</span>';
+        $chat_html .= '<div style="display:flex;gap:8px;align-items:flex-end;">';
+        $chat_html .= '<textarea class="ai-plus-chat-input" rows="2" placeholder="输入消息... (Enter发送,Shift+Enter换行)" style="flex:1;resize:none;font-size:14px;padding:12px 16px;border:1px solid #dcdcde;border-radius:8px;box-shadow:inset 0 1px 2px rgba(0,0,0,0.05);transition:border-color 0.2s;"></textarea>';
+        $chat_html .= '<button class="ai-plus-chat-send" style="padding:12px 20px;background:#2271b1;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;white-space:nowrap;font-weight:500;box-shadow:0 2px 4px rgba(0,0,0,0.1);transition:all 0.2s;">发送</button>';
+        $chat_html .= '<span class="ai-plus-chat-loading" style="display:none;color:#999;">⏳</span>';
         $chat_html .= '</div></div>';
     }
 

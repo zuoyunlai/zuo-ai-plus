@@ -44,7 +44,8 @@ class SeoOptimizer
     // 标题标准描述文本
     public static function getTitleStandardDesc(): string
     {
-        return sprintf(__('标题长度：%d-%d个汉字，含核心关键词，包含搜索意图词', 'zuo-ai-plus'),
+        /* translators: 1: min title length, 2: max title length */
+        return sprintf(__('标题长度：%1$d-%2$d个汉字，含核心关键词，包含搜索意图词', 'zuo-ai-plus'),
             self::SEO_STANDARDS['title']['min_chars'],
             self::SEO_STANDARDS['title']['max_chars']);
     }
@@ -52,7 +53,8 @@ class SeoOptimizer
     // 摘要标准描述文本
     public static function getExcerptStandardDesc(): string
     {
-        return sprintf(__('摘要长度：%d-%d个汉字，含关键词+价值点+行动引导', 'zuo-ai-plus'),
+        /* translators: 1: min summary length, 2: max summary length */
+        return sprintf(__('摘要长度：%1$d-%2$d个汉字，含关键词+价值点+行动引导', 'zuo-ai-plus'),
             self::SEO_STANDARDS['excerpt']['min_chars'],
             self::SEO_STANDARDS['excerpt']['max_chars']);
     }
@@ -60,7 +62,8 @@ class SeoOptimizer
     // 标签标准描述文本
     public static function getTagsStandardDesc(): string
     {
-        return sprintf(__('标签：%d-%d个，每个%d-%d字，SEO友好的完整名词词组', 'zuo-ai-plus'),
+        /* translators: 1: min tag count, 2: max tag count, 3: min tag length, 4: max tag length */
+        return sprintf(__('标签：%1$d-%2$d个，每个%3$d-%4$d字，SEO友好的完整名词词组', 'zuo-ai-plus'),
             self::SEO_STANDARDS['tags']['min_count'],
             self::SEO_STANDARDS['tags']['max_count'],
             self::SEO_STANDARDS['tags']['min_chars_per_tag'],
@@ -70,7 +73,8 @@ class SeoOptimizer
     // 内容标准描述文本
     public static function getContentStandardDesc(): string
     {
-        return sprintf(__('内容字数：%d字以上，推荐%d字以上', 'zuo-ai-plus'),
+        /* translators: 1: min content length, 2: recommended content length */
+        return sprintf(__('内容字数：%1$d字以上，推荐%2$d字以上', 'zuo-ai-plus'),
             self::SEO_STANDARDS['content']['min_chars'],
             self::SEO_STANDARDS['content']['recommended_chars']);
     }
@@ -162,7 +166,8 @@ class SeoOptimizer
         if ($title_len < self::SEO_STANDARDS['title']['min_chars']) {
             /* translators: %d is the actual title length */
             $issues[] = ['type' => 'title', 'severity' => 'high', 
-                'msg' => sprintf(__('标题过短（%d字），统一SEO标准%d-%d字', 'zuo-ai-plus'), 
+                /* translators: 1: current length, 2: min standard, 3: max standard */
+                'msg' => sprintf(__('标题过短（%1$d字），统一SEO标准%2$d-%3$d字', 'zuo-ai-plus'), 
                     $title_len, 
                     self::SEO_STANDARDS['title']['min_chars'],
                     self::SEO_STANDARDS['title']['max_chars'])];
@@ -170,7 +175,8 @@ class SeoOptimizer
         } elseif ($title_len > self::SEO_STANDARDS['title']['max_chars']) {
             /* translators: %d is the actual title length */
             $issues[] = ['type' => 'title', 'severity' => 'medium', 
-                'msg' => sprintf(__('标题过长（%d字），统一SEO标准%d-%d字', 'zuo-ai-plus'),
+                /* translators: 1: current length, 2: min standard, 3: max standard */
+                'msg' => sprintf(__('标题过长（%1$d字），统一SEO标准%2$d-%3$d字', 'zuo-ai-plus'),
                     $title_len,
                     self::SEO_STANDARDS['title']['min_chars'],
                     self::SEO_STANDARDS['title']['max_chars'])];
@@ -188,7 +194,8 @@ class SeoOptimizer
                 if ($len < self::SEO_STANDARDS['tags']['min_chars_per_tag']) {
                     /* translators: %1$s is the tag name, %2$d is the tag length */
                     $issues[] = ['type' => 'tags', 'severity' => 'medium', 
-                        'msg' => sprintf(__('标签「%1$s」太短（%2$d字），统一SEO标准%d-%d字（含义完整的词汇）', 'zuo-ai-plus'), 
+                        /* translators: 1: tag name, 2: current length, 3: min standard, 4: max standard */
+                        'msg' => sprintf(__('标签「%1$s」太短（%2$d字），统一SEO标准%3$d-%4$d字（含义完整的词汇）', 'zuo-ai-plus'), 
                             $tag, $len,
                             self::SEO_STANDARDS['tags']['min_chars_per_tag'],
                             self::SEO_STANDARDS['tags']['max_chars_per_tag'])];
@@ -196,7 +203,8 @@ class SeoOptimizer
                 } elseif ($len > self::SEO_STANDARDS['tags']['max_chars_per_tag']) {
                     /* translators: %1$s is the tag name, %2$d is the tag length */
                     $issues[] = ['type' => 'tags', 'severity' => 'medium', 
-                        'msg' => sprintf(__('标签「%1$s」过长（%2$d字），统一SEO标准%d-%d字（含义完整的词汇）', 'zuo-ai-plus'), 
+                        /* translators: 1: tag name, 2: current length, 3: min standard, 4: max standard */
+                        'msg' => sprintf(__('标签「%1$s」过长（%2$d字），统一SEO标准%3$d-%4$d字（含义完整的词汇）', 'zuo-ai-plus'), 
                             $tag, $len,
                             self::SEO_STANDARDS['tags']['min_chars_per_tag'],
                             self::SEO_STANDARDS['tags']['max_chars_per_tag'])];
@@ -207,7 +215,8 @@ class SeoOptimizer
             if (count($tags) > self::SEO_STANDARDS['tags']['max_count']) {
                 /* translators: %d is the number of tags */
                 $issues[] = ['type' => 'tags', 'severity' => 'low', 
-                    'msg' => sprintf(__('标签过多（%d个），统一SEO标准%d-%d个', 'zuo-ai-plus'), 
+                    /* translators: 1: current count, 2: min standard, 3: max standard */
+                    'msg' => sprintf(__('标签过多（%1$d个），统一SEO标准%2$d-%3$d个', 'zuo-ai-plus'), 
                         count($tags),
                         self::SEO_STANDARDS['tags']['min_count'],
                         self::SEO_STANDARDS['tags']['max_count'])];
@@ -219,14 +228,16 @@ class SeoOptimizer
         $excerpt_len = mb_strlen($excerpt, 'utf-8');
         if ($excerpt_len < self::SEO_STANDARDS['excerpt']['min_chars']) {
             $issues[] = ['type' => 'description', 'severity' => 'medium', 
-                'msg' => sprintf(__('摘要缺失或太短（%d字），统一SEO标准%d-%d字', 'zuo-ai-plus'),
+                /* translators: 1: current length, 2: min standard, 3: max standard */
+                'msg' => sprintf(__('摘要缺失或太短（%1$d字），统一SEO标准%2$d-%3$d字', 'zuo-ai-plus'),
                     $excerpt_len,
                     self::SEO_STANDARDS['excerpt']['min_chars'],
                     self::SEO_STANDARDS['excerpt']['max_chars'])];
             $score -= 15;
         } elseif ($excerpt_len > self::SEO_STANDARDS['excerpt']['max_chars']) {
             $issues[] = ['type' => 'description', 'severity' => 'medium', 
-                'msg' => sprintf(__('摘要过长（%d字），统一SEO标准%d-%d字', 'zuo-ai-plus'),
+                /* translators: 1: current length, 2: min standard, 3: max standard */
+                'msg' => sprintf(__('摘要过长（%1$d字），统一SEO标准%2$d-%3$d字', 'zuo-ai-plus'),
                     $excerpt_len,
                     self::SEO_STANDARDS['excerpt']['min_chars'],
                     self::SEO_STANDARDS['excerpt']['max_chars'])];
@@ -237,7 +248,8 @@ class SeoOptimizer
         $content_len = mb_strlen($content, 'utf-8');
         if ($content_len < self::SEO_STANDARDS['content']['min_chars']) {
             $issues[] = ['type' => 'content', 'severity' => 'low', 
-                'msg' => sprintf(__('文章内容偏短（%d字），统一SEO标准%d字以上，推荐%d字', 'zuo-ai-plus'),
+                /* translators: 1: current length, 2: min standard, 3: recommended length */
+                'msg' => sprintf(__('文章内容偏短（%1$d字），统一SEO标准%2$d字以上，推荐%3$d字', 'zuo-ai-plus'),
                     $content_len,
                     self::SEO_STANDARDS['content']['min_chars'],
                     self::SEO_STANDARDS['content']['recommended_chars'])];
@@ -568,11 +580,15 @@ class SeoOptimizer
         $result = [];
         $text   = trim($text);
 
+        // 清理 Markdown 链接 [text](url) → text
+        $text = preg_replace('/\[(.*?)\]\(.*?\)/u', '$1', $text);
         // 清理 Markdown 粗体/斜体标记
         $text = preg_replace('/\*\*(.+?)\*\*/u', '$1', $text);
         $text = preg_replace('/__(.+?)__/u', '$1', $text);
         $text = preg_replace('/\*(.+?)\*/u', '$1', $text);
         $text = preg_replace('/_(.+?)_/u', '$1', $text);
+        // 清理残余独立 URL
+        $text = preg_replace('/https?:\/\/[^\s]+/u', '', $text);
         $lines  = array_filter(array_map('trim', explode("\n", $text)), 'strlen');
 
         if ($need_title) {
@@ -980,7 +996,11 @@ class SeoOptimizer
             self::META_OPTIMIZED, self::META_OPTIMIZED_AT, self::META_SCORE
         ));
         if ($orphan_ids) {
-            $wpdb->query("DELETE FROM {$wpdb->postmeta} WHERE meta_id IN (" . implode(',', array_map('intval', $orphan_ids)) . ")");
+            $placeholders = implode(',', array_fill(0, count($orphan_ids), '%d'));
+            $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$wpdb->postmeta} WHERE meta_id IN ({$placeholders})",
+                ...$orphan_ids
+            ));
         }
         $avg_score = (int) $wpdb->get_var(
             $wpdb->prepare(

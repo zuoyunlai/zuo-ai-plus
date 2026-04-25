@@ -46,6 +46,9 @@ $query = new \WP_Query($queryArgs);
 // 按分类聚合
 $sitesByCat = [];
 $featured = [];
+// 预加载 post meta 和 term cache，避免 N+1 查询
+update_meta_cache('post', wp_list_pluck($query->posts, 'ID'));
+update_object_term_cache(wp_list_pluck($query->posts, 'ID'), 'nav_site');
 while ($query->have_posts()) {
     $query->the_post();
     $meta = \ZuoAIPlus\Models\NavigationSite::getMeta(get_the_ID());
@@ -111,51 +114,42 @@ wp_reset_postdata();
     $popularQuery = new \WP_Query([
         'post_type'      => 'nav_site',
         'post_status'    => 'publish',
-        'posts_per_page' => 8,
-        'meta_key'       => 'nav_clicks',
+        'posts_per_page' => 12,
+        'meta_key'       => 'nav_views',
         'orderby'        => 'meta_value_num',
         'order'          => 'DESC',
     ]);
-    $popularSites = [];
-    while ($popularQuery->have_posts()) {
-        $popularQuery->the_post();
-        $pmeta = \ZuoAIPlus\Models\NavigationSite::getMeta(get_the_ID());
-        $popularSites[] = [
-            'id'     => get_the_ID(),
-            'post'   => get_post(),
-            'meta'   => $pmeta,
-            'clicks' => (int) get_post_meta(get_the_ID(), 'nav_clicks', true),
-        ];
-    }
-    wp_reset_postdata();
+    if ($popularQuery->have_posts()):
+        update_meta_cache('post', wp_list_pluck($popularQuery->posts, 'ID'));
+        update_object_term_cache(wp_list_pluck($popularQuery->posts, 'ID'), 'nav_site');
     ?>
-    <?php if (!empty($popularSites) && $popularSites[0]['clicks'] > 0): ?>
-    <div class="nav-popular-section" id="section-popular">
-        <h2 class="nav-popular-title">🔥 热门网站</h2>
+    <div class="nav-popular-section">
+        <h3 class="nav-popular-title">🔥 热门网站</h3>
         <div class="nav-popular-grid">
-            <?php foreach ($popularSites as $index => $item):
-                $p = $item['post'];
-                $m = $item['meta'];
-                $url = $m['url'] ?: '#';
-                $name = $m['name'] ?: $p->post_title;
-                $rank = $index + 1;
-            ?>
-            <a href="<?php echo esc_url($url); ?>" class="nav-popular-card" target="_blank" rel="noopener"
-               data-keywords="<?php echo esc_attr($m['keywords'] ?? ''); ?>" data-name="<?php echo esc_attr($name); ?>">
-                <div class="nav-popular-rank <?php if ($rank <= 3) echo 'top3'; ?>"><?php echo esc_html($rank); ?></div>
-                <div class="nav-popular-logo">
-                    <?php if ($m['logo']): ?>
-                        <img src="<?php echo esc_url($m["logo"]); ?>" alt="<?php echo esc_attr($name); ?>" loading="lazy">
-                    <?php else: ?>
-                        <span class="logo-letter"><?php echo esc_html(mb_substr($name, 0, 1, 'UTF-8')); ?></span>
-                    <?php endif; ?>
-                </div>
-                <div class="nav-popular-info">
-                    <div class="nav-popular-name"><?php echo esc_html($name); ?></div>
-                    <div class="nav-popular-clicks"><?php echo number_format($item['clicks']); ?> 次点击</div>
-                </div>
-            </a>
-            <?php endforeach; ?>
+          <?php while ($popularQuery->have_posts()): $popularQuery->the_post();
+              $pmeta = \ZuoAIPlus\Models\NavigationSite::getMeta(get_the_ID());
+              $plogo = $pmeta['logo'];
+              $pname = $pmeta['name'] ?: get_the_title();
+              $pdesc = $pmeta['description'];
+              $pviews = (int) get_post_meta(get_the_ID(), 'nav_views', true);
+          ?>
+          <a href="<?php echo esc_url(get_permalink()); ?>" class="nav-popular-item" onclick="recordNavClick(<?php echo esc_js(get_the_ID()); ?>)">
+            <div class="nav-popular-logo">
+              <?php if ($plogo): ?>
+              <img src="<?php echo esc_url($plogo); ?>" alt="<?php echo esc_attr($pname); ?>" loading="lazy">
+              <?php else: ?>
+              <span class="nav-popular-letter"><?php echo esc_html(mb_substr($pname, 0, 1, 'UTF-8')); ?></span>
+              <?php endif; ?>
+            </div>
+            <div class="nav-popular-info">
+              <span class="nav-popular-name"><?php echo esc_html($pname); ?></span>
+              <?php if ($pdesc): ?>
+              <span class="nav-popular-desc"><?php echo esc_html(mb_substr($pdesc, 0, 30, 'UTF-8')); ?></span>
+              <?php endif; ?>
+            </div>
+            <span class="nav-popular-clicks"><?php echo esc_html($pviews); ?>次浏览</span>
+          </a>
+          <?php endwhile; wp_reset_postdata(); ?>
         </div>
     </div>
     <?php endif; ?>
@@ -188,7 +182,7 @@ wp_reset_postdata();
                 <div class="nav-featured-info">
                     <div class="nav-featured-name"><?php echo esc_html($name); ?></div>
                     <?php if ($desc): ?><div class="nav-featured-desc"><?php echo esc_html($desc); ?></div><?php endif; ?>
-                    <div class="nav-featured-url"><?php echo esc_html(parse_url($url, PHP_URL_HOST)); ?></div>
+                    <div class="nav-featured-url"><?php echo esc_html(wp_parse_url($url, PHP_URL_HOST)); ?></div>
                 </div>
             </a>
             <?php endforeach; ?>

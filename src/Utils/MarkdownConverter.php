@@ -5,6 +5,8 @@
  */
 namespace ZuoAIPlus\Utils;
 
+if (!defined('ABSPATH')) exit;
+
 class MarkdownConverter
 {
     public static function convert(string $markdown): string

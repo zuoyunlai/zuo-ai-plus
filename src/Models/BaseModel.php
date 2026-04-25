@@ -6,6 +6,8 @@
  */
 namespace ZuoAIPlus\Models;
 
+if (!defined('ABSPATH')) exit;
+
 abstract class BaseModel
 {
     protected string $name;
@@ -74,7 +76,15 @@ abstract class BaseModel
         return (int) ceil(mb_strlen($text) / 2);
     }
 
-    abstract public function image(string $prompt, array $opts = []): array;
+    /**
+     * 图像生成（默认不支持，子类可覆写）
+     *
+     * @throws \Exception 当模型不支持图像生成时
+     */
+    public function image(string $prompt, array $opts = []): array
+    {
+        throw new \Exception($this->name . ' 暂不支持图像生成');
+    }
 
     /**
      * 检查是否启用调试日志
@@ -370,12 +380,19 @@ abstract class BaseModel
         }
 
         $code = wp_remote_retrieve_response_code($response);
-        $body = json_decode(wp_remote_retrieve_body($response), true);
+        $rawBody = wp_remote_retrieve_body($response);
+        $body = json_decode($rawBody, true);
+
+        // 响应体非 JSON 时记录原始内容（截取前 500 字符）
+        if ($body === null && !empty($rawBody)) {
+            error_log("AI Plus API Non-JSON Response [{$this->name}] HTTP {$code}: " . mb_substr($rawBody, 0, 500));
+        }
 
         if ($code < 200 || $code >= 300) {
             $error = $body['error']['message'] ?? ($body['error'] ?? ($body['message'] ?? ''));
             // 完整错误记入日志（仅key名，用于排查），对外显示通用提示
-            error_log("AI Plus API Error [{$this->name}] HTTP {$code}: " . json_encode(array_keys($body)) . " | msg: " . mb_substr((string)($body['error']['message'] ?? $body['error'] ?? $body['message'] ?? ''), 0, 200));
+            $bodyKeys = is_array($body) ? json_encode(array_keys($body)) : '(null/invalid body)';
+            error_log("AI Plus API Error [{$this->name}] HTTP {$code}: " . $bodyKeys . " | msg: " . mb_substr((string)($body['error']['message'] ?? $body['error'] ?? $body['message'] ?? ''), 0, 200));
             $userMsg = !empty($error) && is_string($error)
                 ? ("AI服务返回错误 (" . intval($code) . "): 模型服务暂时不可用，请稍后重试或切换模型")
                 : ("AI服务返回异常 (" . intval($code) . ")，请稍后重试");
@@ -395,6 +412,11 @@ abstract class BaseModel
 
         $elapsed = round((microtime(true) - $startTime) * 1000);
         $this->logDebug("API Request Success [{$this->name}] in {$elapsed}ms");
+
+        // 响应体为空或非 JSON 时给明确错误
+        if ($body === null) {
+            throw new \Exception('AI服务返回了无效响应（非JSON格式），请稍后重试或切换模型');
+        }
 
         return $body;
     }

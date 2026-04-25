@@ -6,6 +6,8 @@
  */
 namespace ZuoAIPlus\Models;
 
+if (!defined('ABSPATH')) exit;
+
 class KimiModel extends BaseModel
 {
     protected string $name = 'Kimi';

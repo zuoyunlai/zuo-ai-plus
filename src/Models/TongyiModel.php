@@ -7,6 +7,8 @@
  */
 namespace ZuoAIPlus\Models;
 
+if (!defined('ABSPATH')) exit;
+
 class TongyiModel extends BaseModel
 {
     protected string $name = '阿里通义千问';
@@ -38,12 +40,6 @@ class TongyiModel extends BaseModel
             'raw' => $response,
         ];
     }
-
-    public function completion(string $prompt, array $opts = []): array
-    {
-        return $this->chat([['role' => 'user', 'content' => $prompt]], $opts);
-    }
-
 
     /**
      * 将用户尺寸归一化为 Tongyi API接受的尺寸字符串（如 1280*720）
@@ -117,7 +113,7 @@ class TongyiModel extends BaseModel
         }
 
         // 完整响应记日志（限key防止过长），对外给通用提示
-        error_log('AI Plus TongyiModel image error: ' . json_encode(array_keys($response)));
+        error_log('AI Plus TongyiModel image error: ' . json_encode(is_array($response) ? array_keys($response) : '(null)'));
         throw new \Exception('图片生成失败，请检查通义千问 API Key 配额或模型配置');
     }
 

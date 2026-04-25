@@ -254,7 +254,7 @@ $ai_version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.5.19';
             <h3>🧭 智能网址导航目录</h3>
             <p>输入任意网站 URL，AI 自动完成：抓取名称/关键词/描述/Logo → Chrome 截图设为特色图 → 生成 300-500 字详细介绍 → 提取分类标签写入 WordPress。整个过程一键完成，无需手动编辑。</p>
             <p style="margin-bottom:14px">适合做 <strong>资源导航站、工具收藏夹、链接集合页</strong>，每一个网站都有完整的截图、介绍、SEO 权重排名和结构化数据。</p>
-            <a class="nav-cta" href="<?php echo admin_url('edit.php?post_type=nav_site'); ?>">
+            <a class="nav-cta" href="<?php echo esc_url(admin_url('edit.php?post_type=nav_site')); ?>">
                 去管理导航内容 <span class="arrow">→</span>
             </a>
         </div>
@@ -325,6 +325,10 @@ $ai_version = defined('AI_PLUS_VERSION') ? AI_PLUS_VERSION : '1.5.19';
     <div class="ai-card ai-full">
         <h2>📋 版本历史</h2>
         <div class="ai-changelog">
+            <div class="ai-changelog-item">
+                <span class="ver">v1.5.32</span><span class="date">2026-04-25</span>
+                <span class="log">安全加固、Markdown 链接过滤、Loader classmap 优化、代码结构清理</span>
+            </div>
             <div class="ai-changelog-item">
                 <span class="ver">v1.5.19</span><span class="date">2026-04-23</span>
                 <span class="log">特色图中文 metadata 智能备用 + 双层包装访问 bug 修复</span>

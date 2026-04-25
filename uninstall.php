@@ -3,27 +3,8 @@
  * Zuo AI Plus 卸载清理脚本
  * 当用户在 WordPress 后台删除插件时自动触发
  */
-if (!defined('ABSPATH')) {
-    // 如果直接访问，尝试加载 WordPress
-    $wpLoadPaths = [
-        __DIR__ . '/../../../wp-load.php',
-        dirname(__DIR__, 4) . '/wp-load.php',
-    ];
-    $loaded = false;
-    foreach ($wpLoadPaths as $path) {
-        if (file_exists($path)) {
-            require_once $path;
-            $loaded = true;
-            break;
-        }
-    }
-    if (!$loaded) {
-        exit('WordPress not found');
-    }
-}
-
-if (!current_user_can('manage_options')) {
-    exit('Insufficient permissions');
+if (!defined('WP_UNINSTALL_PLUGIN')) {
+    exit;
 }
 
 // ── 清理 Options ────────────────────────────────────────────────────────────
@@ -69,5 +50,15 @@ $wpdb->query(
 // ── 清理定时任务 ─────────────────────────────────────────────────────────────
 wp_clear_scheduled_hook('ai_plus_cleanup_cache');
 wp_clear_scheduled_hook('ai_plus_stats_cron');
+wp_clear_scheduled_hook('ai_plus_nav_log_cleanup');
+
+// ── 清理导航相关 Transients ──────────────────────────────────────────────
+$wpdb->query(
+    "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_ai_plus_nav_%' OR option_name LIKE '_transient_timeout_ai_plus_nav_%'"
+);
+
+// ── 清理导航相关 Post Meta（可选，保留数据）──────────────────────────────
+// 如需完全清除导航数据，取消以下注释：
+// $wpdb->query("DELETE FROM {$wpdb->postmeta} WHERE meta_key IN ('nav_views','nav_view_log','nav_clicks','nav_click_log','nav_ratings','nav_url','nav_name','nav_logo','nav_description','nav_keywords','nav_screenshot','nav_ai_summary','nav_status')");
 
 delete_option('ai_plus_uninstall_done');

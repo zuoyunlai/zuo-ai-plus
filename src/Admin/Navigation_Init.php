@@ -48,7 +48,7 @@ class Navigation_Init
     public function renderImportPage(): void
     {
         if (!current_user_can('manage_options')) {
-            wp_die(__('无权访问', 'zuo-ai-plus'));
+            wp_die(esc_html(__('无权访问', 'zuo-ai-plus')));
         }
         ?>
         <div class="wrap">
@@ -86,7 +86,7 @@ class Navigation_Init
                     $categories = get_terms(['taxonomy' => 'nav_category', 'hide_empty' => false]);
                     foreach ($categories as $cat): ?>
                     <tr>
-                        <td><?php echo $cat->term_id; ?></td>
+                        <td><?php echo esc_html($cat->term_id); ?></td>
                         <td><?php echo esc_html($cat->name); ?></td>
                     </tr>
                     <?php endforeach; ?>
@@ -105,10 +105,10 @@ class Navigation_Init
             return;
         }
         if (!wp_verify_nonce(sanitize_key(wp_unslash($_POST['nav_import_nonce'])), 'nav_bulk_import')) {
-            wp_die(__('安全验证失败', 'zuo-ai-plus'));
+            wp_die(esc_html(__('安全验证失败', 'zuo-ai-plus')));
         }
         if (!current_user_can('manage_options')) {
-            wp_die(__('无权访问', 'zuo-ai-plus'));
+            wp_die(esc_html(__('无权访问', 'zuo-ai-plus')));
         }
 
         $bulkData = sanitize_textarea_field(wp_unslash($_POST['bulk_data'] ?? ''));
@@ -224,7 +224,7 @@ class Navigation_Init
     public function renderToolsPage(): void
     {
         if (!current_user_can('manage_options')) {
-            wp_die(__('无权访问', 'zuo-ai-plus'));
+            wp_die(esc_html(__('无权访问', 'zuo-ai-plus')));
         }
 
         // 获取统计
@@ -278,7 +278,7 @@ class Navigation_Init
                 开始检测
             </button>
             <div id="check-progress" style="margin-top: 15px; display: none;">
-                <p>检测中... <span id="check-count">0</span> / <?php echo $totalSites; ?></p>
+                <p>检测中... <span id="check-count">0</span> / <?php echo esc_html($totalSites); ?></p>
                 <div id="check-results"></div>
             </div>
 
@@ -296,11 +296,11 @@ class Navigation_Init
                 <tbody>
                     <?php foreach ($offlineSites as $site): ?>
                     <tr>
-                        <td><a href="<?php echo admin_url('post.php?post=' . $site['id'] . '&action=edit'); ?>"><?php echo esc_html($site['title']); ?></a></td>
+                        <td><a href="<?php echo esc_url(admin_url('post.php?post=' . $site['id'] . '&action=edit')); ?>"><?php echo esc_html($site['title']); ?></a></td>
                         <td><?php echo esc_html($site['url']); ?></td>
                         <td><?php echo esc_html($site['msg']); ?></td>
                         <td>
-                            <a href="<?php echo admin_url('post.php?post=' . $site['id'] . '&action=edit'); ?>" class="button button-small">编辑</a>
+                            <a href="<?php echo esc_url(admin_url('post.php?post=' . $site['id'] . '&action=edit')); ?>" class="button button-small">编辑</a>
                         </td>
                     </tr>
                     <?php endforeach; ?>
@@ -321,14 +321,14 @@ class Navigation_Init
             progress.style.display = 'block';
 
             var checked = 0;
-            var total = <?php echo $totalSites; ?>;
+            var total = <?php echo esc_js($totalSites); ?>;
 
             function checkBatch() {
                 fetch('<?php echo esc_url(rest_url("ai-plus/v1/nav/bulk-check-status")); ?>', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-WP-Nonce': '<?php echo wp_create_nonce("wp_rest"); ?>'
+                        'X-WP-Nonce': '<?php echo esc_js(wp_create_nonce("wp_rest")); ?>'
                     },
                     body: JSON.stringify({ limit: 10 })
                 })
@@ -407,7 +407,7 @@ class Navigation_Init
 
         // 设置特色图（网站截图）
         if (!empty($_POST['nav_screenshot_att_id'])) {
-            $attId = (int) wp_unslash($_POST['nav_screenshot_att_id']);
+            $attId = (int) sanitize_text_field(wp_unslash($_POST['nav_screenshot_att_id']));
             if ($attId > 0) {
                 set_post_thumbnail($postId, $attId);
             }
@@ -471,7 +471,7 @@ class Navigation_Init
                 } elseif ($isOnline === false) {
                     $dot = '<span style="color:#e65054;" title="' . esc_attr($statusCheck['message'] ?? '异常') . '">●</span> ';
                 }
-                echo $dot . '<a href="' . esc_url($url) . '" target="_blank" rel="noopener">' . esc_html(parse_url($url, PHP_URL_HOST)) . '</a>';
+                echo esc_html($dot) . '<a href="' . esc_url($url) . '" target="_blank" rel="noopener">' . esc_html(wp_parse_url($url, PHP_URL_HOST)) . '</a>';
             } else {
                 echo '—';
             }

@@ -37,6 +37,10 @@
         var viewEl = document.getElementById('view-' + view);
         if (viewEl) viewEl.style.display = 'block';
 
+        // 热门网站只在"全部网站"视图显示
+        var popularSection = document.querySelector('.nav-popular-section');
+        if (popularSection) popularSection.style.display = (view === 'all') ? '' : 'none';
+
         if (view === 'favorites') showFavorites();
         else if (view === 'history') showHistory();
     };
@@ -69,8 +73,7 @@
         var desc = esc(meta.description || '');
         var logo = escAttr(meta.logo || '');
         var firstLetter = esc(name.charAt(0).toUpperCase());
-        var blurBg = logo ? '<div class="blur-bg" style="background-image:url(\'' + logo + '\')"></div>' : '';
-
+        
         var tagsHtml = '';
         if (cats && cats.length) {
             tagsHtml += '<a href="' + escAttr(cats[0].link) + '" class="nav-card-tag tag-cat">' + esc(cats[0].name) + '</a>';
@@ -83,7 +86,7 @@
 
         return '<article class="nav-card">' +
             '<a href="' + escAttr(site.link) + '" class="nav-card-main">' +
-            '<div class="nav-card-media">' + blurBg +
+            '<div class="nav-card-media">' +
             (logo ? '<img src="' + logo + '" alt="' + name + '" class="nav-card-img" loading="lazy">' : '<span class="nav-card-letter">' + firstLetter + '</span>') +
             '</div>' +
             '<div class="nav-card-body">' +
@@ -156,10 +159,9 @@
                 var logoUrl = escAttr(item.logo || '');
                 var itemUrl = escAttr(item.url || '#');
                 var itemName = esc(item.name || '');
-                var blurBg = logoUrl ? '<div class="blur-bg" style="background-image:url(\'' + logoUrl + '\')"></div>' : '';
-                return '<article class="nav-card">' +
+                                return '<article class="nav-card">' +
                     '<a href="' + itemUrl + '" class="nav-card-main" target="_blank" rel="noopener">' +
-                    '<div class="nav-card-media">' + blurBg +
+                    '<div class="nav-card-media">' +
                     (logoUrl ? '<img src="' + logoUrl + '" alt="' + itemName + '" class="nav-card-img" loading="lazy">' : '<span class="nav-card-letter">' + firstLetter + '</span>') +
                     '</div><div class="nav-card-body">' +
                     '<h3 class="nav-card-title"><b>' + itemName + '</b></h3>' +
@@ -545,4 +547,133 @@
         if (icon) icon.textContent = isOpen ? '▸' : '▾';
     };
 
+
+    // ── 访问量图表（Chart.js，支持 PC/移动/合计切换） ────────────────────────
+    var visitsChartInstance = null;
+    var visitsChartData = null;
+    var visitsChartType = 'total'; // 当前选中的类型
+
+    var visitsTypeConfig = {
+        total:  { label: '合计', color: 'rgba(26, 115, 232, 0.45)', colorActive: 'rgba(26, 115, 232, 0.85)', border: 'rgba(26, 115, 232, 0.7)', borderActive: 'rgba(26, 115, 232, 1)' },
+        pc:     { label: 'PC',   color: 'rgba(34, 139, 34, 0.4)',   colorActive: 'rgba(34, 139, 34, 0.85)',   border: 'rgba(34, 139, 34, 0.65)', borderActive: 'rgba(34, 139, 34, 1)' },
+        mobile: { label: '移动', color: 'rgba(255, 152, 0, 0.4)',   colorActive: 'rgba(255, 152, 0, 0.85)',   border: 'rgba(255, 152, 0, 0.65)', borderActive: 'rgba(255, 152, 0, 1)' }
+    };
+
+    function updateVisitsChart(type) {
+        if (!visitsChartData || !visitsChartInstance) return;
+        var cfg = visitsTypeConfig[type];
+        var counts = visitsChartData.stats.map(function (s) { return s[type] || 0; });
+        var last = counts.length - 1;
+
+        visitsChartInstance.data.datasets[0].label = cfg.label;
+        visitsChartInstance.data.datasets[0].data = counts;
+        visitsChartInstance.data.datasets[0].backgroundColor = counts.map(function (v, i) {
+            return i === last ? cfg.colorActive : cfg.color;
+        });
+        visitsChartInstance.data.datasets[0].borderColor = counts.map(function (v, i) {
+            return i === last ? cfg.borderActive : cfg.border;
+        });
+        visitsChartInstance.update();
+    }
+
+    function renderVisitsChart() {
+        var container = document.getElementById('navVisitsChart');
+        var canvas = document.getElementById('visitsChartCanvas');
+        var cfg = window.zuoNav || {};
+        if (!container || !canvas || !cfg.viewStatsUrl) return;
+
+        fetch(cfg.viewStatsUrl)
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data.success || !data.stats || !data.stats.length) return;
+                visitsChartData = data;
+
+                var labels = data.stats.map(function (s) {
+                    var parts = s.date.split('-');
+                    return parts[1] + '/' + parts[2];
+                });
+                var counts = data.stats.map(function (s) { return s.total || 0; });
+                var last = counts.length - 1;
+                var tc = visitsTypeConfig.total;
+
+                var ctx = canvas.getContext('2d');
+                visitsChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: tc.label,
+                            data: counts,
+                            backgroundColor: counts.map(function (v, i) {
+                                return i === last ? tc.colorActive : tc.color;
+                            }),
+                            borderColor: counts.map(function (v, i) {
+                                return i === last ? tc.borderActive : tc.border;
+                            }),
+                            borderWidth: 1,
+                            borderRadius: 4,
+                            maxBarThickness: 28
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: { duration: 300 },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    title: function (items) {
+                                        var idx = items[0].dataIndex;
+                                        return data.stats[idx].date;
+                                    },
+                                    label: function (item) {
+                                        var idx = item.dataIndex;
+                                        var s = data.stats[idx];
+                                        return visitsTypeConfig[visitsChartType].label + ': ' + item.raw +
+                                            (visitsChartType !== 'total' ? ' (合计: ' + (s.total || 0) + ')' : '');
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { display: false },
+                                ticks: { font: { size: 11 } }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: 'rgba(0,0,0,0.06)' },
+                                ticks: {
+                                    font: { size: 11 },
+                                    precision: 0,
+                                    stepSize: 1
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // 绑定切换按钮
+                var tabs = document.querySelectorAll('.nav-visits-tab');
+                tabs.forEach(function (tab) {
+                    tab.addEventListener('click', function () {
+                        tabs.forEach(function (t) { t.classList.remove('active'); });
+                        tab.classList.add('active');
+                        visitsChartType = tab.getAttribute('data-type');
+                        updateVisitsChart(visitsChartType);
+                    });
+                });
+            })
+            .catch(function () {
+                container.style.display = 'none';
+            });
+    }
+
+    // 详情页自动加载图表
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', renderVisitsChart);
+    } else {
+        renderVisitsChart();
+    }
 })();

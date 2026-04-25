@@ -7,10 +7,13 @@
  */
 namespace ZuoAIPlus\Models;
 
+if (!defined('ABSPATH')) exit;
+
 class MiniMaxModel extends BaseModel
 {
     protected string $name = 'MiniMax';
     protected string $endpoint = 'https://api.minimax.chat/v1';
+    protected string $imageEndpoint = 'https://api.minimaxi.com/v1/image_generation';
 
     public function __construct(string $apiKey, string $modelId = 'MiniMax-M2.7', string $baseUrl = '')
     {
@@ -62,12 +65,6 @@ class MiniMaxModel extends BaseModel
         ];
     }
 
-    public function completion(string $prompt, array $opts = []): array
-    {
-        return $this->chat([['role' => 'user', 'content' => $prompt]], $opts);
-    }
-
-
     /**
      * 将用户尺寸（如 1216*832）转换为 MiniMax aspect_ratio
      * 1216*832 ≈ 3:2，实际用 3:2
@@ -104,34 +101,33 @@ class MiniMaxModel extends BaseModel
         ];
 
         // 图片生成结果不应缓存（prompt 相同也会因时间戳等因素不同），直接请求
-        $body_resp = $this->request('POST', "{$this->endpoint}/text2image/imagegeneration", $body, [
+        // 新版 MiniMax 图片 API (2025+): endpoint 已从 text2image/imagegeneration 迁移到 image_generation
+        $body['response_format'] = 'url';  // 明确请求 URL 格式（24h 有效）
+        $body_resp = $this->request('POST', $this->imageEndpoint, $body, [
             'Content-Type'  => 'application/json',
             'Authorization' => 'Bearer ' . $this->apiKey,
         ], true, $opts);
 
-        // 解析图片 URL：优先取 data[0].url，若返回 AIGC 合规元数据（含 AIGC 节点）则取 data[0].AIGC.url
-        $data0 = $body_resp['data'][0] ?? [];
-        $url   = '';
-        $aigc  = $data0['AIGC']['url'] ?? '';  // AIGC 合规节点含真实 URL
+        // 解析新版响应格式: data.image_urls[0]
+        $url = $body_resp['data']['image_urls'][0] ?? '';
 
-        if (!empty($aigc)) {
-            // AIGC 节点优先（部分接口将图片 URL 放在这里）
-            $url = $aigc;
-        } elseif (!empty($data0['url'])) {
-            $url = $data0['url'];
-        }
-
-        // 如果 URL 仍然为空（API 返回纯 AIGC 合规数据但无图片 URL），记录日志并给通用提示
+        // 兼容旧版响应格式: data[0].url / data[0].AIGC.url
         if (empty($url)) {
-            error_log('AI Plus MiniMaxModel image: no URL in response, AIGC keys: ' . json_encode(array_keys($data0['AIGC'] ?? [])));
-            throw new \Exception('图片生成返回无效内容，请检查 MiniMax API 配额或模型配置');
+            $data0 = $body_resp['data'][0] ?? [];
+            $aigc  = $data0['AIGC']['url'] ?? '';
+            if (!empty($aigc)) {
+                $url = $aigc;
+            } elseif (!empty($data0['url'])) {
+                $url = $data0['url'];
+            }
         }
 
-        return [
-            'url'            => $url,
-            'revised_prompt' => $data0['revised_prompt'] ?? $prompt,
-            'aigc_label'     => $data0['AIGC']['Label'] ?? '',
-        ];
+        if (empty($url)) {
+            error_log('AI Plus MiniMaxModel image error: ' . json_encode(is_array($body_resp) ? array_keys($body_resp) : '(null)'));
+            throw new \Exception('图片生成失败，AI未返回有效图片URL，请检查 MiniMax API 配额或模型配置');
+        }
+
+        return ['url' => $url, 'revised_prompt' => $prompt];
     }
 
     public function countTokens(string $text): int

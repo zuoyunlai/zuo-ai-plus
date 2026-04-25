@@ -5,6 +5,8 @@
  */
 namespace ZuoAIPlus\Models;
 
+if (!defined('ABSPATH')) exit;
+
 class DeepSeekModel extends BaseModel
 {
     protected string $name = 'DeepSeek';
@@ -16,10 +18,5 @@ class DeepSeekModel extends BaseModel
         $this->apiKey = $apiKey;
         $this->modelId = $modelId ?: 'deepseek-chat';
         $this->baseUrl = $baseUrl;
-    }
-
-    public function image(string $prompt, array $opts = []): array
-    {
-        throw new \Exception('DeepSeek 暂不支持图像生成');
     }
 }

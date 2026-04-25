@@ -41,7 +41,7 @@ $query = new \WP_Query($queryArgs);
           <button type="button" class="nav-quick-link active" data-view="all" onclick="switchView('all')">
             <span class="nav-quick-icon">🏠</span>
             <span>全部网站</span>
-            <span class="nav-quick-count"><?php echo wp_count_posts('nav_site')->publish; ?></span>
+            <span class="nav-quick-count"><?php echo esc_html(wp_count_posts('nav_site')->publish); ?></span>
           </button>
           <button type="button" class="nav-quick-link" data-view="favorites" onclick="switchView('favorites')">
             <span class="nav-quick-icon">❤️</span>
@@ -95,9 +95,56 @@ $query = new \WP_Query($queryArgs);
 
     <!-- 右侧主内容 -->
     <main class="nav-main">
+
+      <?php
+      // 热门网站（按点击量排序，取前12）
+      $popularQuery = new \WP_Query([
+          'post_type'      => 'nav_site',
+          'post_status'    => 'publish',
+          'posts_per_page' => 12,
+          'meta_key'       => 'nav_views',
+          'orderby'        => 'meta_value_num',
+          'order'          => 'DESC',
+      ]);
+      if ($popularQuery->have_posts()):
+          update_meta_cache('post', wp_list_pluck($popularQuery->posts, 'ID'));
+          update_object_term_cache(wp_list_pluck($popularQuery->posts, 'ID'), 'nav_site');
+      ?>
+      <!-- 热门网站 -->
+      <div class="nav-popular-section">
+        <h3 class="nav-popular-title">🔥 热门网站</h3>
+        <div class="nav-popular-grid">
+          <?php while ($popularQuery->have_posts()): $popularQuery->the_post();
+              $pmeta = \ZuoAIPlus\Models\NavigationSite::getMeta(get_the_ID());
+              $plogo = $pmeta['logo'];
+              $pname = $pmeta['name'] ?: get_the_title();
+              $pdesc = $pmeta['description'];
+              $pviews = (int) get_post_meta(get_the_ID(), 'nav_views', true);
+          ?>
+          <a href="<?php echo esc_url(get_permalink()); ?>" class="nav-popular-item" onclick="recordNavClick(<?php echo esc_js(get_the_ID()); ?>)">
+            <div class="nav-popular-logo">
+              <?php if ($plogo): ?>
+              <img src="<?php echo esc_url($plogo); ?>" alt="<?php echo esc_attr($pname); ?>" loading="lazy">
+              <?php else: ?>
+              <span class="nav-popular-letter"><?php echo esc_html(mb_substr($pname, 0, 1, 'UTF-8')); ?></span>
+              <?php endif; ?>
+            </div>
+            <div class="nav-popular-info">
+              <span class="nav-popular-name"><?php echo esc_html($pname); ?></span>
+              <?php if ($pdesc): ?>
+              <span class="nav-popular-desc"><?php echo esc_html(mb_substr($pdesc, 0, 30, 'UTF-8')); ?></span>
+              <?php endif; ?>
+            </div>
+            <span class="nav-popular-clicks"><?php echo esc_html($pviews); ?>次浏览</span>
+          </a>
+          <?php endwhile; wp_reset_postdata(); ?>
+        </div>
+      </div>
+      <?php endif; ?>
+
       <div class="nav-main-header">
         <h1 id="main-title">全部网站</h1>
-        <p class="nav-main-count" id="site-count-display">共 <?php echo intval(wp_count_posts('nav_site')->publish); ?> 个站点</p>
+        <p class="nav-main-count" id="site-count-display">共 <?php echo esc_html(intval(wp_count_posts('nav_site')->publish)); ?> 个站点</p>
       </div>
 
       <!-- 全部网站 -->
@@ -113,7 +160,7 @@ $query = new \WP_Query($queryArgs);
             $tags   = get_the_terms(get_the_ID(), 'nav_tag');
             $cats   = get_the_terms(get_the_ID(), 'nav_category');
         ?>
-        <article class="nav-card" data-post-id="<?php echo get_the_ID(); ?>">
+        <article class="nav-card" data-post-id="<?php echo esc_attr(get_the_ID()); ?>">
             <?php if ($meta['status'] === 'featured'): ?>
             <div class="nav-card-badge">⭐</div>
             <?php endif; ?>
@@ -121,14 +168,13 @@ $query = new \WP_Query($queryArgs);
             <a href="<?php echo esc_url(get_permalink()); ?>" class="nav-card-main">
                 <div class="nav-card-media">
                     <?php if ($logo): ?>
-                    <div class="blur-bg" style="background-image:url('<?php echo esc_url($logo); ?>')"></div>
                     <img src="<?php echo esc_url($logo); ?>" alt="<?php echo esc_attr($name); ?>" class="nav-card-img" loading="lazy">
                     <?php else: ?>
                     <span class="nav-card-letter"><?php echo esc_html(mb_substr($name, 0, 1, 'UTF-8')); ?></span>
                     <?php endif; ?>
                 </div>
                 <div class="nav-card-body">
-                    <h3 class="nav-card-title"><b><?php echo esc_html($name); ?></b></h3>
+                    <h3 class="nav-card-title"><?php echo esc_html($name); ?></h3>
                     <?php if ($desc): ?>
                     <div class="nav-card-desc"><?php echo esc_html($desc); ?></div>
                     <?php endif; ?>
@@ -148,7 +194,7 @@ $query = new \WP_Query($queryArgs);
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </div>
-                <a href="<?php echo esc_url($url); ?>" target="_blank" rel="noopener" class="nav-card-togo" title="直达" onclick="recordNavClick(<?php echo get_the_ID(); ?>)">
+                <a href="<?php echo esc_url($url); ?>" target="_blank" rel="noopener" class="nav-card-togo" title="直达" onclick="recordNavClick(<?php echo esc_js(get_the_ID()); ?>)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="7" y1="17" x2="17" y2="7"></line>
                         <polyline points="7 7 17 7 17 17"></polyline>
@@ -162,11 +208,11 @@ $query = new \WP_Query($queryArgs);
       <?php if ($query->max_num_pages > 1): ?>
       <div class="nav-pagination">
         <?php
-        echo paginate_links([
+        echo wp_kses_post(paginate_links([
             'total'   => $query->max_num_pages,
             'current' => max(1, get_query_var('paged')),
             'format'  => '?paged=%#%',
-        ]);
+        ]));
         ?>
       </div>
       <?php endif; ?>
