@@ -19,9 +19,7 @@ $offset = ($paged - 1) * $per_page;
 
 global $wpdb;
 $total_posts = (int) $wpdb->get_var(
-    $wpdb->prepare(
-        "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type='post' AND post_status='publish'"
-    )
+    "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type='post' AND post_status='publish'"
 );
 $total_pages = ceil($total_posts / $per_page);
 

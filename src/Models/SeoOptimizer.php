@@ -997,6 +997,7 @@ class SeoOptimizer
         ));
         if ($orphan_ids) {
             $placeholders = implode(',', array_fill(0, count($orphan_ids), '%d'));
+            /* phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare */
             $wpdb->query($wpdb->prepare(
                 "DELETE FROM {$wpdb->postmeta} WHERE meta_id IN ({$placeholders})",
                 ...$orphan_ids

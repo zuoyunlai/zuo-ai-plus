@@ -83,8 +83,7 @@ abstract class BaseModel
      */
     public function image(string $prompt, array $opts = []): array
     {
-        /* phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped */
-        throw new \Exception($this->name . ' 暂不支持图像生成');
+        throw new \Exception($this->name . ' 暂不支持图像生成'); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
     }
 
     /**

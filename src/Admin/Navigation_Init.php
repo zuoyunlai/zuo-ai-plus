@@ -119,6 +119,7 @@ class Navigation_Init
 
         // 防止大数据量导入时超时
         ignore_user_abort(true);
+        /* phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged */
         set_time_limit(0);
 
         $lines = explode("\n", $bulkData);
@@ -199,7 +200,7 @@ class Navigation_Init
         }
 
         // 重定向回导入页面
-        wp_redirect(add_query_arg(['page' => 'nav-bulk-import', 'settings-updated' => 'true'], admin_url('edit.php?post_type=nav_site')));
+        wp_safe_redirect(add_query_arg(['page' => 'nav-bulk-import', 'settings-updated' => 'true'], admin_url('edit.php?post_type=nav_site')));
         exit;
     }
 
