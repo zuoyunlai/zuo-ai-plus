@@ -29,6 +29,9 @@ class MarkdownConverter
         $md = preg_replace('/(?<!_)_(?!_)([^_\n]+)_(?!_)/', '<em>$1</em>', $md);
 
         // 2. 链接和图片（全局）
+        // 2a. 图片占位符：![描述](image_placeholder) → 可视占位块
+        $md = preg_replace('/!\[([^\]]*)\]\(image_placeholder\)/', '<div class="wp-block-image-ai-placeholder" style="background:#f0f0f0;border:2px dashed #ccc;border-radius:8px;padding:24px;text-align:center;margin:16px 0;min-height:120px;display:flex;align-items:center;justify-content:center;"><span style="color:#888;font-size:14px;">🖼️ $1</span></div>', $md);
+        // 2b. 正常图片
         $md = preg_replace('/!\[([^\]]*)\]\(([^\)]+)\)/', '<img src="$2" alt="$1" loading="lazy">', $md);
         $md = preg_replace('/\[([^\]]+)\]\(([^\)]+)\)/', '<a href="$2" target="_blank" rel="noopener">$1</a>', $md);
 
@@ -49,7 +52,8 @@ class MarkdownConverter
                 $block = preg_replace('/^#### (.+)$/m', '<h4>$1</h4>', $block);
                 $block = preg_replace('/^### (.+)$/m', '<h3>$1</h3>', $block);
                 $block = preg_replace('/^## (.+)$/m', '<h2>$1</h2>', $block);
-                $block = preg_replace('/^# (.+)$/m', '<h1>$1</h1>', $block);
+                // H1 标题跳过(编辑器顶部已有标题),转为段落避免重复
+                $block = preg_replace('/^# (.+)$/m', '<p>$1</p>', $block);
                 $out[] = $block;
                 continue;
             }

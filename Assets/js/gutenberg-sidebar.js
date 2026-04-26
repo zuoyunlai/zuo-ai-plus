@@ -1100,10 +1100,11 @@ function handleKeyword() {
                     currentStep = 4;
                     setGlobalResult({ type: 'info', text: updateProgress(4, 'running', '生成特色图中…') });
 
-                    // Step 5: 生成特色图
+                    // Step 5: 生成特色图（传入文章正文，让图片与内容强关联）
+                    var featuredContent = articleContent ? ('文章标题：' + title + '\n\n文章正文：' + articleContent.substring(0, 1500)) : ('文章标题：' + title);
                     return apiRequest('generate', {
                         model: model, action: 'featured_image',
-                        content: '文章标题：' + title, extra_prompt: extraPrompt
+                        content: featuredContent, extra_prompt: extraPrompt
                     });
                 });
             }).then(function(r) {

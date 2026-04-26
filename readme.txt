@@ -4,7 +4,7 @@ Tags: ai, content generator, seo, image generator, navigation
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 8.1
-Stable tag: 1.5.32
+Stable tag: 1.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: zuo-ai-plus
@@ -29,10 +29,12 @@ Zuo AI Plus brings powerful AI capabilities directly to your WordPress dashboard
 = Key Features =
 
 **Content Creation:**
-* **AI Article Generation** — One-click full-length article generation from a title
-* **Content Rewrite** — Rewrite/polish existing content while keeping original meaning
+* **AI Article Generation** — One-click structured article with subheadings, tables, lists, and image placeholders — written in natural blogger style, not AI tone
+* **Content Rewrite** — Rewrite in conversational style with varied sentence lengths, concrete examples, and natural transitions
 * **Writing Style/Tone** — Professional, casual, warm, academic styles
-* **Content Expansion** — Continue writing existing drafts seamlessly
+* **Content Expansion** — Continue writing naturally with real examples and practical tips
+* **Batch Generate** — Title → Article → Summary → Tags → Slug → Featured Image, all in one click
+* **Anti-AI Writing** — Automatic rejection of formulaic phrases like "随着…的发展", "综上所述", "首先…其次…最后"
 * **Smart Continue** — Auto-detect continue direction based on context
 * **Title Optimization** — AI-generated SEO-friendly titles (30-60 chars)
 * **Auto Summary** — One-click 100-word summary generation
@@ -103,6 +105,16 @@ Create a new nav_site post, enter a URL, click "AI Full Fetch" — the plugin au
 The plugin uses a 3-tier screenshot strategy: 1) og:image from the target site, 2) local Chrome Headless screenshot saved to uploads/nav-screenshots/ (7-day cache), 3) thum.io fallback. Screenshots are registered as WordPress media attachments with AI-generated metadata.
 
 == Changelog ==
+
+= 1.6.0 =
+* NEW: Article generation/rewrite/expand prompts upgraded to natural blogger style - no more AI tone
+* NEW: Structured article output with ##/### subheadings, Markdown tables, ordered/unordered lists
+* NEW: AI image placeholders - inserts ![desc](image_placeholder) at suitable positions with visual placeholder in editor
+* NEW: Featured image in batch generation now uses article body (first 1500 chars) for better content relevance
+* NEW: Anti-AI-writing checklist - bans formulaic openings, eight-legged structures, parallel stacking, hollow endings
+* NEW: H1 headings auto-downgraded to paragraphs to avoid duplicate titles in editor
+* FIX: Fatal error in title optimization - SeoOptimizer class not imported
+* FIX: PHP-FPM pm.max_requests too low (10→500) causing frequent process recycling
 
 = 1.5.32 =
 * Fix: SEO batch endpoint exposed without auth (`__return_true` → `canEdit`)
