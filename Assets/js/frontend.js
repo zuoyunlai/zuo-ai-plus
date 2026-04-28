@@ -46,7 +46,7 @@
 	var articleContext = ctxInput ? atob(ctxInput.textContent.trim()) : '';
 
         // 渲染用户消息
-        addMessageEl(container, msg, 'user');
+        addMessageEl(container, msg, 'user', false);
         chatHistory.push({ role: 'user', content: msg });
         input.value = '';
 
@@ -71,14 +71,26 @@
         .then(function (r) { return r.json(); })
         .then(function (data) {
             loadingEl.remove();
-            var reply = (data.code === 'success' && data.data) ? (data.data.choices?.[0]?.message?.content || data.data.content || '') : '';
-            if (data.code !== 'success') { reply = '抱歉出错了: ' + (data.message || data.error || '未知错误'); }
-            addMessageEl(container, reply, 'assistant');
+            var reply = '';
+            var isHtml = false;
+            
+            // 检查权限错误（包含登录链接）
+            if (data.code === 'rest_forbidden_chat' || (data.message && data.message.indexOf('<a') !== -1)) {
+                reply = data.message;
+                isHtml = true;
+            } else if (data.code === 'success' && data.data) {
+                reply = data.data.choices?.[0]?.message?.content || data.data.content || '';
+            } else {
+                reply = data.message || data.error || '未知错误';
+                if (reply.indexOf('<a') !== -1) isHtml = true;
+            }
+            
+            addMessageEl(container, reply, 'assistant', isHtml);
             chatHistory.push({ role: 'assistant', content: reply });
         })
         .catch(function () {
             loadingEl.remove();
-            addMessageEl(container, '网络错误，请稍后重试', 'assistant');
+            addMessageEl(container, '网络错误，请稍后重试', 'assistant', false);
         });
     };
 
@@ -104,7 +116,7 @@
             var model = modelSel ? modelSel.value : (chat.dataset.model || 'minimax');
 
             // 渲染用户消息
-            addMessageEl(container, msg, 'user');
+            addMessageEl(container, msg, 'user', false);
             history.push({ role: 'user', content: msg });
             input.value = '';
 
@@ -126,14 +138,26 @@
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 loadingEl.remove();
-                var reply = (data.code === 'success' && data.data) ? (data.data.choices?.[0]?.message?.content || data.data.content || '') : '';
-                if (data.code !== 'success') { reply = data.message || data.error || '无响应'; }
-                addMessageEl(container, reply, 'assistant');
+                var reply = '';
+                var isHtml = false;
+                
+                // 检查权限错误（包含登录链接）
+                if (data.code === 'rest_forbidden_chat' || (data.message && data.message.indexOf('<a') !== -1)) {
+                    reply = data.message;
+                    isHtml = true;
+                } else if (data.code === 'success' && data.data) {
+                    reply = data.data.choices?.[0]?.message?.content || data.data.content || '';
+                } else {
+                    reply = data.message || data.error || '无响应';
+                    if (reply.indexOf('<a') !== -1) isHtml = true;
+                }
+                
+                addMessageEl(container, reply, 'assistant', isHtml);
                 history.push({ role: 'assistant', content: reply });
             })
             .catch(function () {
                 loadingEl.remove();
-                addMessageEl(container, '网络错误，请重试', 'assistant');
+                addMessageEl(container, '网络错误，请重试', 'assistant', false);
             });
         }
 
@@ -205,9 +229,21 @@
             })
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                var reply = (data.code === 'success' && data.data) ? (data.data.choices?.[0]?.message?.content || data.data.content || '') : '';
-                if (data.code !== 'success') { reply = data.message || data.error || '无响应'; }
-                messages.push({ role: 'assistant', content: reply });
+                var reply = '';
+                var isHtml = false;
+                
+                // 检查权限错误（包含登录链接）
+                if (data.code === 'rest_forbidden_chat' || (data.message && data.message.indexOf('<a') !== -1)) {
+                    reply = data.message;
+                    isHtml = true;
+                } else if (data.code === 'success' && data.data) {
+                    reply = data.data.choices?.[0]?.message?.content || data.data.content || '';
+                } else {
+                    reply = data.message || data.error || '无响应';
+                    if (reply.indexOf('<a') !== -1) isHtml = true;
+                }
+                
+                messages.push({ role: 'assistant', content: reply, isHtml: isHtml });
                 hideLoading();
                 renderMessages();
             })
@@ -233,7 +269,12 @@
                 var div = document.createElement('div');
                 div.className = 'ai-plus-msg ' + m.role;
                 if (m.role === 'assistant') {
-                    try { div.innerHTML = parseMarkdown(m.content); } catch(e) { div.textContent = m.content; }
+                    // 检查是否需要直接渲染 HTML（权限错误消息）
+                    if (m.isHtml) {
+                        div.innerHTML = m.content;
+                    } else {
+                        try { div.innerHTML = parseMarkdown(m.content); } catch(e) { div.textContent = m.content; }
+                    }
                 } else {
                     div.textContent = m.content;
                 }
@@ -254,16 +295,21 @@
     }
 
     // ── 通用消息渲染 ──────────────────────────────────────────────────────────
-    function addMessageEl(container, text, role) {
+    function addMessageEl(container, text, role, isHtml) {
         if (!container) return;
         var el = document.createElement('div');
         el.className = 'ai-chat-msg ' + role;
-        // AI 回复（assistant）才渲染 Markdown；用户输入始终纯文本
-        if (role === 'assistant') {
+        
+        // 权限错误消息（包含 HTML 链接）直接渲染
+        if (isHtml && role === 'assistant') {
+            el.innerHTML = text;
+        } else if (role === 'assistant') {
+            // AI 回复才渲染 Markdown；用户输入始终纯文本
             try { el.innerHTML = parseMarkdown(text); } catch(e) { el.textContent = text; }
         } else {
             el.textContent = text;
         }
+        
         container.appendChild(el);
         container.scrollTop = container.scrollHeight;
     }

@@ -82,7 +82,24 @@ class Frontend_Init
     {
         // 匿名用户不允许调用聊天接口，显示友好提示
         if (!is_user_logged_in()) {
-            return '<div class="ai-plus-embed-chat"><div class="ai-chat-header"><span>AI 对话</span></div><div class="ai-chat-messages embed-messages" style="padding:12px;color:#888;">请先登录后再使用 AI 对话功能。</div></div>';
+            $loginUrl = \wp_login_url();
+            $registerUrl = '';
+            if (\get_option('users_can_register')) {
+                $registerUrl = \site_url('/wp-login.php?action=register');
+            }
+            
+            $message = '欢迎浏览本站，如果您需要客服服务，请先登录本站。';
+            if ($registerUrl) {
+                $message .= '如果未注册请先注册。';
+            }
+            
+            $links = '<br><br>';
+            $links .= '<a href="' . \esc_url($loginUrl) . '" target="_blank" style="color:#0073aa;font-weight:bold;">👉 点击登录</a>';
+            if ($registerUrl) {
+                $links .= '<br><a href="' . \esc_url($registerUrl) . '" target="_blank" style="color:#0073aa;font-weight:bold;">👉 点击注册</a>';
+            }
+            
+            return '<div class="ai-plus-embed-chat"><div class="ai-chat-header"><span>AI 对话</span></div><div class="ai-chat-messages embed-messages" style="padding:12px;color:#333;line-height:1.6;">' . $message . $links . '</div></div>';
         }
 
         $defaultModel = \get_option('ai_plus_default_model', 'minimax');

@@ -64,9 +64,24 @@
             })
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                var reply = (data.code === 'success' && data.data) ? (data.data.choices?.[0]?.message?.content || data.data.content || '') : '';
-                if (data.code !== 'success') { reply = data.message || data.error || '无响应'; }
-                messages.push({ role: 'assistant', content: reply });
+                var reply = '';
+                var isHtml = false;
+                
+                // 检查权限错误（包含登录链接）
+                if (data.code === 'rest_forbidden_chat' || (data.message && data.message.indexOf('<a') !== -1)) {
+                    reply = data.message;
+                    isHtml = true;
+                } else if (data.code === 'success' && data.data) {
+                    reply = data.data.choices?.[0]?.message?.content || data.data.content || '';
+                } else {
+                    reply = data.message || data.error || '无响应';
+                    // 检查是否包含 HTML 链接
+                    if (reply.indexOf('<a') !== -1) {
+                        isHtml = true;
+                    }
+                }
+                
+                messages.push({ role: 'assistant', content: reply, isHtml: isHtml });
                 hideLoading();
                 renderMessages();
             })
@@ -91,7 +106,14 @@
                     div.style.background = '#f5f5f5';
                     div.style.border = '1px solid #e0e0e0';
                 }
-                div.textContent = m.content;
+                
+                // 如果消息包含 HTML 链接，使用 innerHTML 渲染
+                if (m.isHtml) {
+                    div.innerHTML = m.content;
+                } else {
+                    div.textContent = m.content;
+                }
+                
                 msgsEl.appendChild(div);
             });
             msgsEl.scrollTop = msgsEl.scrollHeight;

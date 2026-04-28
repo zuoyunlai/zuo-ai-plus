@@ -15,8 +15,48 @@ class ChatController extends BaseController
         register_rest_route('ai-plus/v1', '/chat', [
             'methods'             => 'POST',
             'callback'            => [$this, 'handleChat'],
-            'permission_callback' => [$this, 'canEdit'],
+            'permission_callback' => [$this, 'checkChatPermission'],
         ]);
+    }
+
+    /**
+     * 检查聊天权限 - 未登录时返回友好提示
+     * 
+     * @return bool|\WP_Error 有权限返回 true，无权限返回 WP_Error
+     */
+    public function checkChatPermission()
+    {
+        // 已登录且有编辑权限
+        if (current_user_can('edit_posts')) {
+            return true;
+        }
+
+        // 未登录时的友好提示
+        $loginUrl = wp_login_url();
+        $registerUrl = '';
+        
+        // 检查是否开启用户注册
+        if (get_option('users_can_register')) {
+            $registerUrl = site_url('/wp-login.php?action=register');
+        }
+
+        $message = '欢迎浏览本站，如果您需要客服服务，请先登录本站。';
+        if ($registerUrl) {
+            $message .= '如果未注册请先注册。';
+        }
+
+        // 构建带链接的完整消息
+        $links = '<br><br>';
+        $links .= '<a href="' . esc_url($loginUrl) . '" target="_blank" style="color:#0073aa;font-weight:bold;">👉 点击登录</a>';
+        if ($registerUrl) {
+            $links .= '<br><a href="' . esc_url($registerUrl) . '" target="_blank" style="color:#0073aa;font-weight:bold;">👉 点击注册</a>';
+        }
+
+        return new \WP_Error(
+            'rest_forbidden_chat',
+            $message . $links,
+            ['status' => 401]
+        );
     }
 
     public function handleChat(\WP_REST_Request $request): \WP_REST_Response
